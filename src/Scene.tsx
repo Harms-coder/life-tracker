@@ -11,6 +11,7 @@ const PARAMS = new URLSearchParams(location.search);
 const NOPLANE = PARAMS.has("noplane");
 const N = PARAMS.has("lag") ? Number(PARAMS.get("lag")) : LAYERS.length;
 const NEAR = PARAMS.get("near") ?? "clip";
+const PLANE_DIV = PARAMS.get("plane") === "div"; // the table tiles as divs with a background image instead of canvases
 const TABLE_AT = NEAR === "0" ? LAYERS.length : LAYERS.findIndex((l) => l.isTablePlane);
 
 /** A layer image as a canvas holding its bitmap. Not an <img>: iOS Safari crashed ("a problem repeatedly occurred")
@@ -48,5 +49,7 @@ export function SceneLayers({ near, register }: { near: boolean; register: (id: 
  *  the tilt, so the two tip together: at the identity view the tilt projects it back onto the photo exactly. */
 export function TablePlane() {
   const tiles = NOPLANE || TABLE_AT >= N ? [] : LAYERS.find((l) => l.isTablePlane)?.flat ?? [];
-  return <>{tiles.map((f) => <LayerCanvas key={f.file} file={f.file} className="plane" style={{ left: f.x, top: f.y, width: f.w, height: f.h }} />)}</>;
+  return <>{tiles.map((f) => PLANE_DIV
+    ? <div key={f.file} className="plane" style={{ left: f.x, top: f.y, width: f.w, height: f.h, backgroundImage: `url(${url(f.file)})`, backgroundSize: "100% 100%" }} />
+    : <LayerCanvas key={f.file} file={f.file} className="plane" style={{ left: f.x, top: f.y, width: f.w, height: f.h }} />)}</>;
 }
