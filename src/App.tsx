@@ -143,11 +143,26 @@ type NoteField = "good" | "better" | "change" | "learned" | `goal${number}`;
 type Notes = Partial<Record<NoteField, string>>;
 const NOTES_KEY = `notes-${MONTH.year}-${MONTH.month}`;
 const GOALS = 6;
-const GOALS_Y = 2.5 * 20; // first goal row on the left page; six rows end above the header line
+const GOALS_Y = 3 * 20; // first goal row on the left page (rows are 2 cells apart, 3 per column)
+const GOAL_COL_W = (704 - 12 * 20 - 20) / 2; // two columns to the right of the title box
+/** Position of goal i: column 0 holds 1–3, column 1 holds 4–6. Numbers sit in a one-cell square. */
+const goalPos = (i: number) => ({ x: TITLE_BOX_X + CELL / 2 + (i >= 3 ? GOAL_COL_W : 0), y: GOALS_Y + (i % 3) * 2 * CELL });
+function square(x: number, y: number, seed: string) {
+  return [wobbly(x, y, x + CELL, y, seed + "a"), wobbly(x + CELL, y, x + CELL, y + CELL, seed + "b"),
+    wobbly(x + CELL, y + CELL, x, y + CELL, seed + "c"), wobbly(x, y + CELL, x, y, seed + "d")].join(" ");
+}
 const NOTE_LABEL: Record<string, string> = {
   good: "Hvad gik godt denne måned?", better: "Gøre bedre næste måned", change: "Ændre til næste måned", learned: "Hvad har jeg lært denne måned?",
 };
 for (let i = 0; i < GOALS; i++) NOTE_LABEL["goal" + i] = `Mål ${i + 1}`;
+// ponytail: example text so the layout can be judged; seeded once, then Lukas' own text takes over
+const DEMO_NOTES: Notes = {
+  goal0: "Finde ro i hverdagen", goal1: "Løbe 10 km uden pause", goal2: "Mindre mobil om aftenen",
+  goal3: "Læse en bog færdig", goal4: "Ringe til mormor hver uge", goal5: "Spare 2.000 kr. op",
+  good: "Løbet 3 gange om ugen\nMediteret næsten hver morgen\nMindre skærm om aftenen\nBedre søvn i sidste halvdel",
+  better: "Stå op kl. 6, også i weekenden\nDrikke mere vand", change: "Dagbog om aftenen i stedet for at scrolle",
+  learned: "Gode dage starter med en god morgen\nJeg brokker mig mindre, når jeg har sovet nok",
+};
 const TITLE_BOX_X = 12 * CELL, TITLE_BOX_Y = 4 * CELL; // box around the month title on the left page
 
 type Box = { left: number; top: number; width: number; height: number };
@@ -182,7 +197,12 @@ export default function App() {
     localStorage.setItem("demo-seeded-2", "1");
     return demo;
   });
-  const [notes, setNotes] = useState<Notes>(() => load(NOTES_KEY, {}));
+  const [notes, setNotes] = useState<Notes>(() => {
+    if (localStorage.getItem("demo-notes-seeded")) return load(NOTES_KEY, {});
+    localStorage.setItem(NOTES_KEY, JSON.stringify(DEMO_NOTES));
+    localStorage.setItem("demo-notes-seeded", "1");
+    return DEMO_NOTES;
+  });
   const [prompt, setPrompt] = useState<Prompt | null>(null);
   const submitNote = (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -249,14 +269,16 @@ export default function App() {
               <SpreadLines seed="L">
                 <path d={wobbly(TITLE_BOX_X, 0, TITLE_BOX_X, HEADER_Y, "Lv")} />
                 <path d={wobbly(0, TITLE_BOX_Y, TITLE_BOX_X, TITLE_BOX_Y, "Lh")} />
+                <path d={wobbly(TITLE_BOX_X + CELL / 2, 2 * CELL + 4, TITLE_BOX_X + CELL / 2 + 150, 2 * CELL + 4, "Lu")} strokeWidth={1.3} />
+                {Array.from({ length: GOALS }, (_, i) => <path key={i} d={square(goalPos(i).x, goalPos(i).y, "sq" + i)} strokeWidth={1.3} />)}
               </SpreadLines>
               <Ink seed="title" text={MONTH.label} className="title" />
               <Ink seed="subtitle" text="Mål denne måned" className="subtitle" />
               {Array.from({ length: GOALS }, (_, i) => (
                 <div key={i}>
-                  <Ink seed={"gn" + i} text={`${i + 1}.`} className="goal__number" style={{ top: GOALS_Y + i * CELL + 2 }} />
+                  <span className="goal__number" style={{ left: goalPos(i).x, top: goalPos(i).y }}><Ink seed={"gn" + i} text={String(i + 1)} /></span>
                   <NoteBox field={`goal${i}`} notes={notes} onOpen={openNote}
-                    box={{ left: TITLE_BOX_X + 1.6 * CELL, top: GOALS_Y + i * CELL, width: PAGE_W - TITLE_BOX_X - 2.6 * CELL, height: CELL }} />
+                    box={{ left: goalPos(i).x + CELL + 4, top: goalPos(i).y - CELL / 2, width: GOAL_COL_W - CELL - 14, height: 2 * CELL }} />
                 </div>
               ))}
             </div>
