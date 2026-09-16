@@ -3,7 +3,9 @@ import scene from "./scene.json";
 import { LAYERS, layerRect, type Rect } from "./layout";
 
 export type LayerEl = { el: HTMLElement; rect: Rect; depth: number };
-export const url = (file: string) => `${import.meta.env.BASE_URL}${scene.path}${file}`;
+declare const __BUILD__: string; // set in vite.config.ts
+/** Layer files keep their names between builds, so the build stamp busts the phone's cache of the old ones. */
+export const url = (file: string) => `${import.meta.env.BASE_URL}${scene.path}${file}?v=${encodeURIComponent(__BUILD__)}`;
 const TABLE_AT = LAYERS.findIndex((l) => l.isTablePlane);
 export const TABLE_LAYER = LAYERS[TABLE_AT];
 /** Layers behind the table (wall, view, window): composited canvases before the tilt, each placed by its depth. */

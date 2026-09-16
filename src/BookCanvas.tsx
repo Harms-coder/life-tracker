@@ -127,7 +127,8 @@ export const BookCanvas = forwardRef<BookCanvasHandle, {
       const ya = (r.y + (r.h * i) / n) * v.s + v.y, yb = (r.y + (r.h * (i + 1)) / n) * v.s + v.y, xa = r.x * v.s + v.x, xb = (r.x + r.w) * v.s + v.x;
       const a = pr.toScreen(xa, ya), b = pr.toScreen(xb, ya), d = pr.toScreen(xa, yb), e = pr.toScreen(xb, yb);
       if (!a || !b || !d || !e || e.y <= a.y || e.y < rp.y0 || a.y > rp.y0 + rp.h) continue;
-      rc.drawImage(img, 0, (sh * i) / n, sw, sh / n, (a.x + d.x) / 2, a.y, (b.x - a.x + e.x - d.x) / 2, e.y - a.y);
+      // each strip a little taller than its slot, so Safari's antialiased strip edges do not show as seams
+      rc.drawImage(img, 0, (sh * i) / n, sw, sh / n + (i < n - 1 ? sh / n / 4 : 0), (a.x + d.x) / 2, a.y, (b.x - a.x + e.x - d.x) / 2, e.y - a.y + (i < n - 1 ? 1.5 / k : 0));
     }
   };
   const shadowImg = useRef<{ cv: HTMLCanvasElement; r: Rect } | null>(null);
