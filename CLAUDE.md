@@ -166,10 +166,22 @@ Rækker = dage 1–31 (antal efter måneden). Kolonner = brugerens egne trackere
 - Test-scripts ligger i sessionens scratchpad (`pw/shots.mjs` skærmbilleder, `pw/bench.mjs` frame-tider i WebKit,
   `pw/tapcheck.mjs` tryk). Dev-server: `npm run dev`. I dev sætter BookCanvas `window.__view` (x, y, s) til scripts.
 
-## Status 2026-09-16 kl. 22.15
-- Dybdelag + fælles bordplan (TASK_scene_depth.md trin 1–3) er lavet og pushet; galleri på den faste Artifact-url. Lukas har
-  IKKE set det på telefonen endnu – det er første skridt. Derefter: hans OK → trin 4–5 (lys, skygge, fokus fra scene.json).
-- Kør: `npm run scene` efter ændringer i lag/pad/anchor/kamera; `npm run scenecheck` + `npm run zoomcheck` før push.
+## Status 2026-09-16 kl. 23.00 (sådan fortsætter man i morgen)
+- Dybdelag + fælles bordplan (TASK_scene_depth.md trin 1–3) VIRKER på Lukas' iPhone (bekræftet 22.50 med build 22.47).
+  Han så to fejl i det build: tynde vandrette streger over bordet (Safaris sømme mellem striberne) og bordets forkant
+  tegnet to gange (telefonen havde GAMLE bordplade-filer i cachen – samme filnavne, nyt indhold). Begge rettet i build
+  22.54 (stribe-overlap + `?v=<build>` på lag-adresserne) – IKKE bekræftet af Lukas endnu. FØRSTE SKRIDT: bed om hans dom
+  (start, pinch, panorering) på https://harms-coder.github.io/life-tracker/ – og et skærmbillede.
+- iPHONE-LÆRE (kostede 5 runder): Safari på iPhone gik ned ("Der var gentagne problemer") med ALT andet end disse to
+  elementtyper: kompositlag (canvas m. will-change) FØR `.tilt`, og bogens ene canvas INDE i `.gesture` (preserve-3d-kæden).
+  Canvas/img/div-med-baggrund inde i `.worldflat` eller efter `.tilt` = nedbrud, uanset størrelse. Derfor tegnes bordplade,
+  skygge, ben, pynt og stol nu ind i ÉT rum-canvas før vippet (`projectImage` i BookCanvas: stribe for stribe med samme
+  projektion som CSS-vippet, `projector()` i camera.ts). Bordpladen kan ikke ligge i bogens canvas: den løftes BOOK_T (tykkelse).
+  Playwright-WebKit på Mac viser IKKE disse nedbrud. Test kun på telefonen; ændr ikke DOM-strukturen uden at teste der.
+- Kendt/åbent: mid-pinch følger rum-canvasset bogen (dybde 1) indtil næste omtegning (renderLive 120 ms) – stolen (1,35)
+  hakker lidt. Bordpladen over bogen er sløret fladt (fotoet har få pixels der). Derefter: trin 4–5 (lys, skygge, fokus fra
+  `light`/`focus` i scene.json), galleri-billeder er fra før ombygningen (kør scenecheck/zoomcheck + tools/gallery.py).
+- Kør: `npm run scene` efter ændringer i lag/pad/anchor/kamera/nearEdge; `npm run scenecheck` + `npm run zoomcheck` før push.
 
 ## Status 2026-09-16 kl. 20.30 (ældre)
 - Live: https://harms-coder.github.io/life-tracker/ · repo `Harms-coder/life-tracker` · alt er committet og pushet (d6bb0b7).
