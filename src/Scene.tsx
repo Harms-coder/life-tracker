@@ -5,11 +5,13 @@ import { LAYERS, layerRect, type Rect } from "./layout";
 export type LayerEl = { el: HTMLElement; rect: Rect; depth: number };
 const url = (file: string) => `${import.meta.env.BASE_URL}${scene.path}${file}`;
 // To bisect a crash on a phone: ?noplane = the table as a flat 2D layer instead of tilting with the book;
-// ?lag=N = only the first N layers of scene.json (0 = the book alone).
+// ?lag=N = only the first N layers of scene.json (0 = the book alone); ?near=old = the layers in front of the book as
+// free composited canvases after the tilt (crashed iOS Safari); ?near=0 = all layers behind the book.
 const PARAMS = new URLSearchParams(location.search);
 const NOPLANE = PARAMS.has("noplane");
 const N = PARAMS.has("lag") ? Number(PARAMS.get("lag")) : LAYERS.length;
-const TABLE_AT = LAYERS.findIndex((l) => l.isTablePlane);
+const NEAR = PARAMS.get("near") ?? "clip";
+const TABLE_AT = NEAR === "0" ? LAYERS.length : LAYERS.findIndex((l) => l.isTablePlane);
 
 /** A layer image as a canvas holding its bitmap. Not an <img>: iOS Safari crashed ("a problem repeatedly occurred")
  *  with the layers as images, in particular the huge (in CSS px) table tiles inside the 3D tilt – it can rasterize a
@@ -27,10 +29,12 @@ function LayerCanvas({ file, className, style, onEl }: { file: string; className
 
 /** The room as depth layers (src/scene.json): each a canvas in world units that BookCanvas places every frame from
  *  the camera. Layers listed before the table plane come before the tilt (book + table top) in the DOM, the ones after
- *  it – things standing on the table, the chair – after it, so they overlap the table's edge as in the photo. */
+ *  it – things standing on the table, the chair – after it, so they overlap the table's edge as in the photo. The ones
+ *  after live in a box clipped to the screen: as free composited layers on top of the 3D tilt they crashed iOS Safari
+ *  ("a problem repeatedly occurred"), presumably from the unbounded projected bounds of the tilted plane. */
 export function SceneLayers({ near, register }: { near: boolean; register: (id: string, l: LayerEl | null) => void }) {
   return (
-    <div className="scene2d">
+    <div className={"scene2d" + (near && NEAR === "clip" ? " near" : "")}>
       {LAYERS.filter((l, i) => i < N && (NOPLANE || !l.flat) && i > TABLE_AT === near).map((l) => {
         const rect = layerRect(l);
         return <LayerCanvas key={l.id} file={l.id + ".webp"} className="layer" style={{ width: rect.w, height: rect.h }}

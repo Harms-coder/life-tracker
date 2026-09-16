@@ -34,6 +34,10 @@ body { font-family: var(--font-hand); -webkit-user-select: none; user-select: no
 /* the room: depth layers from scene.json, each an <img> in world units placed per frame (its own compositor layer) */
 .scene2d { position: absolute; left: 0; top: 0; }
 .layer { position: absolute; left: 0; top: 0; transform-origin: 0 0; will-change: transform; display: block; pointer-events: none; } /* canvases, not <img>: see Scene.tsx */
+/* the layers in front of the book: one composited box the size of the screen, its canvases painted into it (not
+   composited on their own: see Scene.tsx) */
+.scene2d.near { position: absolute; inset: 0; overflow: hidden; will-change: transform; }
+.scene2d.near .layer { will-change: auto; }
 /* the table top in the book's plane, inside the tilt */
 .plane { position: absolute; will-change: transform; display: block; pointer-events: none; }
 /* ?nobook (dev): the scene alone, to compare with the photo */
