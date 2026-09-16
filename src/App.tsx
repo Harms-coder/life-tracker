@@ -3,16 +3,19 @@ import { Zoom } from "./Zoom";
 import { HandX } from "./HandX";
 import { seededRandom } from "./random";
 
+declare const __BUILD__: string; // set in vite.config.ts
+
 const CELL = 20, PAGE_W = 704, PAGE_H = 1000, COVER = 14;
 const BOOK_W = PAGE_W * 2 + COVER * 2, BOOK_H = PAGE_H + COVER * 2;
-const HEADER_ROWS = 8; // header area is rows 0..8, days start at row 8
+const CW = 30, CH = 24; // table cells are wider/taller than the paper grid so the table fills the page and "7,5" fits
+const HEADER_H = 8 * CH;
 const TABLE_LEFT = CELL;
 const DAY_COL_W = 2; // weekday letter + number
 
 type ColType = "check" | "number" | "rating" | "dots";
 type Column = { id: string; name: string; type: ColType };
 const TYPE_LABEL: Record<ColType, string> = { check: "Afkrydsning", number: "Tal", rating: "Rating 1–10", dots: "Prikgraf 0–10" };
-const widthOf = (t: ColType) => (t === "number" ? 2 : t === "dots" ? 6 : 1);
+const widthOf = (t: ColType) => (t === "number" ? 2 : t === "dots" ? 6 : 1); // in table cells
 
 // ponytail: fixed month; months + page turning come in roadmap step 2
 const MONTH = { year: 2026, month: 9, label: "September 2026" };
@@ -36,7 +39,7 @@ const WEEKDAY = "SMTOTFL"; // indexed by Date.getDay()
 const VALUES_KEY = `values-${MONTH.year}-${MONTH.month}`;
 const COLUMNS_KEY = "columns";
 /** x-position (px) of a 0..10 value inside the 6-cell dots column; 0 and 10 sit mid-cell in the outer cells */
-const dotX = (v: number) => CELL / 2 + (v / 10) * (5 * CELL);
+const dotX = (v: number) => CW / 2 + (v / 10) * (5 * CW);
 /** Month average of a numeric column, written the Danish way ("7,3"); null when nothing is filled in. */
 function average(values: Values, col: Column): string | null {
   const nums = Object.entries(values)
@@ -46,6 +49,7 @@ function average(values: Values, col: Column): string | null {
   if (!nums.length) return null;
   return (nums.reduce((a, b) => a + b, 0) / nums.length).toFixed(1).replace(".", ",");
 }
+const count = (values: Values, col: Column) => Object.keys(values).filter((k) => k.endsWith(":" + col.id)).length;
 const generateId = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
 
 type Values = Record<string, string>; // "x" for checks, "71,5" / "8" for numbers, "7.5" for dots
@@ -70,15 +74,27 @@ function wobbly(x1: number, y1: number, x2: number, y2: number, seed: string) {
 }
 
 function TableLines({ xs }: { xs: number[] }) {
-  const top = CELL, bottom = PAGE_H - CELL, headerY = HEADER_ROWS * CELL, right = xs[xs.length - 1];
+  const top = CELL, headerY = CELL + HEADER_H, bottom = headerY + (DAYS + 1) * CH, right = xs[xs.length - 1];
   return (
     <svg className="lines" viewBox={`0 0 ${PAGE_W} ${PAGE_H}`}>
       {xs.map((x, i) => <path key={i} d={wobbly(x, top, x, bottom, "v" + i)} />)}
       <path d={wobbly(TABLE_LEFT, headerY, right, headerY, "h")} />
-      <path d={wobbly(TABLE_LEFT, headerY + DAYS * CELL, right, headerY + DAYS * CELL, "h2")} />
-      <path d={wobbly(TABLE_LEFT, headerY + (DAYS + 1) * CELL, right, headerY + (DAYS + 1) * CELL, "h3")} />
+      <path d={wobbly(TABLE_LEFT, headerY + DAYS * CH, right, headerY + DAYS * CH, "h2")} />
+      <path d={wobbly(TABLE_LEFT, bottom, right, bottom, "h3")} />
     </svg>
   );
+}
+
+/** Pen line joining the sleep dots of consecutive filled-in days. */
+function DotGraph({ values, col, left }: { values: Values; col: Column; left: number }) {
+  let d = "", pen = false;
+  for (let day = 1; day <= DAYS; day++) {
+    const v = values[`${day}:${col.id}`];
+    if (!v) { pen = false; continue; }
+    d += `${pen ? "L" : "M"}${left + dotX(Number(v))} ${(day - 0.5) * CH} `;
+    pen = true;
+  }
+  return <path d={d} />;
 }
 
 /** Plausible example month so the layout can be judged with a full page. Runs once (flag in localStorage). */
@@ -97,7 +113,7 @@ function demoValues(columns: Column[]): Values {
       else if (c.type === "dots") v[key] = String(Math.min(10, sleep));
       else if (c.name === "Skærmtid") v[key] = String(Math.round(2 + r() * 4));
       else if (c.name === "Dagsscore") v[key] = String(Math.min(10, Math.round((goodDay ? 7 : 5) + r() * 3)));
-      else if (r() < 0.9) v[key] = String(Math.min(10, Math.round((goodDay ? 6 : 4) + r() * 4)));
+      else if (r() < 0.9) v[key] = String(Math.min(10, Math.round(((goodDay ? 6 : 4) + r() * 4) * 2) / 2)).replace(".", ",");
     }
   }
   return v;
@@ -114,10 +130,10 @@ type Prompt = ValuePrompt | ColumnPrompt;
 export default function App() {
   const [columns, setColumns] = useState<Column[]>(() => load(COLUMNS_KEY, DEFAULT_COLUMNS));
   const [values, setValues] = useState<Values>(() => {
-    if (localStorage.getItem("demo-seeded")) return load(VALUES_KEY, {});
+    if (localStorage.getItem("demo-seeded-2")) return load(VALUES_KEY, {});
     const demo = demoValues(load(COLUMNS_KEY, DEFAULT_COLUMNS));
     localStorage.setItem(VALUES_KEY, JSON.stringify(demo));
-    localStorage.setItem("demo-seeded", "1");
+    localStorage.setItem("demo-seeded-2", "1");
     return demo;
   });
   const [prompt, setPrompt] = useState<Prompt | null>(null);
@@ -141,7 +157,7 @@ export default function App() {
     if (col.type === "check") return write(key, values[key] ? null : "x");
     if (col.type === "dots") {
       const r = e.currentTarget.getBoundingClientRect();
-      const v = Math.min(10, Math.max(0, Math.round((((e.clientX - r.left) / r.width) * 6 * CELL - CELL / 2) / (5 * CELL) * 20) / 2)); // 0..10 in halves
+      const v = Math.min(10, Math.max(0, Math.round((((e.clientX - r.left) / r.width) * 6 * CW - CW / 2) / (5 * CW) * 20) / 2)); // 0..10 in halves
       return write(key, values[key] === String(v) ? null : String(v));
     }
     setPrompt({ kind: "value", key, label: `${col.name} · ${day}. ${MONTH.label.split(" ")[0].toLowerCase()}`, value: values[key] ?? "" });
@@ -164,8 +180,8 @@ export default function App() {
   };
 
   // column x positions (px inside the page); xs has one extra entry = right edge of the table
-  const xs = [TABLE_LEFT, TABLE_LEFT + DAY_COL_W * CELL];
-  for (const c of columns) xs.push(xs[xs.length - 1] + widthOf(c.type) * CELL);
+  const xs = [TABLE_LEFT, TABLE_LEFT + DAY_COL_W * CW];
+  for (const c of columns) xs.push(xs[xs.length - 1] + widthOf(c.type) * CW);
 
   return (
     <>
@@ -179,7 +195,7 @@ export default function App() {
             <div className="page page--right">
               <TableLines xs={xs} />
               {columns.map((c, i) => {
-                const w = widthOf(c.type) * CELL;
+                const w = widthOf(c.type) * CW;
                 return (
                   <button key={c.id} className={`header header--${c.type}`} style={{ left: xs[i + 1], width: w }}
                     aria-label={`Kolonne ${c.name}`} onClick={() => setPrompt({ kind: "column", index: i, column: c })}>
@@ -202,7 +218,10 @@ export default function App() {
                 onClick={() => setPrompt({ kind: "column", index: -1, column: { id: generateId(), name: "", type: "check" } })}>
                 <Ink seed="plus" text="+" />
               </button>
-              <div className="tracker" style={{ left: TABLE_LEFT, top: HEADER_ROWS * CELL }}>
+              <div className="tracker" style={{ left: TABLE_LEFT, top: CELL + HEADER_H }}>
+                <svg className="graph" width={xs[xs.length - 1] - TABLE_LEFT} height={DAYS * CH}>
+                  {columns.map((c, i) => c.type === "dots" && <DotGraph key={c.id} values={values} col={c} left={xs[i + 1] - TABLE_LEFT} />)}
+                </svg>
                 {Array.from({ length: DAYS }, (_, i) => i + 1).map((day) => (
                   <div key={day} className="row">
                     <div className="cell cell--text"><Ink seed={"w" + day} text={WEEKDAY[new Date(MONTH.year, MONTH.month - 1, day).getDay()]} /></div>
@@ -210,23 +229,23 @@ export default function App() {
                     {columns.map((c) => {
                       const key = `${day}:${c.id}`, v = values[key];
                       return (
-                        <button key={c.id} className={`cell cell--${c.type}`} style={{ width: widthOf(c.type) * CELL }}
+                        <button key={c.id} className={`cell cell--${c.type}`} style={{ width: widthOf(c.type) * CW }}
                           aria-label={`${c.name} dag ${day}`} aria-pressed={!!v} onClick={(e) => onCell(day, c, e)}>
                           {v && c.type === "check" && <HandX seed={key} animate={lastWritten.current === key} />}
                           {v && c.type === "dots" && <span className="dot" style={{ left: dotX(Number(v)) }} />}
-                          {v && (c.type === "number" || c.type === "rating") && <Ink seed={key} text={v} size={v.length > 2 ? 12.5 : 15} />}
+                          {v && (c.type === "number" || c.type === "rating") && <Ink seed={key} text={v} size={v.length > 3 ? 13 : 15} />}
                         </button>
                       );
                     })}
                   </div>
                 ))}
                 <div className="row row--avg">
-                  <div className="cell cell--text" style={{ width: DAY_COL_W * CELL }}><Ink seed="avg" text="gns." size={13} /></div>
+                  <div className="cell cell--text" style={{ width: DAY_COL_W * CW }}><Ink seed="avg" text="gns." size={14} /></div>
                   {columns.map((c) => {
-                    const avg = c.type === "check" ? null : average(values, c);
+                    const sum = c.type === "check" ? String(count(values, c) || "") : average(values, c);
                     return (
-                      <div key={c.id} className="cell cell--text" style={{ width: widthOf(c.type) * CELL }}>
-                        {avg && <Ink seed={"avg" + c.id} text={avg} size={avg.length > 2 ? 12.5 : 15} />}
+                      <div key={c.id} className="cell cell--text" style={{ width: widthOf(c.type) * CW }}>
+                        {sum && <Ink seed={"avg" + c.id} text={sum} size={sum.length > 3 ? 13 : 15} />}
                       </div>
                     );
                   })}
@@ -235,6 +254,7 @@ export default function App() {
             </div>
           </div>
           <div className="band-loop" />
+          <span className="build">{__BUILD__}</span>
         </div>
       </Zoom>
 
