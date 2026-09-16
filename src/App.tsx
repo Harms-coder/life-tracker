@@ -73,14 +73,24 @@ function wobbly(x1: number, y1: number, x2: number, y2: number, seed: string) {
   return d;
 }
 
-function TableLines({ xs }: { xs: number[] }) {
-  const top = CELL, headerY = CELL + HEADER_H, bottom = headerY + (DAYS + 1) * CH, right = xs[xs.length - 1];
+const HEADER_Y = CELL + HEADER_H, BOTTOM_Y = HEADER_Y + (DAYS + 1) * CH;
+
+/** The header line and the line under the averages run across the whole spread. */
+function SpreadLines({ seed }: { seed: string }) {
   return (
     <svg className="lines" viewBox={`0 0 ${PAGE_W} ${PAGE_H}`}>
-      {xs.map((x, i) => <path key={i} d={wobbly(x, top, x, bottom, "v" + i)} />)}
-      <path d={wobbly(TABLE_LEFT, headerY, right, headerY, "h")} />
-      <path d={wobbly(TABLE_LEFT, headerY + DAYS * CH, right, headerY + DAYS * CH, "h2")} />
-      <path d={wobbly(TABLE_LEFT, bottom, right, bottom, "h3")} />
+      <path d={wobbly(0, HEADER_Y, PAGE_W, HEADER_Y, seed + "h")} />
+      <path d={wobbly(0, BOTTOM_Y, PAGE_W, BOTTOM_Y, seed + "h3")} />
+    </svg>
+  );
+}
+
+function TableLines({ xs }: { xs: number[] }) {
+  const right = xs[xs.length - 1];
+  return (
+    <svg className="lines" viewBox={`0 0 ${PAGE_W} ${PAGE_H}`}>
+      {xs.map((x, i) => <path key={i} d={wobbly(x, CELL, x, BOTTOM_Y, "v" + i)} />)}
+      <path d={wobbly(TABLE_LEFT, HEADER_Y + DAYS * CH, right, HEADER_Y + DAYS * CH, "h2")} />
     </svg>
   );
 }
@@ -189,10 +199,12 @@ export default function App() {
         <div className="book">
           <div className="pages">
             <div className="page page--left">
+              <SpreadLines seed="L" />
               <Ink seed="title" text={MONTH.label} className="title" />
               <Ink seed="subtitle" text="Mål denne måned" className="subtitle" />
             </div>
             <div className="page page--right">
+              <SpreadLines seed="R" />
               <TableLines xs={xs} />
               {columns.map((c, i) => {
                 const w = widthOf(c.type) * CW;
