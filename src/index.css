@@ -113,8 +113,9 @@ body { font-family: var(--font-hand); -webkit-user-select: none; user-select: no
 }
 .ink--vertical { writing-mode: vertical-rl; transform: rotate(180deg); } /* reads bottom→top ("A", Lukas' choice) */
 
-.title { left: calc(var(--cell) * 1.4); top: calc(var(--cell) * 1.15); font-size: 46px; font-weight: 500; }
-.subtitle { left: calc(var(--cell) * 18); top: calc(var(--cell) * 1.4); font-size: 27px; font-weight: 500; }
+.title { left: calc(var(--cell) * 1.6); top: calc(var(--cell) * 1.5); font-size: 32px; font-weight: 500; }
+.subtitle { left: calc(var(--cell) * 12.6); top: calc(var(--cell) * 1); font-size: 24px; font-weight: 500; }
+.goal__number { left: calc(var(--cell) * 12.6); font-size: 15px; }
 
 /* --- tracker (right page) --------------------------------------------- */
 .lines { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
@@ -187,8 +188,9 @@ body { font-family: var(--font-hand); -webkit-user-select: none; user-select: no
   position: absolute; padding: 0; border: 0; background: transparent; text-align: left;
   font: inherit; color: var(--ink); -webkit-tap-highlight-color: transparent; touch-action: none; overflow: hidden;
 }
-.note__label { left: 6px; top: 2px; font-size: 15px; opacity: .45; }
+.note__label { left: 6px; top: 0; font-size: 21px; font-weight: 500; }
 .note-text { position: absolute; left: 6px; right: 4px; top: var(--cell); display: flex; flex-direction: column; }
+.note:not(:has(.note__label)) .note-text { top: 0; }
 .ink--line { position: static; white-space: normal; font-size: 15.5px; line-height: var(--cell); padding-top: 0; }
 .sheet textarea { grid-column: 1 / -1; font: inherit; font-size: 18px; line-height: 1.3; padding: 8px 10px; border: 1px solid #bbb; border-radius: 8px; resize: none; }
 .sheet textarea + button { grid-column: 2; }

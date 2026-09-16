@@ -55,9 +55,9 @@ const generateId = () => Date.now().toString(36) + Math.random().toString(36).sl
 type Values = Record<string, string>; // "x" for checks, "71,5" / "8" for numbers, "7.5" for dots
 
 /** All handwriting goes through here (and HandX) — swap in Lukas' own glyphs later in one place. */
-function Ink({ seed, text, className = "", size }: { seed: string; text: string; className?: string; size?: number }) {
+function Ink({ seed, text, className = "", size, style: extra, tilt = 1 }: { seed: string; text: string; className?: string; size?: number; style?: React.CSSProperties; tilt?: number }) {
   const r = seededRandom(seed);
-  const style = { fontSize: size, transform: `rotate(${(r() - 0.5) * 5}deg) translate(${(r() - 0.5) * 2}px, ${(r() - 0.5) * 2}px)` };
+  const style = { ...extra, fontSize: size, transform: `rotate(${(r() - 0.5) * 5 * tilt}deg) translate(${(r() - 0.5) * 2}px, ${(r() - 0.5) * 2}px)` };
   return <span className={`ink ${className}`} style={style}>{text}</span>;
 }
 
@@ -76,11 +76,12 @@ function wobbly(x1: number, y1: number, x2: number, y2: number, seed: string) {
 const HEADER_Y = CELL + HEADER_H, BOTTOM_Y = HEADER_Y + (DAYS + 1) * CH;
 
 /** The header line and the line under the averages run across the whole spread. */
-function SpreadLines({ seed }: { seed: string }) {
+function SpreadLines({ seed, children }: { seed: string; children?: React.ReactNode }) {
   return (
     <svg className="lines" viewBox={`0 0 ${PAGE_W} ${PAGE_H}`}>
       <path d={wobbly(0, HEADER_Y, PAGE_W, HEADER_Y, seed + "h")} />
       <path d={wobbly(0, BOTTOM_Y, PAGE_W, BOTTOM_Y, seed + "h3")} />
+      {children}
     </svg>
   );
 }
@@ -89,7 +90,8 @@ function TableLines({ xs }: { xs: number[] }) {
   const right = xs[xs.length - 1];
   return (
     <svg className="lines" viewBox={`0 0 ${PAGE_W} ${PAGE_H}`}>
-      {xs.map((x, i) => <path key={i} d={wobbly(x, CELL, x, i === 0 ? PAGE_H - CELL : BOTTOM_Y, "v" + i)} />)}
+      {xs.map((x, i) => <path key={i} d={wobbly(x, CELL, x, i === 0 || i === xs.length - 1 ? PAGE_H - CELL : BOTTOM_Y, "v" + i)} />)}
+      <path d={wobbly((xs[0] + right) / 2, BOTTOM_Y, (xs[0] + right) / 2, PAGE_H - CELL, "vmid")} />
       <path d={wobbly(TABLE_LEFT, HEADER_Y + DAYS * CH, right, HEADER_Y + DAYS * CH, "h2")} />
     </svg>
   );
@@ -137,17 +139,33 @@ type ValuePrompt = { kind: "value"; key: string; label: string; value: string };
 type ColumnPrompt = { kind: "column"; index: number; column: Column }; // index -1 = new
 type NotePrompt = { kind: "note"; field: NoteField; label: string; value: string };
 type Prompt = ValuePrompt | ColumnPrompt | NotePrompt;
-type NoteField = "good" | "next";
+type NoteField = "good" | "better" | "change" | "learned" | `goal${number}`;
 type Notes = Partial<Record<NoteField, string>>;
 const NOTES_KEY = `notes-${MONTH.year}-${MONTH.month}`;
-const NOTE_LABEL: Record<NoteField, string> = { good: "Gik godt denne måned", next: "Gøre bedre næste måned / lært" };
+const GOALS = 6;
+const GOALS_Y = 2.5 * 20; // first goal row on the left page; six rows end above the header line
+const NOTE_LABEL: Record<string, string> = {
+  good: "Gik godt denne måned", better: "Gøre bedre næste måned", change: "Ændre til næste måned", learned: "Lært",
+};
+for (let i = 0; i < GOALS; i++) NOTE_LABEL["goal" + i] = `Mål ${i + 1}`;
+const TITLE_BOX_X = 12 * CELL, TITLE_BOX_Y = 4 * CELL; // box around the month title on the left page
+
+type Box = { left: number; top: number; width: number; height: number };
+function NoteBox({ field, box, notes, onOpen, bullets, label }: { field: NoteField; box: Box; notes: Notes; onOpen: (f: NoteField) => void; bullets?: boolean; label?: boolean }) {
+  return (
+    <button className="note" aria-label={NOTE_LABEL[field]} onClick={() => onOpen(field)} style={box}>
+      {label && <Ink seed={"n" + field} text={NOTE_LABEL[field]} className="note__label" />}
+      {notes[field] && <NoteText seed={field} text={notes[field]!} bullets={bullets} />}
+    </button>
+  );
+}
 
 /** Free text written line by line on the grid; `bullets` puts a dot in front of each line. */
 function NoteText({ seed, text, bullets }: { seed: string; text: string; bullets?: boolean }) {
   return (
     <div className="note-text">
       {text.split("\n").filter(Boolean).map((line, i) => (
-        <Ink key={i} seed={seed + i} text={(bullets ? "•  " : "") + line} className="ink--line" />
+        <Ink key={i} seed={seed + i} text={(bullets ? "•  " : "") + line} className="ink--line" tilt={0.25} />
       ))}
     </div>
   );
@@ -218,6 +236,7 @@ export default function App() {
   // column x positions (px inside the page); xs has one extra entry = right edge of the table
   const xs = [TABLE_LEFT, TABLE_LEFT + DAY_COL_W * CW];
   for (const c of columns) xs.push(xs[xs.length - 1] + widthOf(c.type) * CW);
+  const right = xs[xs.length - 1], mid = (xs[0] + right) / 2;
 
   return (
     <>
@@ -225,9 +244,19 @@ export default function App() {
         <div className="book">
           <div className="pages">
             <div className="page page--left">
-              <SpreadLines seed="L" />
+              <SpreadLines seed="L">
+                <path d={wobbly(TITLE_BOX_X, CELL, TITLE_BOX_X, HEADER_Y, "Lv")} />
+                <path d={wobbly(CELL, TITLE_BOX_Y, TITLE_BOX_X, TITLE_BOX_Y, "Lh")} />
+              </SpreadLines>
               <Ink seed="title" text={MONTH.label} className="title" />
               <Ink seed="subtitle" text="Mål denne måned" className="subtitle" />
+              {Array.from({ length: GOALS }, (_, i) => (
+                <div key={i}>
+                  <Ink seed={"gn" + i} text={`${i + 1}.`} className="goal__number" style={{ top: GOALS_Y + i * CELL + 2 }} />
+                  <NoteBox field={`goal${i}`} notes={notes} onOpen={openNote}
+                    box={{ left: TITLE_BOX_X + 1.6 * CELL, top: GOALS_Y + i * CELL, width: PAGE_W - TITLE_BOX_X - 2.6 * CELL, height: CELL }} />
+                </div>
+              ))}
             </div>
             <div className="page page--right">
               <SpreadLines seed="R" />
@@ -256,16 +285,14 @@ export default function App() {
                 onClick={() => setPrompt({ kind: "column", index: -1, column: { id: generateId(), name: "", type: "check" } })}>
                 <Ink seed="plus" text="+" />
               </button>
-              <button className="note note--good" aria-label={NOTE_LABEL.good} onClick={() => openNote("good")}
-                style={{ left: xs[xs.length - 1] + CELL, top: HEADER_Y, width: PAGE_W - xs[xs.length - 1] - 2 * CELL, height: BOTTOM_Y - HEADER_Y }}>
-                <Ink seed="ngood" text={NOTE_LABEL.good} className="note__label" />
-                {notes.good && <NoteText seed="good" text={notes.good} bullets />}
-              </button>
-              <button className="note note--next" aria-label={NOTE_LABEL.next} onClick={() => openNote("next")}
-                style={{ left: TABLE_LEFT + CELL / 2, top: BOTTOM_Y, width: PAGE_W - TABLE_LEFT - 1.5 * CELL, height: PAGE_H - CELL - BOTTOM_Y }}>
-                <Ink seed="nnext" text={NOTE_LABEL.next} className="note__label" />
-                {notes.next && <NoteText seed="next" text={notes.next} />}
-              </button>
+              <NoteBox field="good" notes={notes} onOpen={openNote} bullets label
+                box={{ left: right + CELL / 2, top: HEADER_Y, width: PAGE_W - right - 1.5 * CELL, height: BOTTOM_Y - HEADER_Y }} />
+              <NoteBox field="better" notes={notes} onOpen={openNote} label
+                box={{ left: TABLE_LEFT, top: BOTTOM_Y, width: mid - TABLE_LEFT, height: PAGE_H - CELL - BOTTOM_Y }} />
+              <NoteBox field="change" notes={notes} onOpen={openNote} label
+                box={{ left: mid, top: BOTTOM_Y, width: right - mid, height: PAGE_H - CELL - BOTTOM_Y }} />
+              <NoteBox field="learned" notes={notes} onOpen={openNote} label
+                box={{ left: right, top: BOTTOM_Y, width: PAGE_W - right - CELL, height: PAGE_H - CELL - BOTTOM_Y }} />
               <div className="tracker" style={{ left: TABLE_LEFT, top: CELL + HEADER_H }}>
                 <svg className="graph" width={xs[xs.length - 1] - TABLE_LEFT} height={DAYS * CH}>
                   {columns.map((c, i) => c.type === "dots" && <DotGraph key={c.id} values={values} col={c} left={xs[i + 1] - TABLE_LEFT} />)}
