@@ -1,6 +1,6 @@
 import { seededRandom } from "./random";
 import {
-  CELL, PAGE_W, PAGE_H, COVER, BOOK_W, BOOK_H, LEFT_PAGE, RIGHT_PAGE, TABLE, HEADER_Y, TABLE_LEFT, DAY_COL_W,
+  CELL, PAGE_W, PAGE_H, COVER, BOOK_W, BOOK_H, LEFT_PAGE, RIGHT_PAGE, HEADER_Y, TABLE_LEFT, DAY_COL_W,
   TITLE_BOX_X, TITLE_BOX_Y, GOALS, goalPos, goalTextBox, widthOf, dotX, columnXs, bottomY, noteBoxes, NOTE_LABEL,
   type Column, type NoteField, type Rect,
 } from "./layout";
@@ -18,13 +18,13 @@ export type Scene = {
   /** an X being written right now: key + start time, drawn with a pen-stroke animation */
   writing: { key: string; start: number } | null;
 };
-export type Assets = { wood?: HTMLImageElement; paper?: HTMLImageElement; leather?: HTMLImageElement };
+export type Assets = { paper?: HTMLImageElement; leather?: HTMLImageElement };
 /** world -> plane: plane = world * s + (x, y) */
 export type View = { x: number; y: number; s: number };
 /** the part of the plane the canvas covers, and its resolution (device px per plane px) */
 export type Plane = { x0: number; y0: number; w: number; h: number; k: number };
 
-const INK = "#1e2233", PAPER = "#efe9d4", GRID = "rgba(120,150,130,.42)", WOOD = "#7a5236";
+const INK = "#1e2233", PAPER = "#efe9d4", GRID = "rgba(120,150,130,.42)";
 const FONT = "Caveat, 'Bradley Hand', 'Segoe Print', cursive";
 export const WEEKDAY = "SMTOTFL"; // indexed by Date.getDay()
 
@@ -138,14 +138,14 @@ const count = (values: Record<string, string>, col: Column) => Object.keys(value
 
 // ---------------------------------------------------------------------------------------------
 
-export type Part = "table" | "book";
+export type Part = "shadow" | "book";
 export function drawScene(ctx: Ctx, view: View, plane: Plane, scene: Scene, assets: Assets, now: number, part: Part) {
   const { s } = view, k = plane.k;
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
   ctx.setTransform(s * k, 0, 0, s * k, (view.x - plane.x0) * k, (view.y - plane.y0) * k);
   const vis: Rect = { x: (plane.x0 - view.x) / s, y: (plane.y0 - view.y) / s, w: plane.w / s, h: plane.h / s };
-  if (part === "table") { drawTable(ctx, vis, assets); return; }
+  if (part === "shadow") { drawShadow(ctx); return; }
   drawCover(ctx, vis, assets);
   drawPage(ctx, vis, assets, LEFT_PAGE, "left");
   drawPage(ctx, vis, assets, RIGHT_PAGE, "right");
@@ -154,21 +154,18 @@ export function drawScene(ctx: Ctx, view: View, plane: Plane, scene: Scene, asse
   drawSpine(ctx);
 }
 
-function drawTable(ctx: Ctx, vis: Rect, assets: Assets) {
-  const t = TABLE;
-  const x = Math.max(t.x, vis.x), y = Math.max(t.y, vis.y), x2 = Math.min(t.x + t.w, vis.x + vis.w), y2 = Math.min(t.y + t.h, vis.y + vis.h);
-  if (x2 <= x || y2 <= y) return;
-  ctx.fillStyle = WOOD; ctx.fillRect(x, y, x2 - x, y2 - y);
-  if (assets.wood) { const p = ctx.createPattern(assets.wood, "repeat"); if (p) { ctx.fillStyle = p; ctx.fillRect(x, y, x2 - x, y2 - y); } }
-  // soft light in the middle, darker towards the edges
-  const g = ctx.createRadialGradient(t.x + t.w / 2, t.y + t.h * 0.38, 0, t.x + t.w / 2, t.y + t.h * 0.38, t.w * 0.7);
-  g.addColorStop(0, "rgba(255,255,255,.10)"); g.addColorStop(0.45, "rgba(0,0,0,0)"); g.addColorStop(1, "rgba(0,0,0,.35)");
-  ctx.fillStyle = g; ctx.fillRect(x, y, x2 - x, y2 - y);
-  ctx.fillStyle = "rgba(0,0,0,.35)"; ctx.fillRect(t.x, t.y, t.w, 6); // far edge
-  // shadow under the book
-  const sh = ctx.createRadialGradient(BOOK_W / 2, BOOK_H * 0.55, 0, BOOK_W / 2, BOOK_H * 0.55, BOOK_W * 0.62);
-  sh.addColorStop(0, "rgba(0,0,0,.55)"); sh.addColorStop(0.55, "rgba(0,0,0,.30)"); sh.addColorStop(1, "rgba(0,0,0,0)");
-  ctx.fillStyle = sh; ctx.fillRect(-90, -60, BOOK_W + 180, BOOK_H + 200);
+/** The book's shadow on the table. The light comes from the window behind, so it falls towards the viewer:
+ *  a soft, long shadow in front of the book and a tight dark one right under it. */
+function drawShadow(ctx: Ctx) {
+  const cx = BOOK_W / 2, cy = BOOK_H / 2;
+  const blob = (dx: number, dy: number, rx: number, ry: number, alpha: number) => {
+    ctx.save(); ctx.translate(cx + dx, cy + dy); ctx.scale(rx, ry);
+    const g = ctx.createRadialGradient(0, 0, 0, 0, 0, 1);
+    g.addColorStop(0, `rgba(20,10,5,${alpha})`); g.addColorStop(0.6, `rgba(20,10,5,${alpha * 0.55})`); g.addColorStop(1, "rgba(20,10,5,0)");
+    ctx.fillStyle = g; ctx.fillRect(-1, -1, 2, 2); ctx.restore();
+  };
+  blob(10, 150, BOOK_W * 0.62, BOOK_H * 0.66, 0.5);
+  blob(0, 30, BOOK_W * 0.53, BOOK_H * 0.54, 0.6);
 }
 
 function roundRect(ctx: Ctx, x: number, y: number, w: number, h: number, r: number) {

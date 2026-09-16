@@ -7,7 +7,7 @@ const browser = await webkit.launch();
 const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 3, hasTouch: true, isMobile: true });
 const page = await ctx.newPage();
 if (process.env.NO_TILT) await page.addInitScript(() => { window.__tiltMax = 0; });
-await page.goto(URL); await page.waitForSelector(".viewport");
+await page.goto(URL + (process.env.Q ?? "")); await page.waitForSelector(".viewport");
 await page.waitForTimeout(1500);
 const stats = (a) => { const stalls = a.map((v, i) => [i, v]).filter(([, v]) => v > 33).map(([i, v]) => `#${i}:${v.toFixed(0)}`).join(" "); const s = [...a].sort((x, y) => x - y); const q = (p) => s[Math.min(s.length - 1, Math.floor(p * s.length))]; return `p50 ${q(.5).toFixed(1)}  p90 ${q(.9).toFixed(1)}  max ${s[s.length - 1].toFixed(1)}  frames>33ms ${s.filter(v => v > 33).length}/${s.length}  stalls ${stalls}`; };
 const run = async (kind) => page.evaluate(async (kind) => {

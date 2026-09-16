@@ -84,28 +84,35 @@ Rækker = dage 1–31 (antal efter måneden). Kolonner = brugerens egne trackere
 - Papiret er let uperfekt: ujævne yderkanter (clip-path) og et par svage folder (gradienter i `.page::after`).
 - Lukas' egen håndskrift (trin 4): han udfylder fysiske ark med alle bogstaver og tal. Al tekst tegnes via
   `text()` og X'er via `handX()` i `src/draw.ts` – glyfferne byttes ind DER, intet andet sted skal røres.
-- Scene (2026-09-16): bogen ligger på et træbord foran et vindue. Himlen i vinduet følger klokkeslættet
-  (solopgang 5–9, dag 9–17, solnedgang 17–21, nat). Zoomet helt ud ses bordet skråt fra en stol (rotateX op til 48°);
-  zoomer man ind, retter kameraet sig op til lige oppefra (`Zoom.tsx`, TILT_*). Bordet ligger i "verden" inde i
-  zoom-laget, så det følger med. Rummet (`Room` i App.tsx) er en CSS-udgave; kan byttes til et genereret billede
-  (Higgsfield) når Lukas har forbundet det.
-- Zoom (2026-09-16 eftermiddag): panorering stopper ved BORDETS kant hele vejen rundt (`clamp()` i BookCanvas) – man kan ikke
-  se vinduet ved at skubbe bogen væk. Er bordet mindre end skærmen (zoomet ud), centreres det. Inerti-glid beholdt.
-  Man kan zoome ud til 0,6 × "bogen fylder skærmen" (MIN_UNDER_FIT), så hele bordet med begge ender ses. Bordet er
-  smallere end før (TABLE.x = −450), så enderne kommer med.
-- 3D-dybde (2026-09-16): bord og bog er TO canvas-bitmaps i hver sit `.gesture`-lag. Bogens canvas løftes med
-  `translateZ(BOOK_T·s·tilt)` når scenen er vippet, og bordets tykkelse/bogens sideblok er CSS-flader (`.table-edge`,
-  `.book-face`) i `world3d`, skaleret med `scale3d(s, s, s·tilt)`. Løftet forsvinder, når kameraet er lige oppefra,
+- SCENE = HIGGSFIELD-FOTO (2026-09-16 aften, erstatter det tegnede rum/bord/vindue): rummet er et genereret billede +
+  lydløs loop-video pr. tidspunkt, `public/baggrund/<tid>.jpg|mp4`, tid ∈ morgen (05–10), middag (10–17), aften (17–21),
+  nat (21–05). `src/Backdrop.tsx` vælger efter telefonens klokkeslæt (tjekker hvert minut), crossfader 2,4 s ved skift,
+  og falder tilbage til AFTEN, hvis en fil mangler (billede og video hver for sig: findes kun billedet, vises kun det).
+  Video: muted + playsInline + autoplay + loop; billedet ligger under og ses, indtil videoen spiller / hvis den ikke kan.
+  Forhåndsvis et tidspunkt med `?tid=nat` i adressen.
+  RÅFILER fra Higgsfield ligger i `baggrund-kilder/` (IKKE i git, 11 MB PNG + 6 MB HEVC). `npm run baggrund` (tools/baggrund.sh,
+  kræver ffmpeg: `brew install ffmpeg`) laver web-udgaverne: navnet skal blot indeholde morgen/middag/aften/nat →
+  1080×1920 JPEG (~0,4 MB) og H.264-video (~0,35 MB) med sømløst loop (sidste sekund crossfades ind i det første, så
+  klippet slutter, hvor det starter). Lægger Lukas nye råfiler ind: kør scriptet, commit `public/baggrund/`.
+  Geometri: fotoet ligger i verdenskoordinater som `BG` i layout.ts (størrelse = hvor stor bogen er på bordet, offset = hvor
+  den ligger; tunet efter øjemål, bogen vippes bagefter med TILT_MAX = 56° ≈ fotoets kameravinkel). Baggrundslaget
+  (`.scene2d`) panorerer/zoomer i 2D med verden men vipper ikke; kun bogen vipper og flader ud, når man zoomer ind.
+  Min-zoom = fotoet dækker lige skærmen (cover, siderne beskæres på iPhone 19,5:9). Panorering: zoomet ud til fotoets kant,
+  zoomet ind kun over bordet i fotoet (`TABLE` = brøkdele af BG, 0,44–0,77 af højden); grænsen glider imellem de to med
+  vippet, så intet hopper. Skyggen under bogen tegnes på den (ellers tomme) "shadow"-canvas i draw.ts: blød og lang
+  fremad mod betragteren (lyset kommer fra vinduet) + en tæt mørk lige under.
+  Bemærk: middag-fotoet har en lidt anden komposition end aften/nat; ligger bogen skævt på et nyt foto, justér BG/TABLE.
+- 3D-dybde (2026-09-16): skygge og bog er TO canvas-bitmaps i hver sit `.gesture`-lag. Bogens canvas løftes med
+  `translateZ(BOOK_T·s·tilt)` når scenen er vippet, og bordets tykkelse/bogens sideblok er en CSS-flade (`.book-face`) i `world3d`, skaleret med `scale3d(s, s, s·tilt)`. Løftet forsvinder, når kameraet er lige oppefra,
   så tryk (hit-test) er upåvirket. FALDGRUBE: fladerne SKAL ligge i deres eget 3D-lag (`tilt2`, søskende til `tilt`) –
-  ligger de i samme preserve-3d-kontekst som canvas'et, sorterer Chrome planerne forkert og klipper bordet. Fronter
-  vender udad + `backface-visibility: hidden`, så bordets ender kun tegnes, når man faktisk kigger på dem.
+  ligger de i samme preserve-3d-kontekst som canvas'et, sorterer Chrome planerne forkert og klipper bitmappet.
 - Skarp under pinch (2026-09-16): midt i en pinch tegnes bogen om (`renderLive`), når bitmappet er strakt >15 % eller
   vippet er slået til/fra – med lavere budget (LIVE_BUDGET) og UDEN at omallokere canvas'et (omallokering kostede
   ~40 ms). Bordet tegnes ikke om undervejs (træ må gerne strækkes). Ved slip tegnes alt skarpt som før. Målt i
   WebKit-benchen: 1–2 frames à ~35–40 ms pr. pinch (mod 0 før). Ikke målt på telefonen – spørg Lukas, om det hakker.
 - Første måling af skærmen sker i dev FØR CSS'en er slået til i WebKit (Vite indsætter CSS via JS), så `fit()` kører via
   en ResizeObserver på `.viewport` og retter sig selv, når den rigtige størrelse kommer.
-- Bogen ligger på et træbord. Farven er ÉN variabel: `--table` i src/index.css. Læsebåndet er fjernet (Lukas' ønske).
+- Læsebåndet er fjernet (Lukas' ønske).
 - iPhone først, hele opslaget synligt + pinch-zoom.
 - Venstre side = månedens mål, undermål og plan. Højre side = daglig tracking.
 
@@ -125,7 +132,7 @@ Rækker = dage 1–31 (antal efter måneden). Kolonner = brugerens egne trackere
 - Live: https://harms-coder.github.io/life-tracker/ · repo `Harms-coder/life-tracker` · alt er committet og pushet.
 - Kør lokalt: `npm install` (én gang), `npm run dev` → http://localhost:5173/life-tracker/ (også fra telefonen på LAN-ip).
 - Test: `npm run shots` (skærmbilleder i `screenshots/`), `npm run views` (fit, helt ude, halvt vippet, bordkant, midt i
-  pinch, sluppet), `npm run webkit` (WebKit-skærmbilleder, fit + helt ude), `npm run bench` (frame-tider i WebKit; mål 0 frames
+  pinch, sluppet), `npm run webkit` (WebKit-skærmbilleder: start + zoomet; `TID=nat` for et tidspunkt), `npm run bench` (frame-tider i WebKit; `Q='?tid=middag'` vælger tidspunkt; mål 0 frames
   > 33 ms – pt. 1–2 pr. pinch pga. live-omtegning, se Beslutninger), `npm run tapcheck` (tryk virker). Scripts starter selv
   dev-serveren; kør dem IKKE samtidig med bench (forstyrrer målingen). Playwright-browsere: `npx playwright install`.
 - Vis billeder til Lukas: `python3 tools/gallery.py '[["1-opslag.png","Titel","Tekst"]]'` → `screenshots/galleri.html`,
@@ -135,8 +142,10 @@ Rækker = dage 1–31 (antal efter måneden). Kolonner = brugerens egne trackere
   glidende zoom (canvas). Data ligger i localStorage (values-/notes-/columns-nøgler) – kun én måned.
 - Higgsfield: connectoren er logget ind (2026-09-16), men værktøjerne dukker først op i en NY Claude Code-session
   (de registreres ved sessionsstart). Tjek med `claude mcp list` → "✔ Connected", og at ToolSearch finder dem.
-- Næste skridt (Lukas' ønsker i rækkefølge): 1) Higgsfield-billede af bord + vindue (+ evt. bogens cover/sideblok).
-  Selve siderne bliver ved med at være tegnet af appen. 2) Trin 2: flere måneder + sidevending + rigtig datamodel (IndexedDB). 3) PWA-ikon og
+- Baggrund: aften + nat har billede og video, middag kun billede, morgen mangler (→ aften). Playwright-WebKit tegner
+  perspektivet fladere end Chrome; stol på Chrome-billederne (og telefonen) for geometri.
+- Næste skridt (Lukas' ønsker i rækkefølge): 1) Morgen-foto/-video + middag-video fra Higgsfield (kør `npm run baggrund`).
+  Evt. bogens cover/sideblok som teksturer; selve siderne bliver ved med at være tegnet af appen. 2) Trin 2: flere måneder + sidevending + rigtig datamodel (IndexedDB). 3) PWA-ikon og
   "læg på hjemmeskærm". 4) Trin 4: hans egen håndskrift som glyffer (byttes ind i `text()`/`handX()` i draw.ts).
 - Kendt: skriften er en anelse blød UNDER en pinch, skarp ved slip (bevidst, jf. arkitektur ovenfor).
 

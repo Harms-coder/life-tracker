@@ -11,7 +11,8 @@
     "bench": "node tools/bench.mjs",
     "tapcheck": "node tools/tapcheck.mjs screenshots",
     "views": "node tools/views.mjs screenshots",
-    "webkit": "node tools/webkit-shots.mjs screenshots"
+    "webkit": "node tools/webkit-shots.mjs screenshots",
+    "baggrund": "sh tools/baggrund.sh"
   },
   "dependencies": {
     "react": "^19.1.0",

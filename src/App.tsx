@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import { BookCanvas, type BookCanvasHandle } from "./BookCanvas";
+import { Backdrop } from "./Backdrop";
 import { drawScene, type Assets, type Part, type Plane, type Scene, type View } from "./draw";
 import { BOOK_H, BOOK_W, dotX, hitTest, NOTE_LABEL, widthOf, CELL, type ColType, type Column, type NoteField } from "./layout";
 import { seededRandom } from "./random";
-import woodUrl from "./textures/wood.jpg";
 import paperUrl from "./textures/paper.png";
 import leatherUrl from "./textures/leather.png";
 
@@ -78,23 +78,6 @@ function seedOnce<T>(flag: string, key: string, make: () => T, fallback: T): T {
   return v;
 }
 
-/** Sky colours for the window, by hour: sunrise, day, sunset, night. */
-function skyFor(hour: number): React.CSSProperties {
-  const v = (sky: string, sun: string, glow: string, land: string) => ({ "--sky": sky, "--sun": sun, "--sun-glow": glow, "--land": land }) as React.CSSProperties;
-  if (hour >= 5 && hour < 9) return v("linear-gradient(to bottom, #6a7fb3 0, #e9a27a 55%, #f6d59a 100%)", "#ffd27a", "rgba(255,190,110,.6)", "#4a4f5a");
-  if (hour >= 9 && hour < 17) return v("linear-gradient(to bottom, #5f9be0 0, #a9d0f2 70%, #dbeaf6 100%)", "#fff4c2", "rgba(255,240,200,.5)", "#5f7a5a");
-  if (hour >= 17 && hour < 21) return v("linear-gradient(to bottom, #3f3f77 0, #c25a5a 50%, #f2a65a 100%)", "#ffb347", "rgba(255,140,80,.6)", "#33313f");
-  return v("linear-gradient(to bottom, #0b1330 0, #1c2a55 70%, #2c3c6b 100%)", "#e9edf5", "rgba(200,210,255,.35)", "#0e1220");
-}
-function Room() {
-  return (
-    <div className="room" style={skyFor(new Date().getHours())}>
-      <div className="window"><div className="sun" /><div className="horizon" /></div>
-      <div className="light" />
-    </div>
-  );
-}
-
 type ValuePrompt = { kind: "value"; key: string; label: string; value: string };
 type ColumnPrompt = { kind: "column"; index: number; column: Column }; // index -1 = new
 type NotePrompt = { kind: "note"; field: NoteField; label: string; value: string };
@@ -102,7 +85,7 @@ type Prompt = ValuePrompt | ColumnPrompt | NotePrompt;
 
 const assets: Assets = {};
 function loadAssets(onLoad: () => void) {
-  for (const [name, url] of [["wood", woodUrl], ["paper", paperUrl], ["leather", leatherUrl]] as const) {
+  for (const [name, url] of [["paper", paperUrl], ["leather", leatherUrl]] as const) {
     const img = new Image();
     img.onload = () => { assets[name] = img; onLoad(); };
     img.src = url;
@@ -188,7 +171,7 @@ export default function App() {
 
   return (
     <>
-      <BookCanvas ref={book} width={BOOK_W} height={BOOK_H} draw={draw} onTap={onTap} backdrop={<Room />} />
+      <BookCanvas ref={book} width={BOOK_W} height={BOOK_H} draw={draw} onTap={onTap} backdrop={<Backdrop />} />
       <span className="build">{__BUILD__}</span>
 
       {prompt?.kind === "value" && (
