@@ -4,6 +4,7 @@ import { Backdrop } from "./Backdrop";
 import { drawScene, type Assets, type Part, type Plane, type Scene, type View } from "./draw";
 import { BOOK_H, BOOK_W, dotX, hitTest, NOTE_LABEL, widthOf, CELL, type ColType, type Column, type NoteField } from "./layout";
 import { seededRandom } from "./random";
+import woodUrl from "./textures/wood.jpg";
 import paperUrl from "./textures/paper.png";
 import leatherUrl from "./textures/leather.png";
 
@@ -85,7 +86,7 @@ type Prompt = ValuePrompt | ColumnPrompt | NotePrompt;
 
 const assets: Assets = {};
 function loadAssets(onLoad: () => void) {
-  for (const [name, url] of [["paper", paperUrl], ["leather", leatherUrl]] as const) {
+  for (const [name, url] of [["wood", woodUrl], ["paper", paperUrl], ["leather", leatherUrl]] as const) {
     const img = new Image();
     img.onload = () => { assets[name] = img; onLoad(); };
     img.src = url;

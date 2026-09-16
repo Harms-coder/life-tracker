@@ -1,17 +1,16 @@
 /** Geometry of the spread in world pixels (1 grid square = 20 px). Shared by drawing and hit-testing. */
-export const CELL = 20, PAGE_W = 704, PAGE_H = 1000, COVER = 14;
+export const CELL = 20, PAGE_W = 704, PAGE_H = 1000, COVER = 24;
 export const BOOK_W = PAGE_W * 2 + COVER * 2, BOOK_H = PAGE_H + COVER * 2;
 export const LEFT_PAGE = { x: COVER, y: COVER }, RIGHT_PAGE = { x: COVER + PAGE_W, y: COVER };
 /** The background photo (9:16), in world units relative to the book's top-left corner. Its size sets how big
- *  the book is on the table, its offset where on the table it lies (the book is tilted afterwards, so tune by eye). */
-export const BG = { x: -732, y: -2889, w: 2900, h: 5156 };
-/** The table top inside the photo (fractions of BG): zoomed in you can pan over this, not the wall and window.
- *  Must contain the whole book (0..BOOK_H) with some margin, or its far/near end cannot be reached. */
-export const TABLE = { x: BG.x, y: BG.y + 0.44 * BG.h, w: BG.w, h: 0.36 * BG.h };
-/** What is drawn on the canvases when the whole scene is visible: the book plus room for its shadow. */
-export const SCENE = { x: -240, y: -160, w: BOOK_W + 480, h: BOOK_H + 560 };
-/** Thickness of the closed half of the book, in world px (1 cell = 5 mm). */
-export const BOOK_T = 72;
+ *  the book is on the table, its offset where on the table it lies (the book tips over its own centre, so the centre
+ *  stays put at every zoom; tuned by eye against the photo). */
+export const BG = { x: -522, y: -2542, w: 2500, h: 4444 };
+/** The drawn table top around the book (world units): shown as the camera goes overhead, and as far as you can pan
+ *  then. Its wood is drawn on the table canvas; outside it is floor. */
+export const TABLE = { x: -450, y: -520, w: BOOK_W + 900, h: BOOK_H + 1080 };
+/** Thickness of the closed half of the book (the page block), in world px (1 cell = 5 mm). */
+export const BOOK_T = 180;
 
 export const HEADER_H = 8 * CELL, HEADER_Y = CELL + HEADER_H;
 export const DAY_COL_W = 2, TABLE_LEFT = CELL;

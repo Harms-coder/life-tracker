@@ -95,9 +95,22 @@ Rækker = dage 1–31 (antal efter måneden). Kolonner = brugerens egne trackere
   1080×1920 JPEG (~0,4 MB) og H.264-video (~0,35 MB) med sømløst loop (sidste sekund crossfades ind i det første, så
   klippet slutter, hvor det starter). Lægger Lukas nye råfiler ind: kør scriptet, commit `public/baggrund/`.
   Kvalitet: billederne er 1440×2560 JPEG (~0,7 MB), så de er skarpe på en 3×-telefon.
+  ZOOMET IND ses ikke fotoet men en TEGNET bordplade (`drawTable` i draw.ts på "table"-canvas'et: træ over `TABLE`
+  (verdenskoordinater omkring bogen, som før fotoet), gulv udenom, lys som fotoets aftenlys). Den toner frem via CSS-opacity,
+  når vippet er under 0,6 (WOOD_IN), og panoreringsgrænsen glider samtidig fra fotoet til TABLE. Grund: fotoet har fast
+  perspektiv, så en flad bog over fotoet hang ud over bordkanten, og man kunne panorere op til vinduet. Som Lukas ville
+  have det: zoomet ind er man "inden for bordet" og ser aldrig vinduet.
   Bogen i lyset: efter alt er tegnet lægges en varm, let mørkere-mod-betragteren tone over bogen (`tint()` i draw.ts,
-  source-atop) – ellers ser det kridhvide papir forkert ud i aftenlyset. Sideblokken tegnes som bånd af sidekanter
-  omkring siderne (`edge()` i drawCover), og papiret har svage bølger (gradient i drawPage). Skyggen er lang fremad.
+  source-atop) – ellers ser det kridhvide papir forkert ud i aftenlyset. Papiret har svage bølger og buer kraftigt ned
+  mod ryggen (gradienter i drawPage/drawSpine).
+  BOGENS TYKKELSE (Lukas' reference: tyk bog, ikke to flade ark): COVER = 24 (sort cover-ramme om siderne, hvoraf 8 er et
+  bånd af sidekanter, `edge()` i drawCover), BOOK_T = 180 (4,5 cm – bevidst overdrevet, ser rigtigt ud i perspektivet).
+  Opslaget løftes BOOK_T op (translateZ), og sideblokkens FORKANT er én CSS-flade (`.book-face`, rotateX(90) i `tilt2`),
+  der står fra bordet op til coverets forkant: sort cover-bræt nederst, sidekanter, lys ovenfra. INGEN sideflader: fra
+  hvor man sidder kan et bords/bogs sider ikke ses, og tegnede sideflader så ud som lyse "vinger" langs de skrå kanter.
+  Blokken toner ud (opacity), når kameraet går overhead. Skyggen er to DOM-ellipser (`.shadow` i `.worldflat`, ligger på
+  bordplanet under den løftede bog): lang og blød fremad + tæt under.
+  Kamera: TILT_MAX = 58°, PERSPECTIVE = 700 px (mindre = mere sammenløb af bogens sider, som i referencen).
   Geometri: fotoet ligger i verdenskoordinater som `BG` i layout.ts (størrelse = hvor stor bogen er på bordet, offset = hvor
   den ligger; tunet efter øjemål, bogen vippes med TILT_MAX = 56° ≈ fotoets kameravinkel). VIGTIGT: bogen vipper om SIT EGET
   centrum (transform-origin på `.tilt`/`.tilt2` sættes pr. frame i `paint()` til bogens 2D-centrum). Så ligger bogens
@@ -105,8 +118,8 @@ Rækker = dage 1–31 (antal efter måneden). Kolonner = brugerens egne trackere
   skærmens midte (som før fotoet), blev bogen skubbet ned ad skærmen under zoom, fordi den ikke ligger i skærmens midte. Baggrundslaget
   (`.scene2d`) panorerer/zoomer i 2D med verden men vipper ikke; kun bogen vipper og flader ud, når man zoomer ind.
   Min-zoom = fotoet dækker lige skærmen (cover, siderne beskæres på iPhone 19,5:9). Panorering: zoomet ud til fotoets kant,
-  zoomet ind kun over bordet i fotoet (`TABLE` = brøkdele af BG, 0,44–0,80 af højden – SKAL rumme hele bogen med margen,
-  ellers kan man ikke panorere hen til bogens ende); grænsen glider imellem de to med vippet, så intet hopper. Skyggen under bogen tegnes på den (ellers tomme) "shadow"-canvas i draw.ts: blød og lang
+  zoomet ind kun over den tegnede bordplade (`TABLE`, verdenskoordinater omkring bogen); grænsen glider imellem de to med
+  vippet, så intet hopper. Skyggen under bogen tegnes på den (ellers tomme) "shadow"-canvas i draw.ts: blød og lang
   fremad mod betragteren (lyset kommer fra vinduet) + en tæt mørk lige under.
   Bemærk: middag-fotoet har en lidt anden komposition end aften/nat; ligger bogen skævt på et nyt foto, justér BG/TABLE.
   FALDGRUBE: Playwright-WebKit tegner CSS-3D uden rigtig perspektivprojektion (bogen bliver flad og sidder for højt), så

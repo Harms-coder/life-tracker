@@ -17,8 +17,9 @@ const out = await page.evaluate(async () => {
   fire("pointerup", 1, 0, 0); fire("pointerup", 2, 0, 0);
   await new Promise((r) => setTimeout(r, 400));
   const v = window.__view;
-  // world point of "Løb dag 5": right page x = 14+704, table: day col 2 cells, Løb is column index 1 (after Vægt 2 cells)
-  const wx = 14 + 704 + 20 + 40 + 40 + 10, wy = 14 + 180 + 4 * 20 + 10;
+  // world point of "Løb dag 5": right page x = COVER+704, table: day col 2 cells, Løb is column index 1 (after Vægt 2 cells)
+  const COVER = 24; // keep in step with layout.ts
+  const wx = COVER + 704 + 20 + 40 + 40 + 10, wy = COVER + 180 + 4 * 20 + 10;
   const sx = wx * v.s + v.x, sy = wy * v.s + v.y;
   // pan it into view if needed
   if (sx < 20 || sx > 370 || sy < 20 || sy > 800) {
@@ -35,7 +36,7 @@ const out = await page.evaluate(async () => {
   await new Promise((r) => setTimeout(r, 500));
   const after = JSON.parse(localStorage.getItem("values-2026-9") || "{}")["5:loeb"] ?? null;
   // tap a header: Løb column header at y = 14 + 100
-  const hx = wx * v2.s + v2.x, hy = (14 + 100) * v2.s + v2.y;
+  const hx = wx * v2.s + v2.x, hy = (COVER + 100) * v2.s + v2.y;
   fire("pointerdown", 1, hx, hy); fire("pointerup", 1, hx, hy);
   await new Promise((r) => setTimeout(r, 300));
   const sheet = document.querySelector(".sheet label")?.textContent ?? null;

@@ -1,6 +1,6 @@
 import { seededRandom } from "./random";
 import {
-  CELL, PAGE_W, PAGE_H, COVER, BOOK_W, BOOK_H, LEFT_PAGE, RIGHT_PAGE, HEADER_Y, TABLE_LEFT, DAY_COL_W,
+  CELL, PAGE_W, PAGE_H, COVER, BOOK_W, BOOK_H, LEFT_PAGE, RIGHT_PAGE, TABLE, HEADER_Y, TABLE_LEFT, DAY_COL_W,
   TITLE_BOX_X, TITLE_BOX_Y, GOALS, goalPos, goalTextBox, widthOf, dotX, columnXs, bottomY, noteBoxes, NOTE_LABEL,
   type Column, type NoteField, type Rect,
 } from "./layout";
@@ -18,7 +18,7 @@ export type Scene = {
   /** an X being written right now: key + start time, drawn with a pen-stroke animation */
   writing: { key: string; start: number } | null;
 };
-export type Assets = { paper?: HTMLImageElement; leather?: HTMLImageElement };
+export type Assets = { wood?: HTMLImageElement; paper?: HTMLImageElement; leather?: HTMLImageElement };
 /** world -> plane: plane = world * s + (x, y) */
 export type View = { x: number; y: number; s: number };
 /** the part of the plane the canvas covers, and its resolution (device px per plane px) */
@@ -138,14 +138,14 @@ const count = (values: Record<string, string>, col: Column) => Object.keys(value
 
 // ---------------------------------------------------------------------------------------------
 
-export type Part = "shadow" | "book";
+export type Part = "table" | "book";
 export function drawScene(ctx: Ctx, view: View, plane: Plane, scene: Scene, assets: Assets, now: number, part: Part) {
   const { s } = view, k = plane.k;
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
   ctx.setTransform(s * k, 0, 0, s * k, (view.x - plane.x0) * k, (view.y - plane.y0) * k);
   const vis: Rect = { x: (plane.x0 - view.x) / s, y: (plane.y0 - view.y) / s, w: plane.w / s, h: plane.h / s };
-  if (part === "shadow") { drawShadow(ctx); return; }
+  if (part === "table") { drawTable(ctx, vis, assets); return; }
   drawCover(ctx, vis, assets);
   drawPage(ctx, vis, assets, LEFT_PAGE, "left");
   drawPage(ctx, vis, assets, RIGHT_PAGE, "right");
@@ -166,18 +166,21 @@ function tint(ctx: Ctx) {
   ctx.restore();
 }
 
-/** The book's shadow on the table. The light comes from the window behind, so it falls towards the viewer:
- *  a soft, long shadow in front of the book and a tight dark one right under it. */
-function drawShadow(ctx: Ctx) {
-  const cx = BOOK_W / 2, cy = BOOK_H / 2;
-  const blob = (dx: number, dy: number, rx: number, ry: number, alpha: number) => {
-    ctx.save(); ctx.translate(cx + dx, cy + dy); ctx.scale(rx, ry);
-    const g = ctx.createRadialGradient(0, 0, 0, 0, 0, 1);
-    g.addColorStop(0, `rgba(20,10,5,${alpha})`); g.addColorStop(0.6, `rgba(20,10,5,${alpha * 0.55})`); g.addColorStop(1, "rgba(20,10,5,0)");
-    ctx.fillStyle = g; ctx.fillRect(-1, -1, 2, 2); ctx.restore();
-  };
-  blob(10, 210, BOOK_W * 0.64, BOOK_H * 0.7, 0.55);
-  blob(0, 60, BOOK_W * 0.55, BOOK_H * 0.58, 0.7);
+/** The drawn table top, seen once the camera goes overhead: floor everywhere, wood over TABLE, lit like the photo
+ *  (warm evening light from the window behind, darker towards the viewer). The book's shadow is a DOM element. */
+function drawTable(ctx: Ctx, vis: Rect, assets: Assets) {
+  ctx.fillStyle = "#1d130c"; ctx.fillRect(vis.x, vis.y, vis.w, vis.h);
+  const t = TABLE;
+  const x = Math.max(t.x, vis.x), y = Math.max(t.y, vis.y), x2 = Math.min(t.x + t.w, vis.x + vis.w), y2 = Math.min(t.y + t.h, vis.y + vis.h);
+  if (x2 <= x || y2 <= y) return;
+  ctx.fillStyle = "#8a5a34"; ctx.fillRect(x, y, x2 - x, y2 - y);
+  if (assets.wood) { const p = ctx.createPattern(assets.wood, "repeat"); if (p) { ctx.fillStyle = p; ctx.fillRect(x, y, x2 - x, y2 - y); } }
+  const light = ctx.createLinearGradient(0, t.y, 0, t.y + t.h);
+  light.addColorStop(0, "rgba(255,170,70,.45)"); light.addColorStop(0.45, "rgba(255,140,60,.28)"); light.addColorStop(1, "rgba(60,25,10,.45)");
+  ctx.fillStyle = light; ctx.fillRect(x, y, x2 - x, y2 - y);
+  const vign = ctx.createRadialGradient(t.x + t.w / 2, t.y + t.h * 0.45, t.w * 0.2, t.x + t.w / 2, t.y + t.h * 0.45, t.w * 0.75);
+  vign.addColorStop(0, "rgba(0,0,0,0)"); vign.addColorStop(1, "rgba(0,0,0,.4)");
+  ctx.fillStyle = vign; ctx.fillRect(x, y, x2 - x, y2 - y);
 }
 
 function roundRect(ctx: Ctx, x: number, y: number, w: number, h: number, r: number) {
@@ -207,9 +210,10 @@ function drawCover(ctx: Ctx, vis: Rect, assets: Assets) {
     for (let i = 1; i < n; i++) { if (horizontal) { ctx.moveTo(x, y + i * 2.5); ctx.lineTo(x + w, y + i * 2.5); } else { ctx.moveTo(x + i * 2.5, y); ctx.lineTo(x + i * 2.5, y + h); } }
     ctx.stroke();
   };
-  edge(4, COVER + 2, COVER - 4, PAGE_H + 2, false);
-  edge(BOOK_W - COVER, COVER + 2, COVER - 4, PAGE_H + 2, false);
-  edge(COVER, BOOK_H - COVER, BOOK_W - 2 * COVER, COVER - 3, true);
+  // a narrow band of page edges just outside the pages; the rest of COVER stays black board
+  edge(COVER - 8, COVER + 2, 8, PAGE_H + 2, false);
+  edge(BOOK_W - COVER, COVER + 2, 8, PAGE_H + 2, false);
+  edge(COVER, BOOK_H - COVER, BOOK_W - 2 * COVER, 8, true);
   // elastic loop
   ctx.fillStyle = "#101010"; roundRect(ctx, BOOK_W - 50, BOOK_H * 0.54, 44, 60, 3); ctx.fill();
 }
@@ -235,7 +239,7 @@ function drawPage(ctx: Ctx, vis: Rect, assets: Assets, at: { x: number; y: numbe
   // curvature: pages bulge up before they dive into the spine; a light outer edge; one faint crease
   const spineX = side === "left" ? PAGE_W : 0, dir = side === "left" ? -1 : 1;
   const g = ctx.createLinearGradient(spineX, 0, spineX + dir * 130, 0);
-  g.addColorStop(0, "rgba(0,0,0,.32)"); g.addColorStop(0.09, "rgba(0,0,0,.17)"); g.addColorStop(0.33, "rgba(0,0,0,.05)"); g.addColorStop(0.58, "rgba(255,255,255,.10)"); g.addColorStop(1, "rgba(0,0,0,0)");
+  g.addColorStop(0, "rgba(0,0,0,.45)"); g.addColorStop(0.07, "rgba(0,0,0,.26)"); g.addColorStop(0.3, "rgba(0,0,0,.07)"); g.addColorStop(0.55, "rgba(255,255,255,.12)"); g.addColorStop(1, "rgba(0,0,0,0)");
   ctx.fillStyle = g; ctx.fillRect(0, 0, PAGE_W, PAGE_H);
   const e = ctx.createLinearGradient(PAGE_W - spineX, 0, PAGE_W - spineX - dir * 30, 0);
   e.addColorStop(0, "rgba(0,0,0,.07)"); e.addColorStop(1, "rgba(0,0,0,0)");
@@ -253,9 +257,9 @@ function drawPage(ctx: Ctx, vis: Rect, assets: Assets, at: { x: number; y: numbe
 }
 
 function drawSpine(ctx: Ctx) {
-  const g = ctx.createLinearGradient(BOOK_W / 2 - 13, 0, BOOK_W / 2 + 13, 0);
-  g.addColorStop(0, "rgba(0,0,0,0)"); g.addColorStop(0.45, "rgba(0,0,0,.28)"); g.addColorStop(0.5, "rgba(0,0,0,.34)"); g.addColorStop(0.55, "rgba(0,0,0,.28)"); g.addColorStop(1, "rgba(0,0,0,0)");
-  ctx.fillStyle = g; ctx.fillRect(BOOK_W / 2 - 13, COVER, 26, PAGE_H);
+  const g = ctx.createLinearGradient(BOOK_W / 2 - 18, 0, BOOK_W / 2 + 18, 0);
+  g.addColorStop(0, "rgba(0,0,0,0)"); g.addColorStop(0.45, "rgba(0,0,0,.38)"); g.addColorStop(0.5, "rgba(0,0,0,.48)"); g.addColorStop(0.55, "rgba(0,0,0,.38)"); g.addColorStop(1, "rgba(0,0,0,0)");
+  ctx.fillStyle = g; ctx.fillRect(BOOK_W / 2 - 18, COVER, 36, PAGE_H);
 }
 
 function drawLeftPage(ctx: Ctx, scene: Scene, vis: Rect) {
