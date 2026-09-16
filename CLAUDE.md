@@ -84,7 +84,23 @@ Rækker = dage 1–31 (antal efter måneden). Kolonner = brugerens egne trackere
 - Papiret er let uperfekt: ujævne yderkanter (clip-path) og et par svage folder (gradienter i `.page::after`).
 - Lukas' egen håndskrift (trin 4): han udfylder fysiske ark med alle bogstaver og tal. Al tekst tegnes via
   `text()` og X'er via `handX()` i `src/draw.ts` – glyfferne byttes ind DER, intet andet sted skal røres.
-- SCENE = HIGGSFIELD-FOTO (2026-09-16 aften, erstatter det tegnede rum/bord/vindue): rummet er et genereret billede +
+- DYBDELAG (2026-09-16 sent, opgaven i `TASK_scene_depth.md`, trin 1–3 færdige): fotoet er splittet i 7 lag med hver sin dybde
+  (`src/scene.json`: 0 = uendeligt langt væk, 1 = bogens plan; koordinater i fotoets pixels, `pad` = spejlede marginer).
+  Råfilerne (PNG fra Higgsfield-lagsplit + `composite.png` = originalen) ligger i `baggrund-kilder/lag/` (ikke i git);
+  `npm run scene` (tools/scene-assets.py, python3 + cv2 + PIL) laver `public/baggrund/<id>.webp`: tager originalens pixels
+  overalt hvor et lag er synligt (AI-pixels kun hvor parallaksen afslører dem), tilpasser bløde kanter, udfylder huller i
+  bordet, spejler kanter, og folder bordpladen ud i bogens plan som to fliser (`flat`, near/far) = den inverse af CSS-vippet
+  ved tiltFar. `src/camera.ts` = kameraet (én kilde: z, pan, t, tilt fra gestus-tilstanden; `perspective` i VERDENS-px, så
+  projektionen er ens på alle skærme og bordpladen kunne foldes ud én gang). `src/Scene.tsx` = lagene som <img> i verdens-
+  enheder; BookCanvas sætter deres transform pr. frame (skaleret om bogens centrum og panoreret med dybden). Lag EFTER
+  bordplanet i scene.json (pynt, stol) tegnes efter vippet, så de overlapper bordkanten. Bordpladen ligger i `.worldflat`
+  under skyggen og bogen og vipper MED bogen. Identitets-visningen (alle lag i skala 1 = fotoet) er MIN-zoom (start), ikke
+  "bogen fylder skærmen" som opgaven skriver – ellers ville startbilledet ikke være Lukas' foto. `npm run scenecheck`
+  (Chrome 390×844@3, `?nobook`) differ scenen mod fotoet og laver s0-side/s0-overlay + views s1–s5; `__zoomTo(z)` og
+  `__cam()` i dev. Videoen og tidspunkt-skiftet (Backdrop.tsx) er FJERNET med lagene (Lukas' accept); jpg/mp4 pr. tidspunkt
+  ligger stadig i public/baggrund til senere. Kendt: bordpladen over bogen er sløret, når den ligger fladt (fotoet har få
+  pixels der). Lys/skygge/fokus (opgavens trin 4–5, `light`/`focus` i scene.json) er IKKE lavet endnu.
+- SCENE = HIGGSFIELD-FOTO (2026-09-16 aften, erstatter det tegnede rum/bord/vindue; DELVIST FORÆLDET, se DYBDELAG ovenfor): rummet er et genereret billede +
   lydløs loop-video pr. tidspunkt, `public/baggrund/<tid>.jpg|mp4`, tid ∈ morgen (05–10), middag (10–17), aften (17–21),
   nat (21–05). `src/Backdrop.tsx` vælger efter telefonens klokkeslæt (PT. LÅST TIL AFTEN via `ONLY` øverst i filen, indtil aften sidder lige i skabet – sæt til null for at slå skiftet til) (tjekker hvert minut), crossfader 2,4 s ved skift,
   og falder tilbage til AFTEN, hvis en fil mangler (billede og video hver for sig: findes kun billedet, vises kun det).
@@ -150,7 +166,12 @@ Rækker = dage 1–31 (antal efter måneden). Kolonner = brugerens egne trackere
 - Test-scripts ligger i sessionens scratchpad (`pw/shots.mjs` skærmbilleder, `pw/bench.mjs` frame-tider i WebKit,
   `pw/tapcheck.mjs` tryk). Dev-server: `npm run dev`. I dev sætter BookCanvas `window.__view` (x, y, s) til scripts.
 
-## Status 2026-09-16 kl. 20.30 (sådan fortsætter man)
+## Status 2026-09-16 kl. 22.15
+- Dybdelag + fælles bordplan (TASK_scene_depth.md trin 1–3) er lavet og pushet; galleri på den faste Artifact-url. Lukas har
+  IKKE set det på telefonen endnu – det er første skridt. Derefter: hans OK → trin 4–5 (lys, skygge, fokus fra scene.json).
+- Kør: `npm run scene` efter ændringer i lag/pad/anchor/kamera; `npm run scenecheck` + `npm run zoomcheck` før push.
+
+## Status 2026-09-16 kl. 20.30 (ældre)
 - Live: https://harms-coder.github.io/life-tracker/ · repo `Harms-coder/life-tracker` · alt er committet og pushet (d6bb0b7).
 - Kør lokalt: `npm install` (én gang), `npm run dev` → http://localhost:5173/life-tracker/ (også fra telefonen på LAN-ip).
 - Test (scripts starter selv dev-serveren; kør dem IKKE samtidig med bench): `npm run zoomcheck` (VIGTIGST: seks trin

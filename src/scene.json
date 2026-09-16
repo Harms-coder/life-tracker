@@ -1,30 +1,124 @@
 {
-  "$comment": "Evening scene, format from TASK_scene_depth.md. Our layers are cropped, so each has x/y/w/h in pixels of the original photo (width x height); 'scale' enlarges a layer around its centre (the view has no margin behind the frame). depth: 0 = infinitely far, 1 = the book's plane. camera.zoomMax is relative to z=1 (the book fills the screen); tilt, focus and horizon reach their end value at zoomFlat, not at zoomMax. light.azimuthDeg is the direction the shadow falls (0 = up the picture, clockwise).",
+  "$comment": "Evening scene, format from TASK_scene_depth.md. Our layers are cropped, so each has x/y/w/h in pixels of the original photo (width x height). depth: 0 = infinitely far, 1 = the book's plane. pad = [top, right, bottom, left] as fractions of the layer's own size: mirrored margins added by tools/scene-assets.py where the photo's edge cuts the layer, so panning never shows the cut. The table plane's 'flat' tiles (written by the script) are the table unwarped into the book's plane, in world px. camera.zoomMax/zoomFlat are relative to the book filling the screen; perspective is the camera's distance in world px (4 px = 1 mm); tiltNear must be 0 for taps to work. light.azimuthDeg is the direction the shadow falls (0 = up the picture, clockwise).",
   "name": "aften",
   "path": "baggrund/",
   "original": "composite.png",
   "width": 2160,
   "height": 3840,
   "layers": [
-    { "file": "layer-z1-base-base.png",                                  "depth": 0.45, "x": 0,    "y": 0,    "w": 2160, "h": 3840 },
-    { "file": "layer-z2-base-outdoor-sunset-landscape-view.png",         "depth": 0.0,  "x": 351,  "y": 1,    "w": 1501, "h": 1252, "scale": 1.1 },
-    { "file": "layer-z3-base-window-frame-structure.png",                "depth": 0.47, "x": 127,  "y": 1,    "w": 1964, "h": 1501 },
-    { "file": "layer-z4-base-wooden-dining-table.png",                   "depth": 1.0,  "x": 1,    "y": 1552, "w": 2158, "h": 1763, "isTablePlane": true },
-    { "file": "layer-z5-base-left-side-desk-decor-set.png",              "depth": 0.9,  "x": 0,    "y": 748,  "w": 775,  "h": 1033 },
-    { "file": "layer-z6-base-right-side-desk-decor-set.png",             "depth": 0.92, "x": 1651, "y": 1022, "w": 508,  "h": 1064 },
-    { "file": "layer-z7-base-foreground-chair-with-knitted-blanket.png", "depth": 1.35, "x": 1,    "y": 3184, "w": 2158, "h": 653 }
+    {
+      "id": "wall",
+      "file": "layer-z1-base-base.png",
+      "depth": 0.45,
+      "x": 0,
+      "y": 0,
+      "w": 2160,
+      "h": 3840
+    },
+    {
+      "id": "view",
+      "file": "layer-z2-base-outdoor-sunset-landscape-view.png",
+      "depth": 0.0,
+      "x": 351,
+      "y": 1,
+      "w": 1501,
+      "h": 1252,
+      "pad": [
+        0.08,
+        0.08,
+        0.08,
+        0.08
+      ]
+    },
+    {
+      "id": "window",
+      "file": "layer-z3-base-window-frame-structure.png",
+      "depth": 0.47,
+      "x": 127,
+      "y": 1,
+      "w": 1964,
+      "h": 1501
+    },
+    {
+      "id": "table",
+      "file": "layer-z4-base-wooden-dining-table.png",
+      "depth": 1.0,
+      "x": 1,
+      "y": 1552,
+      "w": 2158,
+      "h": 1763,
+      "pad": [
+        0,
+        0.12,
+        0,
+        0.12
+      ],
+      "isTablePlane": true,
+      "flat": [
+        {
+          "file": "table-far.webp",
+          "x": -3134.5,
+          "y": -4409.3,
+          "w": 7728.0,
+          "h": 2912.0
+        },
+        {
+          "file": "table-near.webp",
+          "x": -1769.9,
+          "y": -1500,
+          "w": 4996.9,
+          "h": 3220.0
+        }
+      ]
+    },
+    {
+      "id": "decor-left",
+      "file": "layer-z5-base-left-side-desk-decor-set.png",
+      "depth": 0.9,
+      "x": 0,
+      "y": 748,
+      "w": 775,
+      "h": 1033
+    },
+    {
+      "id": "decor-right",
+      "file": "layer-z6-base-right-side-desk-decor-set.png",
+      "depth": 0.92,
+      "x": 1651,
+      "y": 1022,
+      "w": 508,
+      "h": 1064
+    },
+    {
+      "id": "chair",
+      "file": "layer-z7-base-foreground-chair-with-knitted-blanket.png",
+      "depth": 1.35,
+      "x": 1,
+      "y": 3184,
+      "w": 2158,
+      "h": 653,
+      "pad": [
+        0,
+        0.12,
+        0.1,
+        0.12
+      ]
+    }
   ],
   "book": {
     "depth": 1.0,
-    "anchor": { "x": 0.50, "y": 0.64 },
-    "widthFraction": 0.58
+    "anchor": {
+      "x": 0.5,
+      "y": 0.64
+    },
+    "widthFraction": 0.5824
   },
   "camera": {
     "zoomMax": 7.0,
     "zoomFlat": 1.7,
     "tiltFar": 58,
     "tiltNear": 0,
-    "perspective": 700,
+    "perspective": 2800,
     "horizonRise": 0.04
   },
   "light": {
@@ -37,5 +131,8 @@
     "shadowOpacity": 0.45,
     "rimStrength": 0.25
   },
-  "focus": { "maxBlurPx": 6, "maxDarken": 0.12 }
+  "focus": {
+    "maxBlurPx": 6,
+    "maxDarken": 0.12
+  }
 }

@@ -106,18 +106,18 @@ glider op, når kameraet dykker.
 Alle værdier læses fra `scene.json`; ingen hårdkodede tal i komponenten.
 
 ## Implementering – trin
-1. Lav en `Scene`-komponent der læser `scene.json` og stakker lagene i rækkefølge
+1. ✅ Lav en `Scene`-komponent der læser `scene.json` og stakker lagene i rækkefølge
    (far → mid → table[+shadow+book] → near).
-2. Flyt eksisterende pinch/pan-logik ind i en `CameraController` der kun udstiller
+2. ✅ Flyt eksisterende pinch/pan-logik ind i en `CameraController` der kun udstiller
    `{ z, px, py, t }`. Alle lag afleder deres transform herfra.
-3. Implementér lag-transform og bordplan-container. Verificér mål 4 (z=1 → identisk).
+3. ✅ Implementér lag-transform og bordplan-container. Verificér mål 4 (z=1 → identisk).
 4. Tilføj skygger og lys-overlays.
 5. Tilføj fokus-effekten.
 6. Profilér på iPhone: `will-change: transform` (web) / `drawingGroup()` (SwiftUI)
    på lagene; ingen re-layout under gestus.
 
 ## Acceptance-kriterier
-- [ ] z=1: scenen matcher originalfotoet pixel for pixel (overlay-test med 50 % opacity).
+- [x] z=1: scenen matcher originalfotoet pixel for pixel (overlay-test med 50 % opacity). ✅ 2026-09-16: `npm run scenecheck` – middelforskel 2,9/255, 0,2 % af pixels >30 (kun lagkanter).
 - [ ] Zoom mod bogen: horisonten glider op, planten glider mere end vinduet, bordet
       og bogen roterer sammen. Det føles som at læne sig ind over bordet.
 - [ ] Bogen kaster skygge i samme retning og blødhed som plante/bøger i fotoet.

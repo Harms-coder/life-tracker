@@ -13,7 +13,9 @@
     "views": "node tools/views.mjs screenshots",
     "webkit": "node tools/webkit-shots.mjs screenshots",
     "baggrund": "sh tools/baggrund.sh",
-    "zoomcheck": "node tools/zoomcheck.mjs screenshots"
+    "zoomcheck": "node tools/zoomcheck.mjs screenshots",
+    "scene": "python3 tools/scene-assets.py",
+    "scenecheck": "node tools/scenecheck.mjs screenshots && python3 tools/scenecheck.py"
   },
   "dependencies": {
     "react": "^19.1.0",
