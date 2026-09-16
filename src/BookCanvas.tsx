@@ -1,12 +1,11 @@
 import { forwardRef, useImperativeHandle, useLayoutEffect, useRef, type ReactNode } from "react";
 import { BG, BOOK_H, BOOK_T, BOOK_W, TABLE } from "./layout";
-import type { Part, Plane, View } from "./draw";
+import type { Plane, View } from "./draw";
 
 const MAX_OVER_FIT = 7; // how far past "whole spread visible" you can zoom in
 const TAP_SLOP = 8;
 const TILT_MAX = (window as unknown as { __tiltMax?: number }).__tiltMax ?? 58; // degrees when fully zoomed out: matches the photo's camera
 const PERSPECTIVE = 700; // px, camera distance for the tilt (smaller = stronger convergence)
-const WOOD_IN = 0.6; // the drawn table fades in while the tilt amount goes from this to 0
 const TILT_RANGE = 0.7; // tilt is gone at fit * (1 + TILT_RANGE)
 const MARGIN = 0.35; // canvas overdraw around the viewport, share of its size
 const PIXEL_BUDGET = 9e6; // max canvas pixels (iOS is strict about big canvases)
@@ -17,7 +16,7 @@ const LIVE_GAP = 120; // ms between such redraws
 export type BookCanvasHandle = { redraw: () => void };
 
 /**
- * The book (and its shadow) are two canvas bitmaps; the room behind is a photo/video layer in the same world
+ * The book is one canvas bitmap; the room (and the table it lies on) is a photo/video layer in the same world
  * coordinates, panned and zoomed in 2D. While a finger is down (or the glide runs) everything is only
  * transformed – cheap. When the hands are off, the visible part is drawn again, crisp, once; in the middle
  * of a pinch a quick, coarser redraw keeps the writing readable.
@@ -26,7 +25,7 @@ export type BookCanvasHandle = { redraw: () => void };
  */
 export const BookCanvas = forwardRef<BookCanvasHandle, {
   width: number; height: number;
-  draw: (ctx: CanvasRenderingContext2D, view: View, plane: Plane, part: Part) => void;
+  draw: (ctx: CanvasRenderingContext2D, view: View, plane: Plane) => void;
   onTap: (wx: number, wy: number) => void;
   backdrop?: ReactNode;
 }>(function BookCanvas({ width, height, draw, onTap, backdrop }, ref) {
@@ -34,16 +33,12 @@ export const BookCanvas = forwardRef<BookCanvasHandle, {
   const tilt = useRef<HTMLDivElement>(null);
   const tilt2 = useRef<HTMLDivElement>(null); // the faces get their own 3D context: Chrome mis-sorts them against the big canvases
   const gesture = useRef<HTMLDivElement>(null);
-  const tableGesture = useRef<HTMLDivElement>(null);
   const world3d = useRef<HTMLDivElement>(null);
   const worldFlat = useRef<HTMLDivElement>(null); // things lying on the table plane (the shadow)
   const scene2d = useRef<HTMLDivElement>(null); // the room: pans and zooms with the world, never tilts
-  const tableCanvas = useRef<HTMLCanvasElement>(null); // the drawn table top, shown as the camera goes overhead
   const bookCanvas = useRef<HTMLCanvasElement>(null);
   const t = useRef<View>({ x: 0, y: 0, s: 0 }); // live transform; s=0 => snapped to fit on first layout
   const committed = useRef<View>({ x: 0, y: 0, s: 1 }); // what the book bitmap was drawn with
-  const tableCommitted = useRef<View>({ x: 0, y: 0, s: 1 }); // same for the table (skipped in quick mid-pinch redraws)
-  const woodAlpha = (a: number) => Math.min(1, Math.max(0, 1 - a / WOOD_IN));
   const plane = useRef<Plane>({ x0: 0, y0: 0, w: 1, h: 1, k: 1 });
   const fitScale = useRef(1); // book fills the screen: where the tilt starts to go
   const minScale = useRef(1); // photo just covers the screen: as far out as you can go
@@ -64,7 +59,7 @@ export const BookCanvas = forwardRef<BookCanvasHandle, {
   const maxScale = () => fitScale.current * MAX_OVER_FIT;
 
   /** Zoomed out you can pan to the edge of the photo (it always covers the screen); looking straight down only
-   *  over the table in it. In between the limit slides from one to the other, so nothing jumps mid-pinch. */
+   *  over the table in it, never up to the window. In between the limit slides from one to the other, so nothing jumps. */
   const clamp = () => {
     const v = view.current!;
     const { s } = t.current, a = tiltAmount(s);
@@ -81,10 +76,9 @@ export const BookCanvas = forwardRef<BookCanvasHandle, {
     const { x, y, s } = t.current, c = committed.current;
     if (import.meta.env.DEV) (window as unknown as { __view: View }).__view = t.current; // for the test scripts
     const a = tiltAmount(s), lift = a * s; // z scale: world px -> screen px, fading out as the camera goes overhead
-    const follow = (el: HTMLDivElement, c: View) => { const gs = s / c.s; el.style.transform = `translate(${x - gs * c.x}px, ${y - gs * c.y}px) scale(${gs})`; };
-    follow(gesture.current!, c); follow(tableGesture.current!, tableCommitted.current);
+    const gs = s / c.s;
+    gesture.current!.style.transform = `translate(${x - gs * c.x}px, ${y - gs * c.y}px) scale(${gs})`;
     scene2d.current!.style.transform = worldFlat.current!.style.transform = `translate(${x}px, ${y}px) scale(${s})`;
-    tableCanvas.current!.style.opacity = `${woodAlpha(a)}`; // the photo gives way to the drawn table as you look down
     bookCanvas.current!.style.transform = `translateZ(${BOOK_T * lift}px)`;
     world3d.current!.style.transform = `translate(${x}px, ${y}px) scale3d(${s}, ${s}, ${lift})`;
     world3d.current!.style.opacity = `${Math.min(1, a / 0.3)}`; // the page block flattens away as the camera goes overhead
@@ -118,17 +112,11 @@ export const BookCanvas = forwardRef<BookCanvasHandle, {
     plane.current = p;
     committed.current = { x, y, s };
     const live = budget < PIXEL_BUDGET;
-    if (!live) { // the table: wood needs no full resolution; stretching it mid-pinch is fine
-      const tp = { ...vp, k: Math.min(dpr, Math.sqrt(budget / (vp.w * vp.h))) / 1.5 };
-      tableCommitted.current = committed.current;
-      fitCanvas(tableCanvas.current!, tp, false);
-      drawRef.current(tableCanvas.current!.getContext("2d")!, committed.current, tp, "table");
-    }
     // the book: only the part of the plane it covers
     const bx0 = Math.max(p.x0, x), by0 = Math.max(p.y0, y), bx1 = Math.min(p.x0 + p.w, x + BOOK_W * s), by1 = Math.min(p.y0 + p.h, y + BOOK_H * s);
     const bp = { x0: bx0, y0: by0, w: Math.max(1, bx1 - bx0), h: Math.max(1, by1 - by0), k: p.k };
     fitCanvas(bookCanvas.current!, bp, live);
-    drawRef.current(bookCanvas.current!.getContext("2d")!, committed.current, bp, "book");
+    drawRef.current(bookCanvas.current!.getContext("2d")!, committed.current, bp);
     lastRender.current = performance.now();
     paint();
   };
@@ -253,7 +241,6 @@ export const BookCanvas = forwardRef<BookCanvasHandle, {
     <div ref={view} className="viewport" onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerCancel={onPointerUp} onWheel={onWheel}>
       <div ref={scene2d} className="scene2d">{backdrop}</div>
       <div ref={tilt} className="tilt">
-        <div ref={tableGesture} className="gesture"><canvas ref={tableCanvas} className="book-canvas" /></div>
         {/* the book's shadow, lying on the table: long and soft towards the viewer (the light is the window behind), tight underneath */}
         <div ref={worldFlat} className="worldflat">
           <div className="shadow" style={{ left: BOOK_W / 2 + 10 - BOOK_W * 0.66, top: BOOK_H / 2 + 230 - BOOK_H * 0.72, width: BOOK_W * 1.32, height: BOOK_H * 1.44, opacity: 0.55 }} />

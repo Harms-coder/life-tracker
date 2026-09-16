@@ -1,6 +1,6 @@
 import { seededRandom } from "./random";
 import {
-  CELL, PAGE_W, PAGE_H, COVER, BOOK_W, BOOK_H, LEFT_PAGE, RIGHT_PAGE, TABLE, HEADER_Y, TABLE_LEFT, DAY_COL_W,
+  CELL, PAGE_W, PAGE_H, COVER, BOOK_W, BOOK_H, LEFT_PAGE, RIGHT_PAGE, HEADER_Y, TABLE_LEFT, DAY_COL_W,
   TITLE_BOX_X, TITLE_BOX_Y, GOALS, goalPos, goalTextBox, widthOf, dotX, columnXs, bottomY, noteBoxes, NOTE_LABEL,
   type Column, type NoteField, type Rect,
 } from "./layout";
@@ -18,7 +18,7 @@ export type Scene = {
   /** an X being written right now: key + start time, drawn with a pen-stroke animation */
   writing: { key: string; start: number } | null;
 };
-export type Assets = { wood?: HTMLImageElement; paper?: HTMLImageElement; leather?: HTMLImageElement };
+export type Assets = { paper?: HTMLImageElement; leather?: HTMLImageElement };
 /** world -> plane: plane = world * s + (x, y) */
 export type View = { x: number; y: number; s: number };
 /** the part of the plane the canvas covers, and its resolution (device px per plane px) */
@@ -138,14 +138,12 @@ const count = (values: Record<string, string>, col: Column) => Object.keys(value
 
 // ---------------------------------------------------------------------------------------------
 
-export type Part = "table" | "book";
-export function drawScene(ctx: Ctx, view: View, plane: Plane, scene: Scene, assets: Assets, now: number, part: Part) {
+export function drawScene(ctx: Ctx, view: View, plane: Plane, scene: Scene, assets: Assets, now: number) {
   const { s } = view, k = plane.k;
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
   ctx.setTransform(s * k, 0, 0, s * k, (view.x - plane.x0) * k, (view.y - plane.y0) * k);
   const vis: Rect = { x: (plane.x0 - view.x) / s, y: (plane.y0 - view.y) / s, w: plane.w / s, h: plane.h / s };
-  if (part === "table") { drawTable(ctx, vis, assets); return; }
   drawCover(ctx, vis, assets);
   drawPage(ctx, vis, assets, LEFT_PAGE, "left");
   drawPage(ctx, vis, assets, RIGHT_PAGE, "right");
@@ -164,23 +162,6 @@ function tint(ctx: Ctx) {
   g.addColorStop(0, "rgba(255,160,70,.20)"); g.addColorStop(1, "rgba(150,70,30,.34)");
   ctx.fillStyle = g; ctx.fillRect(-2, -2, BOOK_W + 4, BOOK_H + 4);
   ctx.restore();
-}
-
-/** The drawn table top, seen once the camera goes overhead: floor everywhere, wood over TABLE, lit like the photo
- *  (warm evening light from the window behind, darker towards the viewer). The book's shadow is a DOM element. */
-function drawTable(ctx: Ctx, vis: Rect, assets: Assets) {
-  ctx.fillStyle = "#1d130c"; ctx.fillRect(vis.x, vis.y, vis.w, vis.h);
-  const t = TABLE;
-  const x = Math.max(t.x, vis.x), y = Math.max(t.y, vis.y), x2 = Math.min(t.x + t.w, vis.x + vis.w), y2 = Math.min(t.y + t.h, vis.y + vis.h);
-  if (x2 <= x || y2 <= y) return;
-  ctx.fillStyle = "#8a5a34"; ctx.fillRect(x, y, x2 - x, y2 - y);
-  if (assets.wood) { const p = ctx.createPattern(assets.wood, "repeat"); if (p) { ctx.fillStyle = p; ctx.fillRect(x, y, x2 - x, y2 - y); } }
-  const light = ctx.createLinearGradient(0, t.y, 0, t.y + t.h);
-  light.addColorStop(0, "rgba(255,170,70,.45)"); light.addColorStop(0.45, "rgba(255,140,60,.28)"); light.addColorStop(1, "rgba(60,25,10,.45)");
-  ctx.fillStyle = light; ctx.fillRect(x, y, x2 - x, y2 - y);
-  const vign = ctx.createRadialGradient(t.x + t.w / 2, t.y + t.h * 0.45, t.w * 0.2, t.x + t.w / 2, t.y + t.h * 0.45, t.w * 0.75);
-  vign.addColorStop(0, "rgba(0,0,0,0)"); vign.addColorStop(1, "rgba(0,0,0,.4)");
-  ctx.fillStyle = vign; ctx.fillRect(x, y, x2 - x, y2 - y);
 }
 
 function roundRect(ctx: Ctx, x: number, y: number, w: number, h: number, r: number) {

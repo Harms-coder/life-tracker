@@ -1,10 +1,9 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import { BookCanvas, type BookCanvasHandle } from "./BookCanvas";
 import { Backdrop } from "./Backdrop";
-import { drawScene, type Assets, type Part, type Plane, type Scene, type View } from "./draw";
+import { drawScene, type Assets, type Plane, type Scene, type View } from "./draw";
 import { BOOK_H, BOOK_W, dotX, hitTest, NOTE_LABEL, widthOf, CELL, type ColType, type Column, type NoteField } from "./layout";
 import { seededRandom } from "./random";
-import woodUrl from "./textures/wood.jpg";
 import paperUrl from "./textures/paper.png";
 import leatherUrl from "./textures/leather.png";
 
@@ -86,7 +85,7 @@ type Prompt = ValuePrompt | ColumnPrompt | NotePrompt;
 
 const assets: Assets = {};
 function loadAssets(onLoad: () => void) {
-  for (const [name, url] of [["wood", woodUrl], ["paper", paperUrl], ["leather", leatherUrl]] as const) {
+  for (const [name, url] of [["paper", paperUrl], ["leather", leatherUrl]] as const) {
     const img = new Image();
     img.onload = () => { assets[name] = img; onLoad(); };
     img.src = url;
@@ -102,7 +101,7 @@ export default function App() {
   const scene = useRef<Scene>({ ...MONTH, monthLabel: MONTH.label, days: DAYS, columns, values, notes, writing: null });
   scene.current = { ...scene.current, columns, values, notes };
 
-  const draw = useCallback((ctx: CanvasRenderingContext2D, view: View, plane: Plane, part: Part) => drawScene(ctx, view, plane, scene.current, assets, performance.now(), part), []);
+  const draw = useCallback((ctx: CanvasRenderingContext2D, view: View, plane: Plane) => drawScene(ctx, view, plane, scene.current, assets, performance.now()), []);
   const redraw = () => book.current?.redraw();
   useEffect(() => { redraw(); }, [columns, values, notes]);
   useEffect(() => {

@@ -5,12 +5,12 @@ export const LEFT_PAGE = { x: COVER, y: COVER }, RIGHT_PAGE = { x: COVER + PAGE_
 /** The background photo (9:16), in world units relative to the book's top-left corner. Its size sets how big
  *  the book is on the table, its offset where on the table it lies (the book tips over its own centre, so the centre
  *  stays put at every zoom; tuned by eye against the photo). */
-export const BG = { x: -522, y: -2542, w: 2500, h: 4444 };
-/** The drawn table top around the book (world units): shown as the camera goes overhead, and as far as you can pan
- *  then. Its wood is drawn on the table canvas; outside it is floor. */
-export const TABLE = { x: -450, y: -520, w: BOOK_W + 900, h: BOOK_H + 1080 };
-/** Thickness of the closed half of the book (the page block), in world px (1 cell = 5 mm). */
-export const BOOK_T = 180;
+export const BG = { x: -522, y: -2320, w: 2500, h: 4444 };
+/** The table top inside the photo (fractions of BG): looking straight down you can pan over this, never up to the
+ *  window. Must contain the whole flat book (0..BOOK_H) with some margin, or its ends cannot be reached. */
+export const TABLE = { x: BG.x, y: BG.y + 0.46 * BG.h, w: BG.w, h: 0.32 * BG.h };
+/** Thickness of the closed half of the book (the page block), in world px (1 cell = 5 mm): 2 cm, as in the reference. */
+export const BOOK_T = 80;
 
 export const HEADER_H = 8 * CELL, HEADER_Y = CELL + HEADER_H;
 export const DAY_COL_W = 2, TABLE_LEFT = CELL;

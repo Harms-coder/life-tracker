@@ -95,16 +95,15 @@ Rækker = dage 1–31 (antal efter måneden). Kolonner = brugerens egne trackere
   1080×1920 JPEG (~0,4 MB) og H.264-video (~0,35 MB) med sømløst loop (sidste sekund crossfades ind i det første, så
   klippet slutter, hvor det starter). Lægger Lukas nye råfiler ind: kør scriptet, commit `public/baggrund/`.
   Kvalitet: billederne er 1440×2560 JPEG (~0,7 MB), så de er skarpe på en 3×-telefon.
-  ZOOMET IND ses ikke fotoet men en TEGNET bordplade (`drawTable` i draw.ts på "table"-canvas'et: træ over `TABLE`
-  (verdenskoordinater omkring bogen, som før fotoet), gulv udenom, lys som fotoets aftenlys). Den toner frem via CSS-opacity,
-  når vippet er under 0,6 (WOOD_IN), og panoreringsgrænsen glider samtidig fra fotoet til TABLE. Grund: fotoet har fast
-  perspektiv, så en flad bog over fotoet hang ud over bordkanten, og man kunne panorere op til vinduet. Som Lukas ville
-  have det: zoomet ind er man "inden for bordet" og ser aldrig vinduet.
+  ZOOMET IND er det stadig fotoets bord man ser (Lukas: "det skal være den bordplade, bogen ligger på"). En tegnet
+  bordplade, der tonede frem, blev forkastet – "giver ingen mening". Konsekvens: fotoet er 8× forstørret og sløret
+  zoomet ind, og bogens flade fodaftryk skal holde sig inden for fotoets bord (derfor ligger bogens centrum på 0,64 af
+  højden, ikke lavere). Panorering zoomet ind: kun over bordet i fotoet (`TABLE` = 0,46–0,78 af BG's højde).
   Bogen i lyset: efter alt er tegnet lægges en varm, let mørkere-mod-betragteren tone over bogen (`tint()` i draw.ts,
   source-atop) – ellers ser det kridhvide papir forkert ud i aftenlyset. Papiret har svage bølger og buer kraftigt ned
   mod ryggen (gradienter i drawPage/drawSpine).
-  BOGENS TYKKELSE (Lukas' reference: tyk bog, ikke to flade ark): COVER = 24 (sort cover-ramme om siderne, hvoraf 8 er et
-  bånd af sidekanter, `edge()` i drawCover), BOOK_T = 180 (4,5 cm – bevidst overdrevet, ser rigtigt ud i perspektivet).
+  BOGENS TYKKELSE (Lukas' reference: en rigtig bog, ikke to flade ark): COVER = 24 (sort cover-ramme om siderne, hvoraf 8
+  er et bånd af sidekanter, `edge()` i drawCover), BOOK_T = 80 (2 cm som i referencen; 180 var "alt, alt for tyk").
   Opslaget løftes BOOK_T op (translateZ), og sideblokkens FORKANT er én CSS-flade (`.book-face`, rotateX(90) i `tilt2`),
   der står fra bordet op til coverets forkant: sort cover-bræt nederst, sidekanter, lys ovenfra. INGEN sideflader: fra
   hvor man sidder kan et bords/bogs sider ikke ses, og tegnede sideflader så ud som lyse "vinger" langs de skrå kanter.
@@ -118,8 +117,8 @@ Rækker = dage 1–31 (antal efter måneden). Kolonner = brugerens egne trackere
   skærmens midte (som før fotoet), blev bogen skubbet ned ad skærmen under zoom, fordi den ikke ligger i skærmens midte. Baggrundslaget
   (`.scene2d`) panorerer/zoomer i 2D med verden men vipper ikke; kun bogen vipper og flader ud, når man zoomer ind.
   Min-zoom = fotoet dækker lige skærmen (cover, siderne beskæres på iPhone 19,5:9). Panorering: zoomet ud til fotoets kant,
-  zoomet ind kun over den tegnede bordplade (`TABLE`, verdenskoordinater omkring bogen); grænsen glider imellem de to med
-  vippet, så intet hopper. Skyggen under bogen tegnes på den (ellers tomme) "shadow"-canvas i draw.ts: blød og lang
+  zoomet ind kun over bordet i fotoet (`TABLE`, brøkdele af BG – SKAL rumme hele bogen med margen); grænsen glider
+  imellem de to med vippet, så intet hopper. Skyggen under bogen tegnes på den (ellers tomme) "shadow"-canvas i draw.ts: blød og lang
   fremad mod betragteren (lyset kommer fra vinduet) + en tæt mørk lige under.
   Bemærk: middag-fotoet har en lidt anden komposition end aften/nat; ligger bogen skævt på et nyt foto, justér BG/TABLE.
   FALDGRUBE: Playwright-WebKit tegner CSS-3D uden rigtig perspektivprojektion (bogen bliver flad og sidder for højt), så
