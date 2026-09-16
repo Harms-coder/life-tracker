@@ -11,6 +11,7 @@ document.addEventListener("gesturestart", (e) => e.preventDefault());
 // Reload once when a newer build is online. GitHub Pages tells the phone to keep index.html for
 // 10 min; version.txt is fetched past that cache, and index.html is re-fetched before reloading.
 async function checkForUpdate() {
+  if (import.meta.env.DEV) return;
   try {
     const online = (await (await fetch(import.meta.env.BASE_URL + "version.txt", { cache: "no-store" })).text()).trim();
     if (online === __BUILD__ || sessionStorage.getItem("reloaded-for") === online) return;

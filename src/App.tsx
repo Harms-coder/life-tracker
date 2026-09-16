@@ -182,7 +182,10 @@ function NoteText({ seed, text, bullets, minRows = 0 }: { seed: string; text: st
   return (
     <div className="note-text">
       {lines.map((line, i) => (
-        <Ink key={i} seed={seed + i} text={(bullets ? "•  " : "") + line} className="ink--line" tilt={0.25} />
+        <div key={i} className="note-line">
+          {bullets && <span className="bullet">•</span>}
+          <Ink seed={seed + i} text={line} className="ink--line" tilt={0.25} />
+        </div>
       ))}
     </div>
   );
@@ -269,7 +272,6 @@ export default function App() {
               <SpreadLines seed="L">
                 <path d={wobbly(TITLE_BOX_X, 0, TITLE_BOX_X, HEADER_Y, "Lv")} />
                 <path d={wobbly(0, TITLE_BOX_Y, TITLE_BOX_X, TITLE_BOX_Y, "Lh")} />
-                <path d={wobbly(TITLE_BOX_X + CELL / 2, 2 * CELL + 4, TITLE_BOX_X + CELL / 2 + 150, 2 * CELL + 4, "Lu")} strokeWidth={1.3} />
                 {Array.from({ length: GOALS }, (_, i) => <path key={i} d={square(goalPos(i).x, goalPos(i).y, "sq" + i)} strokeWidth={1.3} />)}
               </SpreadLines>
               <Ink seed="title" text={MONTH.label} className="title" />
