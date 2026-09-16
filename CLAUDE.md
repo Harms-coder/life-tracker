@@ -150,26 +150,39 @@ Rækker = dage 1–31 (antal efter måneden). Kolonner = brugerens egne trackere
 - Test-scripts ligger i sessionens scratchpad (`pw/shots.mjs` skærmbilleder, `pw/bench.mjs` frame-tider i WebKit,
   `pw/tapcheck.mjs` tryk). Dev-server: `npm run dev`. I dev sætter BookCanvas `window.__view` (x, y, s) til scripts.
 
-## Status 2026-09-16 (sådan fortsætter man)
-- Live: https://harms-coder.github.io/life-tracker/ · repo `Harms-coder/life-tracker` · alt er committet og pushet.
+## Status 2026-09-16 kl. 20.30 (sådan fortsætter man)
+- Live: https://harms-coder.github.io/life-tracker/ · repo `Harms-coder/life-tracker` · alt er committet og pushet (d6bb0b7).
 - Kør lokalt: `npm install` (én gang), `npm run dev` → http://localhost:5173/life-tracker/ (også fra telefonen på LAN-ip).
-- Test: `npm run shots` (skærmbilleder i `screenshots/`), `npm run views` (fit, helt ude, halvt vippet, bordkant, midt i
-  pinch, sluppet), `npm run webkit` (WebKit-skærmbilleder: start + zoomet; `TID=nat` for et tidspunkt), `npm run bench` (frame-tider i WebKit; `Q='?tid=middag'` vælger tidspunkt; mål 0 frames
-  > 33 ms – pt. 1–2 pr. pinch pga. live-omtegning, se Beslutninger), `npm run tapcheck` (tryk virker). Scripts starter selv
-  dev-serveren; kør dem IKKE samtidig med bench (forstyrrer målingen). Playwright-browsere: `npx playwright install`.
-- Vis billeder til Lukas: `python3 tools/gallery.py '[["1-opslag.png","Titel","Tekst"]]'` → `screenshots/galleri.html`,
-  publiceres som Artifact (samme URL hver gang: https://claude.ai/artifact/S914mdZ2Tq4gAuqWUrxLYb).
-- Færdigt: hele opslaget (venstre: titel i kasse, seks mål; højre: skema med alle kolonnetyper, søvnkurve,
-  gennemsnit/antal, fire fritekstfelter), kolonner kan rettes, eksempeldata, scenen (bord, vindue, vip),
-  glidende zoom (canvas). Data ligger i localStorage (values-/notes-/columns-nøgler) – kun én måned.
-- Higgsfield: connectoren er logget ind (2026-09-16), men værktøjerne dukker først op i en NY Claude Code-session
-  (de registreres ved sessionsstart). Tjek med `claude mcp list` → "✔ Connected", og at ToolSearch finder dem.
-- Baggrund: aften + nat har billede og video, middag kun billede, morgen mangler (→ aften). Playwright-WebKit tegner
-  perspektivet fladere end Chrome; stol på Chrome-billederne (og telefonen) for geometri.
-- Næste skridt (Lukas' ønsker i rækkefølge): 1) Morgen-foto/-video + middag-video fra Higgsfield (kør `npm run baggrund`).
-  Evt. bogens cover/sideblok som teksturer; selve siderne bliver ved med at være tegnet af appen. 2) Trin 2: flere måneder + sidevending + rigtig datamodel (IndexedDB). 3) PWA-ikon og
-  "læg på hjemmeskærm". 4) Trin 4: hans egen håndskrift som glyffer (byttes ind i `text()`/`handX()` i draw.ts).
-- Kendt: skriften er en anelse blød UNDER en pinch, skarp ved slip (bevidst, jf. arkitektur ovenfor).
+- Test (scripts starter selv dev-serveren; kør dem IKKE samtidig med bench): `npm run zoomcheck` (VIGTIGST: seks trin
+  pinch på bogen fra start til max + panorering til bogens bund; bogen skal blive under fingrene og hele bogen kunne nås),
+  `npm run views`, `npm run shots`, `npm run tapcheck` (tryk virker), `npm run bench` (frame-tider i WebKit),
+  `npm run webkit` (KUN til video/fallback – Playwright-WebKit tegner CSS-3D fladt og kan ikke bruges til geometri).
+  Geometri bedømmes i Chrome med `deviceScaleFactor: 3` (390×844) og på Lukas' telefon. Playwright-browsere: `npx playwright install`.
+- Vis billeder til Lukas: `python3 tools/gallery.py '[["fil.png","Titel","Tekst"]]' "Indledning"` → `screenshots/galleri.html`,
+  publiceres som Artifact på SAMME url hver gang: https://claude.ai/artifact/S914mdZ2Tq4gAuqWUrxLYb (Artifact-værktøjet:
+  `read` den først i en ny session, derefter `publish` med `url`).
+- FÆRDIGT I DAG (aften-scenen, 5 runder med Lukas' feedback):
+  Rummet er Lukas' Higgsfield-foto + loop-video (aften), låst til aften (`ONLY` i Backdrop.tsx). Bogen ligger på fotoets
+  bord, vipper om sit eget centrum (58°, perspective 700), løftet 2 cm med sideblok-forkant, sort cover-ramme, varm tone,
+  buede sider, skygge fremad. Zoom virker "som før baggrunden": bogen bliver under fingrene, zoomet ind er det fotoets
+  (slørede) bord, panorering kun over bordet i fotoet. Lukas godkendte placeringen ("ligger rigtigt nu") og zoomen
+  ("fungerer lige som det skal") i runde 3; runde 4 gik for langt (4,5 cm tyk bog + tegnet bordplade) og blev rullet
+  tilbage i runde 5. Runde 5 er IKKE set af Lukas endnu – første skridt i næste session: bed om hans dom på telefonen.
+- ÅBENT / NÆSTE (i Lukas' rækkefølge):
+  1) Lukas' feedback på runde 5 (tykkelse 2 cm, bogens centrum 0,64 af højden, cover-ramme). Mulige knapper: BOOK_T,
+     BG.y (placering), BG.w (størrelse), TILT_MAX/PERSPECTIVE (vinkel), COVER, skyggen (`.shadow` i BookCanvas.tsx).
+  2) De andre tidspunkter: sæt `ONLY = null` i Backdrop.tsx, når aften sidder. Nat har billede+video, middag kun
+     billede (anden komposition – tjek at bogen ligger rigtigt, ellers pr.-tidspunkt BG), morgen mangler (→ aften).
+     Nye råfiler i `baggrund-kilder/` → `npm run baggrund` (ffmpeg via Homebrew) → commit `public/baggrund/`.
+  3) Higgsfield-connectoren er logget ind; værktøjerne dukker først op i en NY session (`claude mcp list` → Connected).
+     Kan bruges til fx en bordplade set lige oppefra (skarpt bord zoomet ind) – men Lukas vil have FOTOETS bord, så spørg først.
+  4) Trin 2: flere måneder + sidevending + rigtig datamodel (IndexedDB). 5) PWA-ikon. 6) Lukas' håndskrift som glyffer
+     (byttes ind i `text()`/`handX()` i draw.ts).
+- Kendt: skriften er en anelse blød UNDER en pinch (grov omtegning), skarp ved slip. Første pinch efter load kan hakke
+  én gang (WebKit skalerer det store fotolag). Fotoet er sløret zoomet helt ind (8×) – accepteret af Lukas.
+- Arbejdsform, der virkede: én runde = rettelse → Chrome-billede (3×, crop af bogen) → push → Lukas kigger på telefonen
+  og svarer med skærmbilleder. Ret EFTER HANS REFERENCEBILLEDE, ikke efter tal i hans ord ("3–4× tykkere" betød "som på
+  billedet"), og erstat ikke noget han har bedt om (fotoets bord) med en efterligning uden at spørge.
 
 ## Roadmap
 1. ~~Prototype af ét opslag: bog på bord, ternede sider, pinch-zoom, afkrydsning med håndskrevne X-varianter.~~ ✅ 2026-09-16
