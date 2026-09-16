@@ -27,7 +27,7 @@ body { font-family: var(--font-hand); -webkit-user-select: none; user-select: no
   cursor: grab;
 }
 .viewport:active { cursor: grabbing; }
-.tilt { position: absolute; inset: 0; transform-origin: 50% 50%; transform-style: preserve-3d; will-change: transform; }
+.tilt { position: absolute; inset: 0; transform-style: preserve-3d; will-change: transform; } /* transform-origin = the book's centre, set per frame */
 .gesture { position: absolute; left: 0; top: 0; transform-origin: 0 0; transform-style: preserve-3d; will-change: transform; }
 .book-canvas { position: absolute; display: block; }
 .world3d { position: absolute; left: 0; top: 0; transform-origin: 0 0; transform-style: preserve-3d; will-change: transform; }

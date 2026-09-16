@@ -84,8 +84,11 @@ export const BookCanvas = forwardRef<BookCanvasHandle, {
     bookCanvas.current!.style.transform = `translateZ(${BOOK_T * lift}px)`;
     world3d.current!.style.transform = `translate(${x}px, ${y}px) scale3d(${s}, ${s}, ${lift})`;
     world3d.current!.style.visibility = lift > 0 ? "" : "hidden";
-    // perspective inside the transform itself: as a property on the parent Chrome and WebKit apply it differently
-    tilt.current!.style.transform = tilt2.current!.style.transform = `perspective(${PERSPECTIVE}px) rotateX(${tiltFor(s)}deg)`;
+    // The book tips over its own centre, so it stays where it lies on the photo's table at every zoom level (tipping
+    // over the screen centre pushed it down the screen as the tilt went away). Perspective inside the transform itself:
+    // as a property on the parent Chrome and WebKit apply it differently.
+    const origin = `${x + (BOOK_W / 2) * s}px ${y + (BOOK_H / 2) * s}px`;
+    for (const el of [tilt.current!, tilt2.current!]) { el.style.transformOrigin = origin; el.style.transform = `perspective(${PERSPECTIVE}px) rotateX(${tiltFor(s)}deg)`; }
   };
   const apply = () => { clamp(); if (!frame.current) frame.current = requestAnimationFrame(paint); };
 

@@ -12,7 +12,8 @@
     "tapcheck": "node tools/tapcheck.mjs screenshots",
     "views": "node tools/views.mjs screenshots",
     "webkit": "node tools/webkit-shots.mjs screenshots",
-    "baggrund": "sh tools/baggrund.sh"
+    "baggrund": "sh tools/baggrund.sh",
+    "zoomcheck": "node tools/zoomcheck.mjs screenshots"
   },
   "dependencies": {
     "react": "^19.1.0",

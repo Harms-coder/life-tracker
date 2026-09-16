@@ -4,9 +4,10 @@ export const BOOK_W = PAGE_W * 2 + COVER * 2, BOOK_H = PAGE_H + COVER * 2;
 export const LEFT_PAGE = { x: COVER, y: COVER }, RIGHT_PAGE = { x: COVER + PAGE_W, y: COVER };
 /** The background photo (9:16), in world units relative to the book's top-left corner. Its size sets how big
  *  the book is on the table, its offset where on the table it lies (the book is tilted afterwards, so tune by eye). */
-export const BG = { x: -732, y: -3575, w: 2900, h: 5156 };
-/** The table top inside the photo (fractions of BG): zoomed in you can pan over this, not the wall and window. */
-export const TABLE = { x: BG.x, y: BG.y + 0.44 * BG.h, w: BG.w, h: 0.33 * BG.h };
+export const BG = { x: -732, y: -2889, w: 2900, h: 5156 };
+/** The table top inside the photo (fractions of BG): zoomed in you can pan over this, not the wall and window.
+ *  Must contain the whole book (0..BOOK_H) with some margin, or its far/near end cannot be reached. */
+export const TABLE = { x: BG.x, y: BG.y + 0.44 * BG.h, w: BG.w, h: 0.36 * BG.h };
 /** What is drawn on the canvases when the whole scene is visible: the book plus room for its shadow. */
 export const SCENE = { x: -240, y: -160, w: BOOK_W + 480, h: BOOK_H + 560 };
 /** Thickness of the closed half of the book, in world px (1 cell = 5 mm). */
