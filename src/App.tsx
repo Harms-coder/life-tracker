@@ -28,7 +28,7 @@ const COLUMNS: Column[] = [
   { name: "Dagsscore", type: "rating", width: 1 },
 ];
 /** x-position (px) of a 0..10 sleep value inside the 6-cell column; shared by dots and scale labels */
-const dotX = (v: number) => 6 + (v / 10) * (6 * CELL - 12);
+const dotX = (v: number) => CELL / 2 + (v / 10) * (5 * CELL); // 0 and 10 sit mid-cell in the outer cells
 const DAY_COL_W = 2; // weekday letter + number
 const DAYS = new Date(MONTH.year, MONTH.month, 0).getDate();
 const WEEKDAY = "SMTOTFL"; // indexed by Date.getDay()
@@ -37,9 +37,9 @@ const TABLE_W = (DAY_COL_W + COLUMNS.reduce((n, c) => n + c.width, 0)) * CELL;
 
 type Values = Record<string, string>; // "x" for checks, "71,5" / "8" for numbers, "7.5" for dots
 
-function Ink({ seed, text, className = "" }: { seed: string; text: string; className?: string }) {
+function Ink({ seed, text, className = "", size }: { seed: string; text: string; className?: string; size?: number }) {
   const r = seededRandom(seed);
-  const style = { transform: `rotate(${(r() - 0.5) * 5}deg) translate(${(r() - 0.5) * 2}px, ${(r() - 0.5) * 2}px)` };
+  const style = { fontSize: size, transform: `rotate(${(r() - 0.5) * 5}deg) translate(${(r() - 0.5) * 2}px, ${(r() - 0.5) * 2}px)` };
   return <span className={`ink ${className}`} style={style}>{text}</span>;
 }
 
@@ -63,6 +63,7 @@ function TableLines() {
     <svg className="lines" viewBox={`0 0 ${PAGE_W} ${PAGE_H}`}>
       {xs.map((x, i) => <path key={i} d={wobbly(x, top, x, bottom, "v" + i)} />)}
       <path d={wobbly(TABLE_LEFT, headerY, TABLE_LEFT + TABLE_W, headerY, "h")} />
+      <path d={wobbly(TABLE_LEFT, headerY + DAYS * CELL, TABLE_LEFT + TABLE_W, headerY + DAYS * CELL, "h2")} />
     </svg>
   );
 }
@@ -91,7 +92,7 @@ export default function App() {
     if (col.type === "check") return write(key, values[key] ? null : "x");
     if (col.type === "dots") {
       const r = e.currentTarget.getBoundingClientRect();
-      const v = Math.min(10, Math.max(0, Math.round((((e.clientX - r.left) / r.width) * 6 * CELL - 6) / (6 * CELL - 12) * 20) / 2)); // 0..10 in halves
+      const v = Math.min(10, Math.max(0, Math.round((((e.clientX - r.left) / r.width) * 6 * CELL - CELL / 2) / (5 * CELL) * 20) / 2)); // 0..10 in halves
       return write(key, values[key] === String(v) ? null : String(v));
     }
     setPrompt({ key, label: `${col.name} · ${day}. ${MONTH.label.split(" ")[0].toLowerCase()}`, value: values[key] ?? "" });
@@ -144,7 +145,7 @@ export default function App() {
                           aria-label={`${c.name} dag ${day}`} aria-pressed={!!v} onClick={(e) => onCell(day, c, e)}>
                           {v && c.type === "check" && <HandX seed={key} animate={lastWritten.current === key} />}
                           {v && c.type === "dots" && <span className="dot" style={{ left: dotX(Number(v)) }} />}
-                          {v && (c.type === "number" || c.type === "rating") && <Ink seed={key} text={v} />}
+                          {v && (c.type === "number" || c.type === "rating") && <Ink seed={key} text={v} size={v.length > 2 ? 12.5 : 15} />}
                         </button>
                       );
                     })}

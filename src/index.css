@@ -106,7 +106,7 @@ body { font-family: var(--font-hand); -webkit-user-select: none; user-select: no
 
 .header { position: absolute; top: 0; height: calc(var(--cell) * 8); }
 .header .ink { bottom: 8px; left: 3px; font-size: 16.5px; }
-.header--dots .ink--dots-title { left: 6px; bottom: 30px; font-size: 16.5px; }
+.header--dots .ink--dots-title { left: 50%; bottom: 30px; font-size: 16.5px; margin-left: -34px; }
 .header--dots .ink--scale { bottom: 4px; font-size: 13px; margin-left: -4px; }
 
 .tracker { position: absolute; }
@@ -119,9 +119,9 @@ body { font-family: var(--font-hand); -webkit-user-select: none; user-select: no
   -webkit-tap-highlight-color: transparent;
   touch-action: none;
 }
-.cell .ink { left: 4px; top: 1px; font-size: 16px; }
-.cell--number .ink { left: 3px; font-size: 15px; }
-.cell--rating .ink { left: 5px; }
+.cell { display: flex; align-items: center; justify-content: center; }
+.cell .ink { position: static; font-size: 15px; }
+.cell--text .ink { font-size: 14.5px; }
 .cell--text { pointer-events: none; }
 
 .dot {
