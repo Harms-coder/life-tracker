@@ -157,11 +157,12 @@ const NOTE_LABEL: Record<string, string> = {
 for (let i = 0; i < GOALS; i++) NOTE_LABEL["goal" + i] = `Mål ${i + 1}`;
 // ponytail: example text so the layout can be judged; seeded once, then Lukas' own text takes over
 const DEMO_NOTES: Notes = {
-  goal0: "Finde ro i hverdagen", goal1: "Løbe 10 km uden pause", goal2: "Mindre mobil om aftenen",
-  goal3: "Læse en bog færdig", goal4: "Ringe til mormor hver uge", goal5: "Spare 2.000 kr. op",
-  good: "Løbet 3 gange om ugen\nMediteret næsten hver morgen\nMindre skærm om aftenen\nBedre søvn i sidste halvdel",
-  better: "Stå op kl. 6, også i weekenden\nDrikke mere vand", change: "Dagbog om aftenen i stedet for at scrolle",
-  learned: "Gode dage starter med en god morgen\nJeg brokker mig mindre, når jeg har sovet nok",
+  goal0: "Finde ro i hverdagen og stresse mindre", goal1: "Løbe 10 km uden pause inden d. 30.", goal2: "Mindre mobil om aftenen, max 1 time",
+  goal3: "Læse 'Atomic Habits' færdig", goal4: "Ringe til mormor hver søndag", goal5: "Spare 2.000 kr. op til rejsen",
+  good: "Løbet 3 gange om ugen, også når det regnede\nMediteret næsten hver morgen, kun 4 dage sprunget over\nMindre skærm om aftenen, telefonen ligger i køkkenet\nBedre søvn i sidste halvdel af måneden\nSpist clean 19 dage, det er rekord\nSkrevet dagbog 20 dage\nVægten er gået fra 71,9 til 71,0\nHar sagt nej til to ting, jeg ikke havde lyst til",
+  better: "Stå op kl. 6, også i weekenden\nDrikke mere vand i løbet af dagen\nStrække ud efter hver løbetur",
+  change: "Dagbog om aftenen i stedet for at scrolle\nLægge løbetøjet frem aftenen før\nIngen kaffe efter kl. 14",
+  learned: "Gode dage starter med en god morgen\nJeg brokker mig mindre, når jeg har sovet nok\nDet er nemmere at sige nej, end jeg troede",
 };
 const TITLE_BOX_X = 12 * CELL, TITLE_BOX_Y = 4 * CELL; // box around the month title on the left page
 
@@ -201,9 +202,9 @@ export default function App() {
     return demo;
   });
   const [notes, setNotes] = useState<Notes>(() => {
-    if (localStorage.getItem("demo-notes-seeded")) return load(NOTES_KEY, {});
+    if (localStorage.getItem("demo-notes-seeded-2")) return load(NOTES_KEY, {});
     localStorage.setItem(NOTES_KEY, JSON.stringify(DEMO_NOTES));
-    localStorage.setItem("demo-notes-seeded", "1");
+    localStorage.setItem("demo-notes-seeded-2", "1");
     return DEMO_NOTES;
   });
   const [prompt, setPrompt] = useState<Prompt | null>(null);
@@ -354,6 +355,8 @@ export default function App() {
               </div>
             </div>
           </div>
+          <div className="pages-bottom" />
+          <div className="spine" />
           <div className="band-loop" />
           <span className="build">{__BUILD__}</span>
         </div>
