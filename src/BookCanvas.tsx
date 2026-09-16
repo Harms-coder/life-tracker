@@ -1,12 +1,13 @@
 import { forwardRef, useImperativeHandle, useLayoutEffect, useRef } from "react";
-import { BOOK_H, BOOK_T, BOOK_W, LAYERS, layerRect, TABLE } from "./layout";
-import { ANCHOR, CAM, camera, layerTransform, type Ident } from "./camera";
-import { SceneLayers, TablePlane, type LayerEl } from "./Scene";
+import { BG, BOOK_H, BOOK_T, BOOK_W, LAYERS, layerRect, PX, TABLE, type Rect } from "./layout";
+import { ANCHOR, CAM, camera, layerTransform, placement, projector, type Ident } from "./camera";
+import { image, loadImages, NEAR, SceneLayers, TABLE_LAYER, type LayerEl } from "./Scene";
 import type { Plane, View } from "./draw";
 
 const TAP_SLOP = 8;
 const MARGIN = 0.35; // canvas overdraw around the viewport, share of its size
 const PIXEL_BUDGET = 9e6; // max canvas pixels (iOS is strict about big canvases)
+const ROOM_BUDGET = 6e6; // the room canvas
 const LIVE_BUDGET = 2e6; // budget for the quick redraws in the middle of a pinch
 const LIVE_RATIO = 1.15; // redraw mid-pinch once the bitmap is stretched this much
 const LIVE_GAP = 120; // ms between such redraws
@@ -15,11 +16,14 @@ const NOBOOK = import.meta.env.DEV && new URLSearchParams(location.search).has("
 export type BookCanvasHandle = { redraw: () => void };
 
 /**
- * The book is one canvas bitmap; the room is a stack of depth layers (Scene.tsx) in the same world coordinates, each
- * scaled and panned by its depth about the book's centre (camera.ts) – far things barely move, so zooming feels like
- * a camera moving in over the table. While a finger is down (or the glide runs) everything is only transformed –
- * cheap. When the hands are off, the visible part of the book is drawn again, crisp, once; in the middle of a pinch a
- * quick, coarser redraw keeps the writing readable.
+ * The room is depth layers (scene.json) in the same world coordinates as the book, each scaled and panned by its
+ * depth about the book's centre (camera.ts) – far things barely move, so zooming feels like a camera moving in over
+ * the table. Only two kinds of element are used, the ones that work on iPhone (anything else inside or after the 3D
+ * tilt crashed Safari): the layers behind the table are composited canvases before the tilt; everything else is drawn
+ * into two bitmaps – the book canvas inside the tilt (the near table top, the shadow, the book) and the room canvas
+ * before it (the far table top projected as the tilt would, the legs, what stands on and in front of the table).
+ * While a finger is down (or the glide runs) everything is only transformed – cheap. When the hands are off, both
+ * bitmaps are drawn again, crisp, once; in the middle of a pinch a quick, coarser redraw keeps things in place.
  * Zoomed out, the book and the table top under it tip back together into the photo's perspective, the book lifted a
  * little with its page block standing under it; zoomed in, you look straight down and everything is flat.
  */
@@ -32,12 +36,13 @@ export const BookCanvas = forwardRef<BookCanvasHandle, {
   const tilt = useRef<HTMLDivElement>(null);
   const tilt2 = useRef<HTMLDivElement>(null); // the faces get their own 3D context: Chrome mis-sorts them against the big canvases
   const gesture = useRef<HTMLDivElement>(null);
+  const room = useRef<HTMLDivElement>(null);
   const world3d = useRef<HTMLDivElement>(null);
-  const worldFlat = useRef<HTMLDivElement>(null); // things lying on the table plane (the table top, the shadow)
   const bookCanvas = useRef<HTMLCanvasElement>(null);
-  const layers = useRef(new Map<string, LayerEl>()); // the scene's <img> layers, placed in paint()
+  const roomCanvas = useRef<HTMLCanvasElement>(null);
+  const layers = useRef(new Map<string, LayerEl>()); // the far layers' canvases, placed in paint()
   const t = useRef<View>({ x: 0, y: 0, s: 0 }); // live transform; s=0 => snapped to fit on first layout
-  const committed = useRef<View>({ x: 0, y: 0, s: 1 }); // what the book bitmap was drawn with
+  const committed = useRef<View>({ x: 0, y: 0, s: 1 }); // what the bitmaps were drawn with
   const plane = useRef<Plane>({ x0: 0, y0: 0, w: 1, h: 1, k: 1 });
   const fitScale = useRef(1); // book fills the screen: where the tilt starts to go
   const minScale = useRef(1); // photo just covers the screen: as far out as you can go
@@ -80,8 +85,7 @@ export const BookCanvas = forwardRef<BookCanvasHandle, {
     if (import.meta.env.DEV) { const w = window as unknown as { __view: View; __cam: () => unknown }; w.__view = t.current; w.__cam = () => cam(); } // for the test scripts
     const lift = c.a * s; // z scale: world px -> screen px, fading out as the camera goes overhead
     const gs = s / cm.s;
-    gesture.current!.style.transform = `translate(${x - gs * cm.x}px, ${y - gs * cm.y}px) scale(${gs})`;
-    worldFlat.current!.style.transform = `translate(${x}px, ${y}px) scale(${s})`;
+    gesture.current!.style.transform = room.current!.style.transform = `translate(${x - gs * cm.x}px, ${y - gs * cm.y}px) scale(${gs})`;
     bookCanvas.current!.style.transform = `translateZ(${BOOK_T * lift}px)`;
     world3d.current!.style.transform = `translate(${x}px, ${y}px) scale3d(${s}, ${s}, ${lift})`;
     world3d.current!.style.opacity = `${Math.min(1, c.a / 0.3)}`; // the page block flattens away as the camera goes overhead
@@ -104,15 +108,39 @@ export const BookCanvas = forwardRef<BookCanvasHandle, {
     cv.style.width = `${cv.width / p.k}px`; cv.style.height = `${cv.height / p.k}px`; cv.style.left = `${p.x0}px`; cv.style.top = `${p.y0}px`;
   };
 
+  /** The book's shadow on the table (world units): long and soft towards the viewer (the light is the window behind), tight underneath. */
+  const drawShadow = (ctx: CanvasRenderingContext2D) => {
+    for (const [l, tp, w, h, o] of [[BOOK_W / 2 + 10 - BOOK_W * 0.66, BOOK_H / 2 + 230 - BOOK_H * 0.72, BOOK_W * 1.32, BOOK_H * 1.44, 0.55], [BOOK_W / 2 - BOOK_W * 0.56, BOOK_H / 2 + 60 - BOOK_H * 0.6, BOOK_W * 1.12, BOOK_H * 1.2, 0.7]]) {
+      ctx.save(); ctx.translate(l + w / 2, tp + h / 2); ctx.scale(w / 2, h / 2); ctx.globalAlpha = o;
+      const g = ctx.createRadialGradient(0, 0, 0, 0, 0, 1);
+      g.addColorStop(0, "rgba(20,10,5,1)"); g.addColorStop(0.55, "rgba(20,10,5,.55)"); g.addColorStop(1, "rgba(20,10,5,0)");
+      ctx.fillStyle = g; ctx.fillRect(-1, -1, 2, 2); ctx.restore();
+    }
+  };
+
+  /** Draw an image lying in the book's plane into the room canvas, row by row, the way the tilt projects the plane
+   *  (rows stay rows; each strip is drawn with its mean width). Looking straight down this is a plain drawImage. */
+  const projectImage = (rc: CanvasRenderingContext2D, pr: ReturnType<typeof projector>, img: CanvasImageSource, sw: number, sh: number, r: Rect, v: View, k: number, rp: Plane) => {
+    const tl = pr.toScreen(r.x * v.s + v.x, r.y * v.s + v.y), bl = pr.toScreen(r.x * v.s + v.x, (r.y + r.h) * v.s + v.y);
+    const n = Math.min(96, Math.max(4, Math.round((((bl?.y ?? 0) - (tl?.y ?? 0)) * k) / 6)));
+    for (let i = 0; i < n; i++) {
+      const ya = (r.y + (r.h * i) / n) * v.s + v.y, yb = (r.y + (r.h * (i + 1)) / n) * v.s + v.y, xa = r.x * v.s + v.x, xb = (r.x + r.w) * v.s + v.x;
+      const a = pr.toScreen(xa, ya), b = pr.toScreen(xb, ya), d = pr.toScreen(xa, yb), e = pr.toScreen(xb, yb);
+      if (!a || !b || !d || !e || e.y <= a.y || e.y < rp.y0 || a.y > rp.y0 + rp.h) continue;
+      rc.drawImage(img, 0, (sh * i) / n, sw, sh / n, (a.x + d.x) / 2, a.y, (b.x - a.x + e.x - d.x) / 2, e.y - a.y);
+    }
+  };
+  const shadowImg = useRef<{ cv: HTMLCanvasElement; r: Rect } | null>(null);
+
   /** Draw the bitmaps for the current transform. The expensive step; done when the hands are off. */
   const render = (budget = PIXEL_BUDGET) => {
-    const v = view.current!;
-    const { x, y, s } = t.current;
+    const v = view.current!, W = v.clientWidth, H = v.clientHeight;
+    const { x, y, s } = t.current, c = cam(), id = ident.current, pr = projector(c, t.current);
     const dpr = window.devicePixelRatio || 1;
-    const mw = v.clientWidth * MARGIN, mh = v.clientHeight * MARGIN;
-    const vp: Plane = { x0: -mw, y0: -mh, w: v.clientWidth + 2 * mw, h: v.clientHeight + 2 * mh, k: 1 }; // the screen and a margin around it
+    const mw = W * MARGIN, mh = H * MARGIN;
+    const vp: Plane = { x0: -mw, y0: -mh, w: W + 2 * mw, h: H + 2 * mh, k: 1 }; // the screen and a margin around it
     // tipped back you see the whole book, so draw all of it (at a resolution the budget allows)
-    const p: Plane = tiltFor(s) > 0 ? { x0: x, y0: y, w: BOOK_W * s, h: BOOK_H * s, k: 1 } : { ...vp };
+    const p: Plane = c.tilt > 0 ? { x0: x, y0: y, w: BOOK_W * s, h: BOOK_H * s, k: 1 } : { ...vp };
     p.k = Math.min(dpr, Math.sqrt(budget / (p.w * p.h)));
     plane.current = p;
     committed.current = { x, y, s };
@@ -121,7 +149,35 @@ export const BookCanvas = forwardRef<BookCanvasHandle, {
     const bx0 = Math.max(p.x0, x), by0 = Math.max(p.y0, y), bx1 = Math.min(p.x0 + p.w, x + BOOK_W * s), by1 = Math.min(p.y0 + p.h, y + BOOK_H * s);
     const bp = { x0: bx0, y0: by0, w: Math.max(1, bx1 - bx0), h: Math.max(1, by1 - by0), k: p.k };
     fitCanvas(bookCanvas.current!, bp, live);
-    drawRef.current(bookCanvas.current!.getContext("2d")!, committed.current, bp);
+    const ctx = bookCanvas.current!.getContext("2d")!;
+    if (NOBOOK) { ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height); }
+    else drawRef.current(ctx, committed.current, bp);
+
+    // The room canvas (screen space): the table top and the book's shadow projected the way the tilt projects the
+    // plane, the table's apron and legs flat, then what stands on the table and in front of it, each where its depth
+    // puts it. (Not in the tilt: the book's canvas is lifted by its thickness there, the table must not be.)
+    const rp: Plane = { ...vp, k: Math.min(dpr, Math.sqrt((live ? LIVE_BUDGET : ROOM_BUDGET) / (vp.w * vp.h))) };
+    fitCanvas(roomCanvas.current!, rp, live);
+    const rc = roomCanvas.current!.getContext("2d")!;
+    rc.setTransform(1, 0, 0, 1, 0, 0); rc.clearRect(0, 0, rc.canvas.width, rc.canvas.height);
+    rc.setTransform(rp.k, 0, 0, rp.k, -rp.x0 * rp.k, -rp.y0 * rp.k); // screen -> canvas
+    for (const f of TABLE_LAYER.flat ?? []) { const img = image(f.file); if (img) projectImage(rc, pr, img, img.naturalWidth, img.naturalHeight, f, committed.current, rp.k, rp); }
+    if (!NOBOOK) {
+      if (!shadowImg.current) { // the shadow, drawn once into a small bitmap in world units
+        const r = { x: BOOK_W / 2 + 10 - BOOK_W * 0.66, y: BOOK_H / 2 + 60 - BOOK_H * 0.6, w: BOOK_W * 1.32, h: BOOK_H / 2 + 230 - BOOK_H * 0.72 + BOOK_H * 1.44 - (BOOK_H / 2 + 60 - BOOK_H * 0.6) };
+        const cv = document.createElement("canvas"), sc = 512 / r.w; cv.width = 512; cv.height = Math.round(r.h * sc);
+        const g = cv.getContext("2d")!; g.setTransform(sc, 0, 0, sc, -r.x * sc, -r.y * sc); drawShadow(g);
+        shadowImg.current = { cv, r };
+      }
+      const sh = shadowImg.current; projectImage(rc, pr, sh.cv, sh.cv.width, sh.cv.height, sh.r, committed.current, rp.k, rp);
+    }
+    const ti = image(TABLE_LAYER.id + ".webp");
+    if (ti) { // apron and legs: the flat table image from the front edge down, at the table's depth
+      const r = layerRect(TABLE_LAYER), top = BG.y + TABLE_LAYER.nearEdge! * PX, ratio = ti.naturalHeight / r.h;
+      const band = { x: r.x, y: top, w: r.w, h: r.y + r.h - top }, pl = placement(c, id, band, TABLE_LAYER.depth);
+      rc.drawImage(ti, 0, (top - r.y) * ratio, ti.naturalWidth, band.h * ratio, pl.x, pl.y, pl.w, pl.h);
+    }
+    for (const l of NEAR) { const img = image(l.id + ".webp"); if (!img) continue; const pl = placement(c, id, layerRect(l), l.depth); rc.drawImage(img, pl.x, pl.y, pl.w, pl.h); }
     lastRender.current = performance.now();
     paint();
   };
@@ -150,6 +206,7 @@ export const BookCanvas = forwardRef<BookCanvasHandle, {
       clamp();
       render();
     };
+    loadImages(() => { if (t.current.s) render(); });
     fit();
     if (import.meta.env.DEV) { // test scripts: jump to a zoom (relative to the book filling the screen), book centred
       (window as unknown as { __zoomTo: (z: number) => void }).__zoomTo = (z) => {
@@ -251,14 +308,9 @@ export const BookCanvas = forwardRef<BookCanvasHandle, {
 
   return (
     <div ref={view} className={"viewport" + (NOBOOK ? " nobook" : "")} onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerCancel={onPointerUp} onWheel={onWheel}>
-      <SceneLayers near={false} register={register} />
+      <SceneLayers register={register} />
+      <div ref={room} className="room"><canvas ref={roomCanvas} className="book-canvas" /></div>
       <div ref={tilt} className="tilt">
-        {/* on the book's plane: the table top, then the book's shadow – long and soft towards the viewer (the light is the window behind), tight underneath */}
-        <div ref={worldFlat} className="worldflat">
-          <TablePlane />
-          <div className="shadow" style={{ left: BOOK_W / 2 + 10 - BOOK_W * 0.66, top: BOOK_H / 2 + 230 - BOOK_H * 0.72, width: BOOK_W * 1.32, height: BOOK_H * 1.44, opacity: 0.55 }} />
-          <div className="shadow" style={{ left: BOOK_W / 2 - BOOK_W * 0.56, top: BOOK_H / 2 + 60 - BOOK_H * 0.6, width: BOOK_W * 1.12, height: BOOK_H * 1.2, opacity: 0.7 }} />
-        </div>
         <div ref={gesture} className="gesture"><canvas ref={bookCanvas} className="book-canvas" /></div>
       </div>
       {/* the page block under the lifted spread: its front, standing on the table up to the cover's front edge. (Side
@@ -269,8 +321,6 @@ export const BookCanvas = forwardRef<BookCanvasHandle, {
           <div className="book-face" style={{ left: 2, top: BOOK_H, width: BOOK_W - 4, height: BOOK_T }} />
         </div>
       </div>
-      {/* what is nearer than the book: in front of it */}
-      <SceneLayers near register={register} />
     </div>
   );
 });

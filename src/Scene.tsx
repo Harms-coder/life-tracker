@@ -3,21 +3,28 @@ import scene from "./scene.json";
 import { LAYERS, layerRect, type Rect } from "./layout";
 
 export type LayerEl = { el: HTMLElement; rect: Rect; depth: number };
-const url = (file: string) => `${import.meta.env.BASE_URL}${scene.path}${file}`;
-// To bisect a crash on a phone: ?noplane = the table as a flat 2D layer instead of tilting with the book;
-// ?lag=N = only the first N layers of scene.json (0 = the book alone); ?near=old = the layers in front of the book as
-// free composited canvases after the tilt (crashed iOS Safari); ?near=0 = all layers behind the book.
-const PARAMS = new URLSearchParams(location.search);
-const NOPLANE = PARAMS.has("noplane");
-const N = PARAMS.has("lag") ? Number(PARAMS.get("lag")) : LAYERS.length;
-const NEAR = PARAMS.get("near") ?? "clip";
-const PLANE_DIV = PARAMS.get("plane") === "div"; // the table tiles as divs with a background image instead of canvases
-const TABLE_AT = NEAR === "0" ? LAYERS.length : LAYERS.findIndex((l) => l.isTablePlane);
+export const url = (file: string) => `${import.meta.env.BASE_URL}${scene.path}${file}`;
+const TABLE_AT = LAYERS.findIndex((l) => l.isTablePlane);
+export const TABLE_LAYER = LAYERS[TABLE_AT];
+/** Layers behind the table (wall, view, window): composited canvases before the tilt, each placed by its depth. */
+export const FAR = LAYERS.slice(0, TABLE_AT);
+/** What stands on the table and in front of it (decor, chair): drawn into the room canvas by BookCanvas. Only these
+ *  two kinds of element are used for the room – iOS Safari crashed ("a problem repeatedly occurred") with more
+ *  canvases or images inside or after the 3D tilt, whatever their size. */
+export const NEAR = LAYERS.slice(TABLE_AT + 1);
 
-/** A layer image as a canvas holding its bitmap. Not an <img>: iOS Safari crashed ("a problem repeatedly occurred")
- *  with the layers as images, in particular the huge (in CSS px) table tiles inside the 3D tilt – it can rasterize a
- *  transformed image at its CSS size. A canvas is composited from its own bitmap whatever its CSS size, like the book. */
-function LayerCanvas({ file, className, style, onEl }: { file: string; className: string; style: React.CSSProperties; onEl?: (el: HTMLCanvasElement | null) => void }) {
+const images = new Map<string, HTMLImageElement>();
+/** The images the canvases draw from (the table tiles, the flat table for its legs, the near layers); `onLoad` after each. */
+export function loadImages(onLoad: () => void) {
+  for (const f of [...(TABLE_LAYER.flat ?? []).map((t) => t.file), TABLE_LAYER.id + ".webp", ...NEAR.map((l) => l.id + ".webp")]) {
+    if (images.has(f)) continue;
+    const img = new Image(); images.set(f, img); img.onload = onLoad; img.src = url(f);
+  }
+}
+export const image = (file: string) => { const i = images.get(file); return i && i.complete && i.naturalWidth ? i : null; };
+
+/** A far layer as a canvas holding its bitmap (an <img> in the same place also crashed iOS Safari). */
+function LayerCanvas({ file, style, onEl }: { file: string; style: React.CSSProperties; onEl: (el: HTMLCanvasElement | null) => void }) {
   const ref = useRef<HTMLCanvasElement>(null);
   useLayoutEffect(() => {
     const cv = ref.current!, img = new Image();
@@ -25,31 +32,14 @@ function LayerCanvas({ file, className, style, onEl }: { file: string; className
     img.src = url(file);
     return () => { img.onload = null; };
   }, [file]);
-  return <canvas ref={(el) => { (ref as React.MutableRefObject<HTMLCanvasElement | null>).current = el; onEl?.(el); }} className={className} style={style} />;
+  return <canvas ref={(el) => { (ref as React.MutableRefObject<HTMLCanvasElement | null>).current = el; onEl(el); }} className="layer" style={style} />;
 }
 
-/** The room as depth layers (src/scene.json): each a canvas in world units that BookCanvas places every frame from
- *  the camera. Layers listed before the table plane come before the tilt (book + table top) in the DOM, the ones after
- *  it – things standing on the table, the chair – after it, so they overlap the table's edge as in the photo. The ones
- *  after live in a box clipped to the screen: as free composited layers on top of the 3D tilt they crashed iOS Safari
- *  ("a problem repeatedly occurred"), presumably from the unbounded projected bounds of the tilted plane. */
-export function SceneLayers({ near, register }: { near: boolean; register: (id: string, l: LayerEl | null) => void }) {
+/** The far layers, in world units; BookCanvas sets their transform every frame from the camera. */
+export function SceneLayers({ register }: { register: (id: string, l: LayerEl | null) => void }) {
   return (
-    <div className={"scene2d" + (near && NEAR === "clip" ? " near" : "")}>
-      {LAYERS.filter((l, i) => i < N && (NOPLANE || !l.flat) && i > TABLE_AT === near).map((l) => {
-        const rect = layerRect(l);
-        return <LayerCanvas key={l.id} file={l.id + ".webp"} className="layer" style={{ width: rect.w, height: rect.h }}
-          onEl={(el) => register(l.id, el && { el, rect, depth: l.depth })} />;
-      })}
+    <div className="scene2d">
+      {FAR.map((l) => { const rect = layerRect(l); return <LayerCanvas key={l.id} file={l.id + ".webp"} style={{ width: rect.w, height: rect.h }} onEl={(el) => register(l.id, el && { el, rect, depth: l.depth })} />; })}
     </div>
   );
-}
-
-/** The table top unwarped into the book's plane (`flat` tiles from tools/scene-assets.py), lying under the book inside
- *  the tilt, so the two tip together: at the identity view the tilt projects it back onto the photo exactly. */
-export function TablePlane() {
-  const tiles = NOPLANE || TABLE_AT >= N ? [] : LAYERS.find((l) => l.isTablePlane)?.flat ?? [];
-  return <>{tiles.map((f) => PLANE_DIV
-    ? <div key={f.file} className="plane" style={{ left: f.x, top: f.y, width: f.w, height: f.h, backgroundImage: `url(${url(f.file)})`, backgroundSize: "100% 100%" }} />
-    : <LayerCanvas key={f.file} file={f.file} className="plane" style={{ left: f.x, top: f.y, width: f.w, height: f.h }} />)}</>;
 }

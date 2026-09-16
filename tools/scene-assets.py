@@ -19,7 +19,7 @@ SCENE = os.path.join(ROOT, "src/scene.json")
 SRC = os.path.join(ROOT, "baggrund-kilder/lag")
 WEB, QUALITY = 2 / 3, 85
 BOOK_W, BOOK_H = 1456, 1048  # world px, as in src/layout.ts
-SPLIT, RHO_NEAR, RHO_FAR = -1500, 0.5, 0.25  # table plane tiles: seam (world y) and output px per world px
+SPLIT, RHO_NEAR, RHO_FAR = -400, 0.5, 0.25  # table plane tiles: seam (world y) and output px per world px
 
 scene = json.load(open(SCENE))
 OUT = os.path.join(ROOT, "public", scene["path"])
@@ -118,8 +118,8 @@ def plane_y(photo_y):  # a photo row -> the plane row that projects there
 def widen(py):  # how much wider the plane is than the photo at that plane row
     return 1 - (py - ay) * sn / P
 qx0, qx1 = bg_x + (tl["x"] - pl) * K, bg_x + (tl["x"] + tl["w"] + pr) * K
-y_far, y_near = plane_y(tl["y"] - pt), plane_y(tl["y"] + tl["h"] + pb)
-src = premul(imgs[tl["id"]])
+y_far, y_near = plane_y(tl["y"] - pt), plane_y(tl["nearEdge"])  # the plane ends at the table top's front edge
+src = premul(imgs[tl["id"]]); src[tl["nearEdge"] - (tl["y"] - pt):] = 0  # apron and legs are not in the plane: drawn flat from table.webp
 tiles = []
 for name, y0, y1, rho in [("table-far", y_far, SPLIT, RHO_FAR), ("table-near", SPLIT, y_near, RHO_NEAR)]:
     w = widen(y0)

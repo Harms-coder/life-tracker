@@ -5,7 +5,7 @@ export const BOOK_W = PAGE_W * 2 + COVER * 2, BOOK_H = PAGE_H + COVER * 2;
 export const LEFT_PAGE = { x: COVER, y: COVER }, RIGHT_PAGE = { x: COVER + PAGE_W, y: COVER };
 /** The scene's depth layers (src/scene.json). The photo lies flat in world units relative to the book's top-left corner:
  *  its size sets how big the book is on the table (`book.widthFraction`), the book's centre sits at `book.anchor` of it. */
-export type Layer = { id: string; file: string; depth: number; x: number; y: number; w: number; h: number; pad?: number[]; isTablePlane?: boolean; flat?: (Rect & { file: string })[] };
+export type Layer = { id: string; file: string; depth: number; x: number; y: number; w: number; h: number; pad?: number[]; isTablePlane?: boolean; nearEdge?: number; flat?: (Rect & { file: string })[] };
 export const LAYERS = scene.layers as Layer[];
 const bgW = BOOK_W / scene.book.widthFraction, bgH = (bgW * scene.height) / scene.width;
 export const BG = { x: BOOK_W / 2 - scene.book.anchor.x * bgW, y: BOOK_H / 2 - scene.book.anchor.y * bgH, w: bgW, h: bgH };

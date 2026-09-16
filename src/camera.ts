@@ -26,10 +26,28 @@ export function camera(v: View, id: Ident, fit: number): Cam {
   return { z, px: ANCHOR.x * v.s + v.x - id.ax, py: ANCHOR.y * v.s + v.y - id.ay, t, tilt, a: tiltFar ? tilt / tiltFar : 0, s: v.s };
 }
 
-/** A layer's transform: scaled about the anchor and panned by its depth (the far ones barely move), the ones behind
- *  the book drifting up as the camera dives, so the horizon rises. */
-export function layerTransform(c: Cam, id: Ident, r: Rect, depth: number): string {
+/** Where a layer goes on screen: scaled about the anchor and panned by its depth (the far ones barely move), the ones
+ *  behind the book drifting up as the camera dives, so the horizon rises. */
+export function placement(c: Cam, id: Ident, r: Rect, depth: number): Rect {
   const S = id.s * (1 + (c.z - 1) * depth);
   const rise = depth < 1 ? c.t * CAM.horizonRise * (1 - depth) * BG.h * c.s : 0;
-  return `translate(${id.ax + (r.x - ANCHOR.x) * S + c.px * depth}px, ${id.ay + (r.y - ANCHOR.y) * S + c.py * depth - rise}px) scale(${S})`;
+  return { x: id.ax + (r.x - ANCHOR.x) * S + c.px * depth, y: id.ay + (r.y - ANCHOR.y) * S + c.py * depth - rise, w: r.w * S, h: r.h * S };
+}
+export function layerTransform(c: Cam, id: Ident, r: Rect, depth: number): string {
+  const p = placement(c, id, r, depth);
+  return `translate(${p.x}px, ${p.y}px) scale(${p.w / r.w})`;
+}
+
+/** The tilt as a projection between the book's plane (screen px before the tilt) and the screen: the same maths as the
+ *  CSS `perspective() rotateX()` about the anchor, so what is drawn with it lines up with what the CSS tilts. */
+export function projector(c: Cam, v: View) {
+  const th = (c.tilt * Math.PI) / 180, sn = Math.sin(th), cs = Math.cos(th), P = CAM.perspective * v.s;
+  const ox = v.x + ANCHOR.x * v.s, oy = v.y + ANCHOR.y * v.s;
+  return {
+    ox, oy,
+    /** how much wider the plane is than the screen at a plane row (local y) */
+    widen: (ly: number) => 1 - ((ly - oy) * sn) / P,
+    toScreen: (lx: number, ly: number) => { const rx = lx - ox, ry = ly - oy, w = 1 - (ry * sn) / P; return w > 1e-3 ? { x: ox + rx / w, y: oy + (ry * cs) / w } : null; },
+    toLocal: (sx: number, sy: number) => { const rx = sx - ox, ry = sy - oy, d = cs + (ry * sn) / P; if (d <= 1e-3) return null; const ly = ry / d; return { x: ox + rx * (1 - (ly * sn) / P), y: oy + ly }; },
+  };
 }
