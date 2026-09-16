@@ -178,8 +178,8 @@ body { font-family: var(--font-hand); -webkit-user-select: none; user-select: no
 .sheet button { font-size: 16px; padding: 8px 18px; border: 0; border-radius: 8px; background: #1e2233; color: #fff; }
 .sheet select { font-size: 16px; padding: 8px 10px; border: 1px solid #bbb; border-radius: 8px; background: #fff; }
 .sheet .danger { background: #fff; color: #b3261e; border: 1px solid #b3261e; }
-.scale-tick { position: absolute; bottom: 0; width: 0; }
-.scale-tick .ink { left: 0; transform: translateX(-50%); }
+.scale-tick { position: absolute; bottom: 4px; width: 20px; margin-left: -10px; text-align: center; }
+.scale-tick .ink { position: static; }
 
 .build { position: absolute; right: 10px; bottom: -22px; font: 11px system-ui, sans-serif; color: rgba(255,255,255,.35); }
 
@@ -188,7 +188,7 @@ body { font-family: var(--font-hand); -webkit-user-select: none; user-select: no
   position: absolute; padding: 0; border: 0; background: transparent; text-align: left;
   font: inherit; color: var(--ink); -webkit-tap-highlight-color: transparent; touch-action: none; overflow: hidden;
 }
-.note__label { left: 6px; top: 0; font-size: 21px; font-weight: 500; }
+.note__label { left: 6px; top: 0; font-size: 19px; font-weight: 500; white-space: nowrap; }
 .note-text { position: absolute; left: 6px; right: 4px; top: var(--cell); display: flex; flex-direction: column; }
 .note:not(:has(.note__label)) .note-text { top: 0; }
 .ink--line { position: static; white-space: normal; font-size: 15.5px; line-height: var(--cell); padding-top: 0; }

@@ -90,8 +90,8 @@ function TableLines({ xs }: { xs: number[] }) {
   const right = xs[xs.length - 1];
   return (
     <svg className="lines" viewBox={`0 0 ${PAGE_W} ${PAGE_H}`}>
-      {xs.map((x, i) => <path key={i} d={wobbly(x, CELL, x, i === 0 || i === xs.length - 1 ? PAGE_H - CELL : BOTTOM_Y, "v" + i)} />)}
-      <path d={wobbly((xs[0] + right) / 2, BOTTOM_Y, (xs[0] + right) / 2, PAGE_H - CELL, "vmid")} />
+      {xs.map((x, i) => <path key={i} d={wobbly(x, 0, x, i === 0 || i === xs.length - 1 ? PAGE_H : BOTTOM_Y, "v" + i)} />)}
+      <path d={wobbly((xs[0] + right) / 2, BOTTOM_Y, (xs[0] + right) / 2, PAGE_H, "vmid")} />
       <path d={wobbly(TABLE_LEFT, HEADER_Y + DAYS * CH, right, HEADER_Y + DAYS * CH, "h2")} />
     </svg>
   );
@@ -145,26 +145,28 @@ const NOTES_KEY = `notes-${MONTH.year}-${MONTH.month}`;
 const GOALS = 6;
 const GOALS_Y = 2.5 * 20; // first goal row on the left page; six rows end above the header line
 const NOTE_LABEL: Record<string, string> = {
-  good: "Gik godt denne måned", better: "Gøre bedre næste måned", change: "Ændre til næste måned", learned: "Lært",
+  good: "Hvad gik godt denne måned?", better: "Gøre bedre næste måned", change: "Ændre til næste måned", learned: "Hvad har jeg lært denne måned?",
 };
 for (let i = 0; i < GOALS; i++) NOTE_LABEL["goal" + i] = `Mål ${i + 1}`;
 const TITLE_BOX_X = 12 * CELL, TITLE_BOX_Y = 4 * CELL; // box around the month title on the left page
 
 type Box = { left: number; top: number; width: number; height: number };
-function NoteBox({ field, box, notes, onOpen, bullets, label }: { field: NoteField; box: Box; notes: Notes; onOpen: (f: NoteField) => void; bullets?: boolean; label?: boolean }) {
+function NoteBox({ field, box, notes, onOpen, bullets, label, minRows }: { field: NoteField; box: Box; notes: Notes; onOpen: (f: NoteField) => void; bullets?: boolean; label?: boolean; minRows?: number }) {
   return (
     <button className="note" aria-label={NOTE_LABEL[field]} onClick={() => onOpen(field)} style={box}>
       {label && <Ink seed={"n" + field} text={NOTE_LABEL[field]} className="note__label" />}
-      {notes[field] && <NoteText seed={field} text={notes[field]!} bullets={bullets} />}
+      {(notes[field] || minRows) && <NoteText seed={field} text={notes[field] ?? ""} bullets={bullets} minRows={minRows} />}
     </button>
   );
 }
 
 /** Free text written line by line on the grid; `bullets` puts a dot in front of each line. */
-function NoteText({ seed, text, bullets }: { seed: string; text: string; bullets?: boolean }) {
+function NoteText({ seed, text, bullets, minRows = 0 }: { seed: string; text: string; bullets?: boolean; minRows?: number }) {
+  const lines = text.split("\n").filter(Boolean);
+  while (lines.length < minRows) lines.push("");
   return (
     <div className="note-text">
-      {text.split("\n").filter(Boolean).map((line, i) => (
+      {lines.map((line, i) => (
         <Ink key={i} seed={seed + i} text={(bullets ? "•  " : "") + line} className="ink--line" tilt={0.25} />
       ))}
     </div>
@@ -245,8 +247,8 @@ export default function App() {
           <div className="pages">
             <div className="page page--left">
               <SpreadLines seed="L">
-                <path d={wobbly(TITLE_BOX_X, CELL, TITLE_BOX_X, HEADER_Y, "Lv")} />
-                <path d={wobbly(CELL, TITLE_BOX_Y, TITLE_BOX_X, TITLE_BOX_Y, "Lh")} />
+                <path d={wobbly(TITLE_BOX_X, 0, TITLE_BOX_X, HEADER_Y, "Lv")} />
+                <path d={wobbly(0, TITLE_BOX_Y, TITLE_BOX_X, TITLE_BOX_Y, "Lh")} />
               </SpreadLines>
               <Ink seed="title" text={MONTH.label} className="title" />
               <Ink seed="subtitle" text="Mål denne måned" className="subtitle" />
@@ -287,11 +289,11 @@ export default function App() {
               </button>
               <NoteBox field="good" notes={notes} onOpen={openNote} bullets label
                 box={{ left: right + CELL / 2, top: HEADER_Y, width: PAGE_W - right - 1.5 * CELL, height: BOTTOM_Y - HEADER_Y }} />
-              <NoteBox field="better" notes={notes} onOpen={openNote} label
+              <NoteBox field="better" notes={notes} onOpen={openNote} label bullets minRows={3}
                 box={{ left: TABLE_LEFT, top: BOTTOM_Y, width: mid - TABLE_LEFT, height: PAGE_H - CELL - BOTTOM_Y }} />
-              <NoteBox field="change" notes={notes} onOpen={openNote} label
+              <NoteBox field="change" notes={notes} onOpen={openNote} label bullets minRows={3}
                 box={{ left: mid, top: BOTTOM_Y, width: right - mid, height: PAGE_H - CELL - BOTTOM_Y }} />
-              <NoteBox field="learned" notes={notes} onOpen={openNote} label
+              <NoteBox field="learned" notes={notes} onOpen={openNote} label bullets minRows={3}
                 box={{ left: right, top: BOTTOM_Y, width: PAGE_W - right - CELL, height: PAGE_H - CELL - BOTTOM_Y }} />
               <div className="tracker" style={{ left: TABLE_LEFT, top: CELL + HEADER_H }}>
                 <svg className="graph" width={xs[xs.length - 1] - TABLE_LEFT} height={DAYS * CH}>
