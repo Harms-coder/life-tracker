@@ -1,0 +1,136 @@
+:root {
+  --cell: 20px;              /* one 5 mm square of the grid */
+  --page-w: 704px;           /* B5 176 mm = 35.2 cells */
+  --page-h: 1000px;          /* B5 250 mm = 50 cells */
+  --cover-pad: 14px;
+  --paper: #efe9d4;
+  --grid: rgba(120, 150, 130, 0.42);
+  --ink: #1e2233;
+  --font-hand: "Caveat", "Bradley Hand", "Segoe Print", cursive;
+  color-scheme: light;
+}
+
+html, body, #root { height: 100%; margin: 0; overflow: hidden; }
+html { background: #d9d9d6; }
+body { font-family: var(--font-hand); -webkit-user-select: none; user-select: none; }
+
+/* --- table + zoomable viewport ------------------------------------- */
+.viewport {
+  position: fixed; inset: 0;
+  overflow: hidden;
+  touch-action: none;
+  background:
+    radial-gradient(ellipse at 50% 35%, #ececea 0%, #d6d6d3 70%, #c4c4c0 100%);
+  cursor: grab;
+}
+.viewport:active { cursor: grabbing; }
+.zoom-inner { position: absolute; left: 0; top: 0; transform-origin: 0 0; will-change: transform; }
+
+/* --- the book ------------------------------------------------------- */
+.book {
+  position: relative;
+  width: calc(var(--page-w) * 2 + var(--cover-pad) * 2);
+  height: calc(var(--page-h) + var(--cover-pad) * 2);
+  background: #141414;
+  border-radius: 8px 10px 10px 8px;
+  box-shadow:
+    0 2px 3px rgba(0,0,0,.35),
+    0 18px 40px rgba(0,0,0,.28),
+    0 40px 90px rgba(0,0,0,.18);
+}
+.book::before { /* leather grain */
+  content: ""; position: absolute; inset: 0; border-radius: inherit; opacity: .35;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+.pages { position: absolute; inset: var(--cover-pad); display: flex; }
+
+.page {
+  position: relative;
+  width: var(--page-w); height: var(--page-h);
+  background-color: var(--paper);
+  background-image:
+    linear-gradient(to right, var(--grid) 1px, transparent 1px),
+    linear-gradient(to bottom, var(--grid) 1px, transparent 1px);
+  background-size: var(--cell) var(--cell);
+  color: var(--ink);
+  overflow: hidden;
+}
+.page::before { /* paper fibre */
+  content: ""; position: absolute; inset: 0; pointer-events: none; opacity: .07; mix-blend-mode: multiply;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.65' numOctaves='3'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+.page::after { /* curve + shadow at the spine, light on the outer edge */
+  content: ""; position: absolute; inset: 0; pointer-events: none;
+}
+.page--left {
+  border-radius: 3px 0 0 3px;
+  transform: translateX(1px);
+}
+.page--left::after {
+  background: linear-gradient(to left, rgba(0,0,0,.22) 0, rgba(0,0,0,.08) 12px, rgba(0,0,0,0) 48px);
+}
+.page--right {
+  border-radius: 0 3px 3px 0;
+  transform: translateX(-1px);
+}
+.page--right::after {
+  background: linear-gradient(to right, rgba(0,0,0,.26) 0, rgba(0,0,0,.09) 14px, rgba(0,0,0,0) 56px);
+}
+
+/* elastic loop + ribbon */
+.band-loop {
+  position: absolute; right: 6px; top: 54%; width: 44px; height: 60px;
+  background: #101010; border-radius: 3px;
+  box-shadow: -3px 4px 8px rgba(0,0,0,.35);
+}
+.ribbon {
+  position: absolute; left: 50%; bottom: -150px; width: 22px; height: 240px;
+  background: linear-gradient(to right, #050505, #1c1c1c 45%, #050505);
+  transform: translateX(-12px) rotate(4deg);
+  transform-origin: top center;
+  clip-path: polygon(0 0, 100% 0, 100% 92%, 50% 100%, 0 92%);
+  box-shadow: 0 8px 14px rgba(0,0,0,.35);
+}
+
+/* --- handwriting ---------------------------------------------------- */
+.ink {
+  position: absolute; display: inline-block;
+  font-family: var(--font-hand); color: var(--ink);
+  white-space: nowrap; line-height: 1; pointer-events: none;
+}
+.ink--vertical { writing-mode: vertical-rl; transform: rotate(180deg); }
+
+.title { left: calc(var(--cell) * 1.4); top: calc(var(--cell) * 1.15); font-size: 46px; font-weight: 500; }
+.subtitle { left: calc(var(--cell) * 18); top: calc(var(--cell) * 1.4); font-size: 27px; font-weight: 500; }
+
+/* --- tracker grid (right page) ---------------------------------------- */
+.tracker {
+  position: absolute; left: var(--cell); top: calc(var(--cell) * 8);
+  display: grid; grid-auto-rows: var(--cell);
+}
+.tracker__headers { position: absolute; left: var(--cell); top: 0; height: calc(var(--cell) * 8); display: flex; }
+.tracker__header { position: relative; width: var(--cell); height: 100%; }
+.tracker__header .ink { bottom: 8px; left: 3px; font-size: 16.5px; }
+
+.cell {
+  width: var(--cell); height: var(--cell);
+  padding: 0; border: 0; background: transparent;
+  color: var(--ink); font: inherit; position: relative;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: none;
+}
+.cell--day { pointer-events: none; }
+.cell--day .ink { left: 4px; top: 1px; font-size: 16px; }
+
+.hand-x { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+.hand-x path {
+  fill: none; stroke: var(--ink); stroke-linecap: round; stroke-linejoin: round;
+  stroke-opacity: .88;
+}
+.hand-x--write path {
+  stroke-dasharray: 1; stroke-dashoffset: 1;
+  animation: write 150ms ease-out forwards;
+}
+.hand-x--write path + path { animation-delay: 130ms; }
+@keyframes write { to { stroke-dashoffset: 0; } }
