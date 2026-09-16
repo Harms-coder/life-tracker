@@ -86,7 +86,7 @@ Rækker = dage 1–31 (antal efter måneden). Kolonner = brugerens egne trackere
   `text()` og X'er via `handX()` i `src/draw.ts` – glyfferne byttes ind DER, intet andet sted skal røres.
 - SCENE = HIGGSFIELD-FOTO (2026-09-16 aften, erstatter det tegnede rum/bord/vindue): rummet er et genereret billede +
   lydløs loop-video pr. tidspunkt, `public/baggrund/<tid>.jpg|mp4`, tid ∈ morgen (05–10), middag (10–17), aften (17–21),
-  nat (21–05). `src/Backdrop.tsx` vælger efter telefonens klokkeslæt (tjekker hvert minut), crossfader 2,4 s ved skift,
+  nat (21–05). `src/Backdrop.tsx` vælger efter telefonens klokkeslæt (PT. LÅST TIL AFTEN via `ONLY` øverst i filen, indtil aften sidder lige i skabet – sæt til null for at slå skiftet til) (tjekker hvert minut), crossfader 2,4 s ved skift,
   og falder tilbage til AFTEN, hvis en fil mangler (billede og video hver for sig: findes kun billedet, vises kun det).
   Video: muted + playsInline + autoplay + loop; billedet ligger under og ses, indtil videoen spiller / hvis den ikke kan.
   Forhåndsvis et tidspunkt med `?tid=nat` i adressen.

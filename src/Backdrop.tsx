@@ -11,8 +11,9 @@ export type Slot = "morgen" | "middag" | "aften" | "nat";
 const SLOTS: Slot[] = ["morgen", "middag", "aften", "nat"];
 const FALLBACK: Slot = "aften";
 export const slotFor = (hour: number): Slot => (hour >= 5 && hour < 10 ? "morgen" : hour >= 10 && hour < 17 ? "middag" : hour >= 17 && hour < 21 ? "aften" : "nat");
+const ONLY: Slot | null = "aften"; // while the evening scene is being tuned: no time-of-day switching. Set to null to enable it.
 const forced = new URLSearchParams(location.search).get("tid") as Slot | null;
-const currentSlot = () => (forced && SLOTS.includes(forced) ? forced : slotFor(new Date().getHours()));
+const currentSlot = () => (forced && SLOTS.includes(forced) ? forced : ONLY ?? slotFor(new Date().getHours()));
 const url = (slot: Slot, ext: string) => `${import.meta.env.BASE_URL}baggrund/${slot}.${ext}`;
 
 function Layer({ slot, fadeIn }: { slot: Slot; fadeIn: boolean }) {
