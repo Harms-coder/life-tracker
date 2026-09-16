@@ -110,7 +110,7 @@ body { font-family: var(--font-hand); -webkit-user-select: none; user-select: no
   font-family: var(--font-hand); color: var(--ink);
   white-space: nowrap; line-height: 1; pointer-events: none;
 }
-.ink--vertical { writing-mode: vertical-rl; } /* reads top→bottom, letter bottoms facing right */
+.ink--vertical { writing-mode: vertical-rl; transform: rotate(180deg); } /* reads bottom→top (Lukas' choice "A") */
 
 .title { left: calc(var(--cell) * 1.4); top: calc(var(--cell) * 1.15); font-size: 46px; font-weight: 500; }
 .subtitle { left: calc(var(--cell) * 18); top: calc(var(--cell) * 1.4); font-size: 27px; font-weight: 500; }

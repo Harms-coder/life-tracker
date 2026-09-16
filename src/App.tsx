@@ -81,6 +81,28 @@ function TableLines({ xs }: { xs: number[] }) {
   );
 }
 
+/** Plausible example month so the layout can be judged with a full page. Runs once (flag in localStorage). */
+function demoValues(columns: Column[]): Values {
+  const r = seededRandom("demo-" + MONTH.label);
+  const v: Values = {};
+  let weight = 71.8;
+  for (let day = 1; day <= DAYS; day++) {
+    const goodDay = r() < 0.6; // some days just go better
+    weight += (r() - 0.55) * 0.4;
+    const sleep = Math.round((goodDay ? 6.5 : 5) + r() * 3.5);
+    for (const c of columns) {
+      const key = `${day}:${c.id}`;
+      if (c.type === "number") { if (r() < 0.85) v[key] = weight.toFixed(1).replace(".", ","); }
+      else if (c.type === "check") { if (r() < (goodDay ? 0.75 : 0.4)) v[key] = "x"; }
+      else if (c.type === "dots") v[key] = String(Math.min(10, sleep));
+      else if (c.name === "Skærmtid") v[key] = String(Math.round(2 + r() * 4));
+      else if (c.name === "Dagsscore") v[key] = String(Math.min(10, Math.round((goodDay ? 7 : 5) + r() * 3)));
+      else if (r() < 0.9) v[key] = String(Math.min(10, Math.round((goodDay ? 6 : 4) + r() * 4)));
+    }
+  }
+  return v;
+}
+
 function load<T>(key: string, fallback: T): T {
   try { return JSON.parse(localStorage.getItem(key) ?? "") as T; } catch { return fallback; }
 }
@@ -90,8 +112,14 @@ type ColumnPrompt = { kind: "column"; index: number; column: Column }; // index 
 type Prompt = ValuePrompt | ColumnPrompt;
 
 export default function App() {
-  const [values, setValues] = useState<Values>(() => load(VALUES_KEY, {}));
   const [columns, setColumns] = useState<Column[]>(() => load(COLUMNS_KEY, DEFAULT_COLUMNS));
+  const [values, setValues] = useState<Values>(() => {
+    if (localStorage.getItem("demo-seeded")) return load(VALUES_KEY, {});
+    const demo = demoValues(load(COLUMNS_KEY, DEFAULT_COLUMNS));
+    localStorage.setItem(VALUES_KEY, JSON.stringify(demo));
+    localStorage.setItem("demo-seeded", "1");
+    return demo;
+  });
   const [prompt, setPrompt] = useState<Prompt | null>(null);
   const lastWritten = useRef<string | null>(null);
 
