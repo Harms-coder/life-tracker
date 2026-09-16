@@ -89,7 +89,7 @@ function TableLines({ xs }: { xs: number[] }) {
   const right = xs[xs.length - 1];
   return (
     <svg className="lines" viewBox={`0 0 ${PAGE_W} ${PAGE_H}`}>
-      {xs.map((x, i) => <path key={i} d={wobbly(x, CELL, x, BOTTOM_Y, "v" + i)} />)}
+      {xs.map((x, i) => <path key={i} d={wobbly(x, CELL, x, i === 0 ? PAGE_H - CELL : BOTTOM_Y, "v" + i)} />)}
       <path d={wobbly(TABLE_LEFT, HEADER_Y + DAYS * CH, right, HEADER_Y + DAYS * CH, "h2")} />
     </svg>
   );
@@ -135,7 +135,23 @@ function load<T>(key: string, fallback: T): T {
 
 type ValuePrompt = { kind: "value"; key: string; label: string; value: string };
 type ColumnPrompt = { kind: "column"; index: number; column: Column }; // index -1 = new
-type Prompt = ValuePrompt | ColumnPrompt;
+type NotePrompt = { kind: "note"; field: NoteField; label: string; value: string };
+type Prompt = ValuePrompt | ColumnPrompt | NotePrompt;
+type NoteField = "good" | "next";
+type Notes = Partial<Record<NoteField, string>>;
+const NOTES_KEY = `notes-${MONTH.year}-${MONTH.month}`;
+const NOTE_LABEL: Record<NoteField, string> = { good: "Gik godt denne måned", next: "Gøre bedre næste måned / lært" };
+
+/** Free text written line by line on the grid; `bullets` puts a dot in front of each line. */
+function NoteText({ seed, text, bullets }: { seed: string; text: string; bullets?: boolean }) {
+  return (
+    <div className="note-text">
+      {text.split("\n").filter(Boolean).map((line, i) => (
+        <Ink key={i} seed={seed + i} text={(bullets ? "•  " : "") + line} className="ink--line" />
+      ))}
+    </div>
+  );
+}
 
 export default function App() {
   const [columns, setColumns] = useState<Column[]>(() => load(COLUMNS_KEY, DEFAULT_COLUMNS));
@@ -146,7 +162,17 @@ export default function App() {
     localStorage.setItem("demo-seeded-2", "1");
     return demo;
   });
+  const [notes, setNotes] = useState<Notes>(() => load(NOTES_KEY, {}));
   const [prompt, setPrompt] = useState<Prompt | null>(null);
+  const submitNote = (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const p = prompt as NotePrompt;
+    const next = { ...notes, [p.field]: (new FormData(e.currentTarget).get("v") as string).trim() };
+    setNotes(next);
+    localStorage.setItem(NOTES_KEY, JSON.stringify(next));
+    setPrompt(null);
+  };
+  const openNote = (field: NoteField) => setPrompt({ kind: "note", field, label: NOTE_LABEL[field], value: notes[field] ?? "" });
   const lastWritten = useRef<string | null>(null);
 
   const write = (key: string, value: string | null) => {
@@ -230,6 +256,16 @@ export default function App() {
                 onClick={() => setPrompt({ kind: "column", index: -1, column: { id: generateId(), name: "", type: "check" } })}>
                 <Ink seed="plus" text="+" />
               </button>
+              <button className="note note--good" aria-label={NOTE_LABEL.good} onClick={() => openNote("good")}
+                style={{ left: xs[xs.length - 1] + CELL, top: HEADER_Y, width: PAGE_W - xs[xs.length - 1] - 2 * CELL, height: BOTTOM_Y - HEADER_Y }}>
+                <Ink seed="ngood" text={NOTE_LABEL.good} className="note__label" />
+                {notes.good && <NoteText seed="good" text={notes.good} bullets />}
+              </button>
+              <button className="note note--next" aria-label={NOTE_LABEL.next} onClick={() => openNote("next")}
+                style={{ left: TABLE_LEFT + CELL / 2, top: BOTTOM_Y, width: PAGE_W - TABLE_LEFT - 1.5 * CELL, height: PAGE_H - CELL - BOTTOM_Y }}>
+                <Ink seed="nnext" text={NOTE_LABEL.next} className="note__label" />
+                {notes.next && <NoteText seed="next" text={notes.next} />}
+              </button>
               <div className="tracker" style={{ left: TABLE_LEFT, top: CELL + HEADER_H }}>
                 <svg className="graph" width={xs[xs.length - 1] - TABLE_LEFT} height={DAYS * CH}>
                   {columns.map((c, i) => c.type === "dots" && <DotGraph key={c.id} values={values} col={c} left={xs[i + 1] - TABLE_LEFT} />)}
@@ -275,6 +311,15 @@ export default function App() {
           <form className="sheet" onSubmit={submitValue} onClick={(e) => e.stopPropagation()}>
             <label>{prompt.label}</label>
             <input name="v" inputMode="decimal" autoFocus defaultValue={prompt.value} placeholder="tom = slet" />
+            <button type="submit">Skriv</button>
+          </form>
+        </div>
+      )}
+      {prompt?.kind === "note" && (
+        <div className="sheet-backdrop" onClick={() => setPrompt(null)}>
+          <form className="sheet" onSubmit={submitNote} onClick={(e) => e.stopPropagation()}>
+            <label>{prompt.label}</label>
+            <textarea name="v" autoFocus defaultValue={prompt.value} rows={5} placeholder="Én linje pr. punkt" />
             <button type="submit">Skriv</button>
           </form>
         </div>
