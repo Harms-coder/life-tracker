@@ -76,6 +76,12 @@ Rækker = dage 1–31 (antal efter måneden). Kolonner = brugerens egne trackere
 - Papiret er let uperfekt: ujævne yderkanter (clip-path) og et par svage folder (gradienter i `.page::after`).
 - Lukas' egen håndskrift (trin 4): han udfylder fysiske ark med alle bogstaver og tal. Al tekst tegnes via
   `Ink` i App.tsx og X'er via `HandX.tsx` – glyfferne byttes ind DER, intet andet sted skal røres.
+- Scene (2026-09-16): bogen ligger på et træbord foran et vindue. Himlen i vinduet følger klokkeslættet
+  (solopgang 5–9, dag 9–17, solnedgang 17–21, nat). Zoomet helt ud ses bordet skråt fra en stol (rotateX op til 48°);
+  zoomer man ind, retter kameraet sig op til lige oppefra (`Zoom.tsx`, TILT_*). Bordet ligger i "verden" inde i
+  zoom-laget, så det følger med. Rummet (`Room` i App.tsx) er en CSS-udgave; kan byttes til et genereret billede
+  (Higgsfield) når Lukas har forbundet det.
+- Zoom: man kan panorere 60 % af skærmen ud over bogen (OVERPAN), og den glider videre med inerti, når man slipper.
 - Bogen ligger på et træbord. Farven er ÉN variabel: `--table` i src/index.css. Læsebåndet er fjernet (Lukas' ønske).
 - iPhone først, hele opslaget synligt + pinch-zoom.
 - Venstre side = månedens mål, undermål og plan. Højre side = daglig tracking.

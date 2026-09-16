@@ -2,10 +2,17 @@ import { useLayoutEffect, useRef, type ReactNode } from "react";
 
 const MAX_OVER_FIT = 7; // how far past "whole spread visible" you can zoom in
 const TAP_SLOP = 8;
+const OVERPAN = 0.6; // how far past the content edge you may pan, as a share of the viewport
+const TILT_MAX = 48; // degrees, when fully zoomed out
+const TILT_RANGE = 0.7; // tilt is gone at fit * (1 + TILT_RANGE)
 
-/** Pinch-zoom + pan viewport. Everything inside is `width`x`height` px at scale 1. */
-export function Zoom({ width, height, children }: { width: number; height: number; children: ReactNode }) {
+/**
+ * Pinch-zoom + pan viewport with inertia. Everything inside is `width`x`height` px at scale 1.
+ * Zoomed out, the scene tips back so you look across the table; zoomed in, you look straight down.
+ */
+export function Zoom({ width, height, children, backdrop }: { width: number; height: number; children: ReactNode; backdrop?: ReactNode }) {
   const view = useRef<HTMLDivElement>(null);
+  const tilt = useRef<HTMLDivElement>(null);
   const inner = useRef<HTMLDivElement>(null);
   const t = useRef({ x: 0, y: 0, s: 0 }); // s=0 => snapped to fit on first layout
   const fitScale = useRef(1);
@@ -13,25 +20,34 @@ export function Zoom({ width, height, children }: { width: number; height: numbe
   const pinch = useRef<{ dist: number; s: number; wx: number; wy: number } | null>(null);
   const down = useRef({ x: 0, y: 0 });
   const dragged = useRef(false);
+  const velocity = useRef({ x: 0, y: 0, at: 0 });
+  const glide = useRef(0);
+  const frame = useRef(0);
 
-  const apply = () => {
+  const clamp = () => {
     const v = view.current!;
     const { s } = t.current;
     let { x, y } = t.current;
-    const w = width * s, h = height * s;
-    // centre when smaller than the viewport, otherwise keep the edges inside it
-    x = w <= v.clientWidth ? (v.clientWidth - w) / 2 : Math.min(0, Math.max(v.clientWidth - w, x));
-    y = h <= v.clientHeight ? (v.clientHeight - h) / 2 : Math.min(0, Math.max(v.clientHeight - h, y));
+    const w = width * s, h = height * s, mx = v.clientWidth * OVERPAN, my = v.clientHeight * OVERPAN;
+    x = Math.min(Math.max(0, (v.clientWidth - w) / 2) + mx, Math.max(Math.min(v.clientWidth - w, (v.clientWidth - w) / 2) - mx, x));
+    y = Math.min(Math.max(0, (v.clientHeight - h) / 2) + my, Math.max(Math.min(v.clientHeight - h, (v.clientHeight - h) / 2) - my, y));
     t.current = { x, y, s };
-    inner.current!.style.transform = `translate(${x}px, ${y}px) scale(${s})`;
   };
+
+  const paint = () => {
+    frame.current = 0;
+    const { x, y, s } = t.current;
+    inner.current!.style.transform = `translate(${x}px, ${y}px) scale(${s})`;
+    const out = Math.min(1, Math.max(0, (fitScale.current * (1 + TILT_RANGE) - s) / (fitScale.current * TILT_RANGE)));
+    tilt.current!.style.transform = `rotateX(${TILT_MAX * out * out}deg)`;
+  };
+  const apply = () => { clamp(); if (!frame.current) frame.current = requestAnimationFrame(paint); };
 
   const zoomAt = (cx: number, cy: number, s: number) => {
     const min = fitScale.current, max = min * MAX_OVER_FIT;
     s = Math.min(max, Math.max(min, s));
     const { x, y, s: s0 } = t.current;
-    // keep the world point under (cx, cy) fixed
-    t.current = { x: cx - ((cx - x) / s0) * s, y: cy - ((cy - y) / s0) * s, s };
+    t.current = { x: cx - ((cx - x) / s0) * s, y: cy - ((cy - y) / s0) * s, s }; // keep the point under (cx, cy) fixed
     apply();
   };
 
@@ -40,17 +56,39 @@ export function Zoom({ width, height, children }: { width: number; height: numbe
       const v = view.current!;
       const wasAtFit = t.current.s <= fitScale.current * 1.01;
       fitScale.current = Math.min(v.clientWidth / width, v.clientHeight / height) * 0.93;
-      if (wasAtFit || t.current.s < fitScale.current) t.current.s = fitScale.current;
+      if (wasAtFit || t.current.s < fitScale.current) {
+        t.current.s = fitScale.current;
+        t.current.x = (v.clientWidth - width * t.current.s) / 2;
+        t.current.y = (v.clientHeight - height * t.current.s) / 2;
+      }
       apply();
     };
     fit();
     window.addEventListener("resize", fit);
-    return () => window.removeEventListener("resize", fit);
+    return () => { window.removeEventListener("resize", fit); cancelAnimationFrame(glide.current); cancelAnimationFrame(frame.current); };
   }, [width, height]);
+
+  const stopGlide = () => { cancelAnimationFrame(glide.current); glide.current = 0; };
+
+  const startGlide = () => {
+    let { x: vx, y: vy } = velocity.current;
+    if (performance.now() - velocity.current.at > 80) return; // finger rested before lifting
+    let last = performance.now();
+    const step = (now: number) => {
+      const dt = now - last; last = now;
+      t.current.x += vx * dt; t.current.y += vy * dt;
+      const decay = Math.pow(0.994, dt);
+      vx *= decay; vy *= decay;
+      apply();
+      if (Math.hypot(vx, vy) > 0.02) glide.current = requestAnimationFrame(step); else glide.current = 0;
+    };
+    glide.current = requestAnimationFrame(step);
+  };
 
   const onPointerDown = (e: React.PointerEvent) => {
     view.current!.setPointerCapture(e.pointerId);
-    if (pointers.current.size === 0) { dragged.current = false; down.current = { x: e.clientX, y: e.clientY }; }
+    stopGlide();
+    if (pointers.current.size === 0) { dragged.current = false; down.current = { x: e.clientX, y: e.clientY }; velocity.current = { x: 0, y: 0, at: 0 }; }
     pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
     if (pointers.current.size === 2) {
       const [a, b] = [...pointers.current.values()];
@@ -76,18 +114,20 @@ export function Zoom({ width, height, children }: { width: number; height: numbe
       t.current = { x: mx - p.wx * s, y: my - p.wy * s, s };
       apply();
     } else if (pointers.current.size === 1) {
-      t.current.x += e.clientX - prev.x;
-      t.current.y += e.clientY - prev.y;
+      const now = performance.now(), dt = Math.max(1, now - (velocity.current.at || now - 16));
+      const dx = e.clientX - prev.x, dy = e.clientY - prev.y;
+      velocity.current = { x: 0.8 * (dx / dt) + 0.2 * velocity.current.x, y: 0.8 * (dy / dt) + 0.2 * velocity.current.y, at: now };
+      t.current.x += dx;
+      t.current.y += dy;
       apply();
     }
   };
 
   const onPointerUp = (e: React.PointerEvent) => {
+    const wasPinching = pointers.current.size === 2;
     pointers.current.delete(e.pointerId);
     if (pointers.current.size < 2) pinch.current = null;
-    // a finger lifted after a pinch: keep the remaining finger from panning with a jump
-    const rest = pointers.current.get([...pointers.current.keys()][0]);
-    if (rest) pointers.current.set([...pointers.current.keys()][0], { ...rest });
+    if (pointers.current.size === 0 && !wasPinching && dragged.current) startGlide();
   };
 
   const onWheel = (e: React.WheelEvent) => {
@@ -105,8 +145,11 @@ export function Zoom({ width, height, children }: { width: number; height: numbe
       onWheel={onWheel}
       onClickCapture={(e) => { if (dragged.current) { e.stopPropagation(); e.preventDefault(); } }}
     >
-      <div ref={inner} className="zoom-inner" style={{ width, height }}>
-        {children}
+      {backdrop}
+      <div ref={tilt} className="tilt">
+        <div ref={inner} className="zoom-inner" style={{ width, height }}>
+          {children}
+        </div>
       </div>
     </div>
   );

@@ -52,7 +52,25 @@ function average(values: Values, col: Column): string | null {
 const count = (values: Values, col: Column) => Object.keys(values).filter((k) => k.endsWith(":" + col.id)).length;
 const generateId = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
 
-type Values = Record<string, string>; // "x" for checks, "71,5" / "8" for numbers, "7.5" for dots
+type Values = Record<string, string>;
+
+/** Sky colours for the window, by hour: sunrise, day, sunset, night. */
+function skyFor(hour: number): React.CSSProperties {
+  const v = (sky: string, sun: string, glow: string, land: string) => ({ "--sky": sky, "--sun": sun, "--sun-glow": glow, "--land": land }) as React.CSSProperties;
+  if (hour >= 5 && hour < 9) return v("linear-gradient(to bottom, #6a7fb3 0, #e9a27a 55%, #f6d59a 100%)", "#ffd27a", "rgba(255,190,110,.6)", "#4a4f5a");
+  if (hour >= 9 && hour < 17) return v("linear-gradient(to bottom, #5f9be0 0, #a9d0f2 70%, #dbeaf6 100%)", "#fff4c2", "rgba(255,240,200,.5)", "#5f7a5a");
+  if (hour >= 17 && hour < 21) return v("linear-gradient(to bottom, #3f3f77 0, #c25a5a 50%, #f2a65a 100%)", "#ffb347", "rgba(255,140,80,.6)", "#33313f");
+  return v("linear-gradient(to bottom, #0b1330 0, #1c2a55 70%, #2c3c6b 100%)", "#e9edf5", "rgba(200,210,255,.35)", "#0e1220");
+}
+
+function Room() {
+  return (
+    <div className="room" style={skyFor(new Date().getHours())}>
+      <div className="window"><div className="sun" /><div className="horizon" /></div>
+      <div className="light" />
+    </div>
+  );
+} // "x" for checks, "71,5" / "8" for numbers, "7.5" for dots
 
 /** All handwriting goes through here (and HandX) — swap in Lukas' own glyphs later in one place. */
 function Ink({ seed, text, className = "", size, style: extra, tilt = 1 }: { seed: string; text: string; className?: string; size?: number; style?: React.CSSProperties; tilt?: number }) {
@@ -266,7 +284,8 @@ export default function App() {
 
   return (
     <>
-      <Zoom width={BOOK_W} height={BOOK_H}>
+      <Zoom width={BOOK_W} height={BOOK_H} backdrop={<Room />}>
+        <div className="table" />
         <div className="book">
           <div className="pages">
             <div className="page page--left">
