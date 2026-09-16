@@ -65,7 +65,12 @@ Rækker = dage 1–31 (antal efter måneden). Kolonner = brugerens egne trackere
 - Gitteret: 1 tern = 20 px ved zoom 1; side = 704 × 1000 px (B5-forhold). Alt på siden placeres i tern.
 - Håndskrift indtil Lukas' egne glyffer: Google-fonten Caveat + lille seedet rotation/forskydning pr. tekst.
   X'er tegnes som SVG (to let buede streger, seedet af dag+kolonne) og animeres frem, når de sættes.
-- Trin 1 gemmer afkrydsninger i localStorage (én nøgle pr. måned). Erstattes af rigtig datamodel i trin 2.
+- Trin 1 gemmer alle værdier i localStorage (én nøgle pr. måned). Erstattes af rigtig datamodel i trin 2.
+- Højresiden (2026-09-16, efter Lukas' feedback): håndtegnede sorte streger om alle kolonner og under
+  overskrifterne (`TableLines` i App.tsx, let vaklende SVG-linjer). Dagskolonnen er 2 tern: ugedagsbogstav
+  (M T O T F L S) + dato. Kolonnetyper i `COLUMNS`: tal (vægt), afkrydsning, rating, prikgraf (søvn, 6 tern
+  bred, skala 0–10, tryk hvor prikken skal sidde) og dagsscore. Tal/rating indtastes via en lille bundflade.
+- Bogen ligger på et træbord. Farven er ÉN variabel: `--table` i src/index.css. Læsebåndet er fjernet (Lukas' ønske).
 - iPhone først, hele opslaget synligt + pinch-zoom.
 - Venstre side = månedens mål, undermål og plan. Højre side = daglig tracking.
 
