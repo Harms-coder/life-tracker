@@ -33,7 +33,7 @@ body { font-family: var(--font-hand); -webkit-user-select: none; user-select: no
 .world3d { position: absolute; left: 0; top: 0; transform-origin: 0 0; transform-style: preserve-3d; will-change: transform; }
 /* the room: depth layers from scene.json, each an <img> in world units placed per frame (its own compositor layer) */
 .scene2d { position: absolute; left: 0; top: 0; }
-.layer { position: absolute; left: 0; top: 0; transform-origin: 0 0; will-change: transform; display: block; pointer-events: none; }
+.layer { position: absolute; left: 0; top: 0; transform-origin: 0 0; will-change: transform; display: block; pointer-events: none; } /* canvases, not <img>: see Scene.tsx */
 /* the table top in the book's plane, inside the tilt */
 .plane { position: absolute; will-change: transform; display: block; pointer-events: none; }
 /* ?nobook (dev): the scene alone, to compare with the photo */

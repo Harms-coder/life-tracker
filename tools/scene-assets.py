@@ -19,7 +19,7 @@ SCENE = os.path.join(ROOT, "src/scene.json")
 SRC = os.path.join(ROOT, "baggrund-kilder/lag")
 WEB, QUALITY = 2 / 3, 85
 BOOK_W, BOOK_H = 1456, 1048  # world px, as in src/layout.ts
-SPLIT, RHO_NEAR, RHO_FAR = -1500, 0.65, 0.25  # table plane tiles: seam (world y) and output px per world px
+SPLIT, RHO_NEAR, RHO_FAR = -1500, 0.5, 0.25  # table plane tiles: seam (world y) and output px per world px
 
 scene = json.load(open(SCENE))
 OUT = os.path.join(ROOT, "public", scene["path"])
