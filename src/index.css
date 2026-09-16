@@ -1,6 +1,6 @@
 :root {
   --cell: 20px;              /* one 5 mm square of the grid */
-  --cw: 30px; --ch: 24px;    /* table cell (wider/taller than the grid so the table fills the page) */
+  --cw: 20px; --ch: 20px;    /* table cell = one grid square */
   --page-w: 704px;           /* B5 176 mm = 35.2 cells */
   --page-h: 1000px;          /* B5 250 mm = 50 cells */
   --cover-pad: 14px;
@@ -124,12 +124,12 @@ body { font-family: var(--font-hand); -webkit-user-select: none; user-select: no
   position: absolute; top: var(--cell); height: calc(var(--ch) * 8);
   padding: 0; border: 0; background: transparent; font: inherit; -webkit-tap-highlight-color: transparent; touch-action: none;
 }
-.header .ink { bottom: 8px; left: 6px; font-size: 18px; }
+.header .ink { bottom: 8px; left: 2px; font-size: 16.5px; }
 .header--number .ink--flat { left: 50%; transform: translateX(-50%) !important; bottom: 6px; }
-.header--dots .ink--dots-title { left: 50%; bottom: 34px; font-size: 18px; margin-left: -38px; }
+.header--dots .ink--dots-title { left: 50%; bottom: 30px; font-size: 16.5px; margin-left: -34px; }
 .header--add { width: var(--cw); }
-.header--add .ink { left: 9px; bottom: 4px; font-size: 22px; opacity: .35; }
-.header--dots .ink--scale { bottom: 5px; font-size: 13px; }
+.header--add .ink { left: 4px; bottom: 4px; font-size: 20px; opacity: .35; }
+.header--dots .ink--scale { bottom: 4px; font-size: 12px; }
 
 .tracker { position: absolute; }
 .row { display: flex; height: var(--ch); }
@@ -146,11 +146,10 @@ body { font-family: var(--font-hand); -webkit-user-select: none; user-select: no
 .cell { display: flex; align-items: center; justify-content: center; }
 .cell .ink { position: static; font-size: 15px; }
 .cell--text .ink { font-size: 15px; }
-.cell--check .hand-x { left: 5px; width: 20px; }
 .cell--text { pointer-events: none; }
 
 .dot {
-  position: absolute; top: 50%; width: 6px; height: 6px; margin: -3px 0 0 -3px;
+  position: absolute; top: 50%; width: 5px; height: 5px; margin: -2.5px 0 0 -2.5px;
   border-radius: 50%; background: var(--ink); opacity: .9;
 }
 

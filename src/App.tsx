@@ -7,7 +7,7 @@ declare const __BUILD__: string; // set in vite.config.ts
 
 const CELL = 20, PAGE_W = 704, PAGE_H = 1000, COVER = 14;
 const BOOK_W = PAGE_W * 2 + COVER * 2, BOOK_H = PAGE_H + COVER * 2;
-const CW = 30, CH = 24; // table cells are wider/taller than the paper grid so the table fills the page and "7,5" fits
+const CW = CELL, CH = CELL; // table cells follow the paper grid
 const HEADER_H = 8 * CH;
 const TABLE_LEFT = CELL;
 const DAY_COL_W = 2; // weekday letter + number
@@ -233,19 +233,19 @@ export default function App() {
                           aria-label={`${c.name} dag ${day}`} aria-pressed={!!v} onClick={(e) => onCell(day, c, e)}>
                           {v && c.type === "check" && <HandX seed={key} animate={lastWritten.current === key} />}
                           {v && c.type === "dots" && <span className="dot" style={{ left: dotX(Number(v)) }} />}
-                          {v && (c.type === "number" || c.type === "rating") && <Ink seed={key} text={v} size={v.length > 3 ? 13 : 15} />}
+                          {v && (c.type === "number" || c.type === "rating") && <Ink seed={key} text={v} size={c.type === "number" ? 17 : v.length > 2 ? 12.5 : 15} />}
                         </button>
                       );
                     })}
                   </div>
                 ))}
                 <div className="row row--avg">
-                  <div className="cell cell--text" style={{ width: DAY_COL_W * CW }}><Ink seed="avg" text="gns." size={14} /></div>
+                  <div className="cell cell--text" style={{ width: DAY_COL_W * CW }}><Ink seed="avg" text="gns." size={13} /></div>
                   {columns.map((c) => {
                     const sum = c.type === "check" ? String(count(values, c) || "") : average(values, c);
                     return (
                       <div key={c.id} className="cell cell--text" style={{ width: widthOf(c.type) * CW }}>
-                        {sum && <Ink seed={"avg" + c.id} text={sum} size={sum.length > 3 ? 13 : 15} />}
+                        {sum && <Ink seed={"avg" + c.id} text={sum} size={c.type === "number" ? 17 : sum.length > 2 ? 12.5 : 15} />}
                       </div>
                     );
                   })}
