@@ -30,12 +30,18 @@ body { font-family: var(--font-hand); -webkit-user-select: none; user-select: no
 }
 .viewport:active { cursor: grabbing; }
 .tilt { position: absolute; inset: 0; transform-origin: 50% 50%; transform-style: preserve-3d; will-change: transform; }
-.gesture { position: absolute; left: 0; top: 0; transform-origin: 0 0; will-change: transform; }
+.gesture { position: absolute; left: 0; top: 0; transform-origin: 0 0; transform-style: preserve-3d; will-change: transform; }
 .book-canvas { position: absolute; display: block; }
 .world3d { position: absolute; left: 0; top: 0; transform-origin: 0 0; transform-style: preserve-3d; will-change: transform; }
-.table-edge { /* the front edge of the table, standing up from the table top */
-  position: absolute; transform: rotateX(-90deg); transform-origin: 50% 0; pointer-events: none;
-  background: linear-gradient(to bottom, #5a3a24, #3a2415);
+/* faces standing in the room: the table top's thickness (hanging down) and the book's page block (standing up).
+   Fronts face outwards, backs are culled, so a face is only drawn when you actually look at its outside. */
+.table-edge, .book-face { position: absolute; pointer-events: none; transform-origin: 0 0; backface-visibility: hidden; }
+.table-edge.front { transform: rotateX(-90deg); background: linear-gradient(to bottom, #5a3a24, #3a2415); }
+.table-edge.side.left { transform-origin: 100% 0; transform: rotateY(-90deg); background: linear-gradient(to left, #4a2f1d, #2e1c10); }
+.table-edge.side.right { transform: rotateY(90deg); background: linear-gradient(to right, #4a2f1d, #2e1c10); }
+.book-face { /* local y = 0 is the table, the far end is the open page: cover board at the bottom, pages above it */
+  transform: rotateX(90deg);
+  background: linear-gradient(to top, rgba(0,0,0,.35), rgba(0,0,0,0) 30%, rgba(0,0,0,.2) 100%), linear-gradient(to top, transparent 0, transparent calc(100% - 12px), #141414 calc(100% - 12px)), repeating-linear-gradient(to bottom, #ebe4cb 0 2px, #cbc2a3 2px 3px);
 }
 
 /* --- the room behind the table ------------------------------------------ */

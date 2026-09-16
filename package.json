@@ -9,7 +9,9 @@
     "preview": "vite preview",
     "shots": "node tools/shots.mjs screenshots",
     "bench": "node tools/bench.mjs",
-    "tapcheck": "node tools/tapcheck.mjs screenshots"
+    "tapcheck": "node tools/tapcheck.mjs screenshots",
+    "views": "node tools/views.mjs screenshots",
+    "webkit": "node tools/webkit-shots.mjs screenshots"
   },
   "dependencies": {
     "react": "^19.1.0",

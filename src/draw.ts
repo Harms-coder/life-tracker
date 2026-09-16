@@ -138,13 +138,14 @@ const count = (values: Record<string, string>, col: Column) => Object.keys(value
 
 // ---------------------------------------------------------------------------------------------
 
-export function drawScene(ctx: Ctx, view: View, plane: Plane, scene: Scene, assets: Assets, now: number) {
+export type Part = "table" | "book";
+export function drawScene(ctx: Ctx, view: View, plane: Plane, scene: Scene, assets: Assets, now: number, part: Part) {
   const { s } = view, k = plane.k;
   ctx.setTransform(1, 0, 0, 1, 0, 0);
-  ctx.clearRect(0, 0, plane.w * k, plane.h * k);
+  ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
   ctx.setTransform(s * k, 0, 0, s * k, (view.x - plane.x0) * k, (view.y - plane.y0) * k);
   const vis: Rect = { x: (plane.x0 - view.x) / s, y: (plane.y0 - view.y) / s, w: plane.w / s, h: plane.h / s };
-  drawTable(ctx, vis, assets);
+  if (part === "table") { drawTable(ctx, vis, assets); return; }
   drawCover(ctx, vis, assets);
   drawPage(ctx, vis, assets, LEFT_PAGE, "left");
   drawPage(ctx, vis, assets, RIGHT_PAGE, "right");

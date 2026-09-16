@@ -89,7 +89,22 @@ Rækker = dage 1–31 (antal efter måneden). Kolonner = brugerens egne trackere
   zoomer man ind, retter kameraet sig op til lige oppefra (`Zoom.tsx`, TILT_*). Bordet ligger i "verden" inde i
   zoom-laget, så det følger med. Rummet (`Room` i App.tsx) er en CSS-udgave; kan byttes til et genereret billede
   (Higgsfield) når Lukas har forbundet det.
-- Zoom: man kan panorere 60 % af skærmen ud over bogen (OVERPAN), og den glider videre med inerti, når man slipper.
+- Zoom (2026-09-16 eftermiddag): panorering stopper ved BORDETS kant hele vejen rundt (`clamp()` i BookCanvas) – man kan ikke
+  se vinduet ved at skubbe bogen væk. Er bordet mindre end skærmen (zoomet ud), centreres det. Inerti-glid beholdt.
+  Man kan zoome ud til 0,6 × "bogen fylder skærmen" (MIN_UNDER_FIT), så hele bordet med begge ender ses. Bordet er
+  smallere end før (TABLE.x = −450), så enderne kommer med.
+- 3D-dybde (2026-09-16): bord og bog er TO canvas-bitmaps i hver sit `.gesture`-lag. Bogens canvas løftes med
+  `translateZ(BOOK_T·s·tilt)` når scenen er vippet, og bordets tykkelse/bogens sideblok er CSS-flader (`.table-edge`,
+  `.book-face`) i `world3d`, skaleret med `scale3d(s, s, s·tilt)`. Løftet forsvinder, når kameraet er lige oppefra,
+  så tryk (hit-test) er upåvirket. FALDGRUBE: fladerne SKAL ligge i deres eget 3D-lag (`tilt2`, søskende til `tilt`) –
+  ligger de i samme preserve-3d-kontekst som canvas'et, sorterer Chrome planerne forkert og klipper bordet. Fronter
+  vender udad + `backface-visibility: hidden`, så bordets ender kun tegnes, når man faktisk kigger på dem.
+- Skarp under pinch (2026-09-16): midt i en pinch tegnes bogen om (`renderLive`), når bitmappet er strakt >15 % eller
+  vippet er slået til/fra – med lavere budget (LIVE_BUDGET) og UDEN at omallokere canvas'et (omallokering kostede
+  ~40 ms). Bordet tegnes ikke om undervejs (træ må gerne strækkes). Ved slip tegnes alt skarpt som før. Målt i
+  WebKit-benchen: 1–2 frames à ~35–40 ms pr. pinch (mod 0 før). Ikke målt på telefonen – spørg Lukas, om det hakker.
+- Første måling af skærmen sker i dev FØR CSS'en er slået til i WebKit (Vite indsætter CSS via JS), så `fit()` kører via
+  en ResizeObserver på `.viewport` og retter sig selv, når den rigtige størrelse kommer.
 - Bogen ligger på et træbord. Farven er ÉN variabel: `--table` i src/index.css. Læsebåndet er fjernet (Lukas' ønske).
 - iPhone først, hele opslaget synligt + pinch-zoom.
 - Venstre side = månedens mål, undermål og plan. Højre side = daglig tracking.
@@ -109,15 +124,19 @@ Rækker = dage 1–31 (antal efter måneden). Kolonner = brugerens egne trackere
 ## Status 2026-09-16 (sådan fortsætter man)
 - Live: https://harms-coder.github.io/life-tracker/ · repo `Harms-coder/life-tracker` · alt er committet og pushet.
 - Kør lokalt: `npm install` (én gang), `npm run dev` → http://localhost:5173/life-tracker/ (også fra telefonen på LAN-ip).
-- Test: `npm run shots` (skærmbilleder i `screenshots/`), `npm run bench` (frame-tider i WebKit, kræver 0 frames > 33 ms),
-  `npm run tapcheck` (tryk virker). Scripts starter selv dev-serveren. Playwright-browsere: `npx playwright install` hvis de mangler.
+- Test: `npm run shots` (skærmbilleder i `screenshots/`), `npm run views` (fit, helt ude, halvt vippet, bordkant, midt i
+  pinch, sluppet), `npm run webkit` (WebKit-skærmbilleder, fit + helt ude), `npm run bench` (frame-tider i WebKit; mål 0 frames
+  > 33 ms – pt. 1–2 pr. pinch pga. live-omtegning, se Beslutninger), `npm run tapcheck` (tryk virker). Scripts starter selv
+  dev-serveren; kør dem IKKE samtidig med bench (forstyrrer målingen). Playwright-browsere: `npx playwright install`.
 - Vis billeder til Lukas: `python3 tools/gallery.py '[["1-opslag.png","Titel","Tekst"]]'` → `screenshots/galleri.html`,
   publiceres som Artifact (samme URL hver gang: https://claude.ai/artifact/S914mdZ2Tq4gAuqWUrxLYb).
 - Færdigt: hele opslaget (venstre: titel i kasse, seks mål; højre: skema med alle kolonnetyper, søvnkurve,
   gennemsnit/antal, fire fritekstfelter), kolonner kan rettes, eksempeldata, scenen (bord, vindue, vip),
   glidende zoom (canvas). Data ligger i localStorage (values-/notes-/columns-nøgler) – kun én måned.
-- Næste skridt (Lukas' ønsker i rækkefølge): 1) Higgsfield-billede af bord + vindue, når han har forbundet
-  connectoren. 2) Trin 2: flere måneder + sidevending + rigtig datamodel (IndexedDB). 3) PWA-ikon og
+- Higgsfield: connectoren er logget ind (2026-09-16), men værktøjerne dukker først op i en NY Claude Code-session
+  (de registreres ved sessionsstart). Tjek med `claude mcp list` → "✔ Connected", og at ToolSearch finder dem.
+- Næste skridt (Lukas' ønsker i rækkefølge): 1) Higgsfield-billede af bord + vindue (+ evt. bogens cover/sideblok).
+  Selve siderne bliver ved med at være tegnet af appen. 2) Trin 2: flere måneder + sidevending + rigtig datamodel (IndexedDB). 3) PWA-ikon og
   "læg på hjemmeskærm". 4) Trin 4: hans egen håndskrift som glyffer (byttes ind i `text()`/`handX()` i draw.ts).
 - Kendt: skriften er en anelse blød UNDER en pinch, skarp ved slip (bevidst, jf. arkitektur ovenfor).
 

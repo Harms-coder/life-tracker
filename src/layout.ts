@@ -3,8 +3,9 @@ export const CELL = 20, PAGE_W = 704, PAGE_H = 1000, COVER = 14;
 export const BOOK_W = PAGE_W * 2 + COVER * 2, BOOK_H = PAGE_H + COVER * 2;
 export const LEFT_PAGE = { x: COVER, y: COVER }, RIGHT_PAGE = { x: COVER + PAGE_W, y: COVER };
 /** The table top, relative to the book's top-left corner. */
-export const TABLE = { x: -1300, y: -520, w: BOOK_W + 2600, h: BOOK_H + 520 + 560 };
-export const TABLE_EDGE_H = 46;
+export const TABLE = { x: -450, y: -520, w: BOOK_W + 900, h: BOOK_H + 520 + 560 };
+/** Thickness of the table top and of the closed half of the book, in world px (1 cell = 5 mm). */
+export const TABLE_EDGE_H = 150, BOOK_T = 72;
 
 export const HEADER_H = 8 * CELL, HEADER_Y = CELL + HEADER_H;
 export const DAY_COL_W = 2, TABLE_LEFT = CELL;
