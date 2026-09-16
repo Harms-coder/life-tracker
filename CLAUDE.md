@@ -70,6 +70,12 @@ Rækker = dage 1–31 (antal efter måneden). Kolonner = brugerens egne trackere
   overskrifterne (`TableLines` i App.tsx, let vaklende SVG-linjer). Dagskolonnen er 2 tern: ugedagsbogstav
   (M T O T F L S) + dato. Kolonnetyper i `COLUMNS`: tal (vægt), afkrydsning, rating, prikgraf (søvn, 6 tern
   bred, skala 0–10, tryk hvor prikken skal sidde) og dagsscore. Tal/rating indtastes via en lille bundflade.
+- Kolonner kan rettes/slettes/tilføjes af Lukas selv (tryk på overskrift, "+" efter sidste kolonne). Gemmes i
+  localStorage under `columns`; hver kolonne har et `id`, og værdier er nøglet på `dag:id`, så omdøbning bevarer data.
+  Overskrifter læses oppefra og ned (bogstavernes bund mod højre). Tal-kolonner (2 tern) har vandret overskrift.
+- Papiret er let uperfekt: ujævne yderkanter (clip-path) og et par svage folder (gradienter i `.page::after`).
+- Lukas' egen håndskrift (trin 4): han udfylder fysiske ark med alle bogstaver og tal. Al tekst tegnes via
+  `Ink` i App.tsx og X'er via `HandX.tsx` – glyfferne byttes ind DER, intet andet sted skal røres.
 - Bogen ligger på et træbord. Farven er ÉN variabel: `--table` i src/index.css. Læsebåndet er fjernet (Lukas' ønske).
 - iPhone først, hele opslaget synligt + pinch-zoom.
 - Venstre side = månedens mål, undermål og plan. Højre side = daglig tracking.

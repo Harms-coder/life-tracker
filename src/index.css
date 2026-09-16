@@ -70,16 +70,31 @@ body { font-family: var(--font-hand); -webkit-user-select: none; user-select: no
 .page--left {
   border-radius: 3px 0 0 3px;
   transform: translateX(1px);
+  clip-path: polygon(0 0, 100% 0, 100% 100%, 1.2px 100%, 0 97%, 0.8px 78%, 0 55%, 1.5px 31%, 0.3px 12%);
 }
 .page--left::after {
-  background: linear-gradient(to left, rgba(0,0,0,.22) 0, rgba(0,0,0,.08) 12px, rgba(0,0,0,0) 48px);
+  background:
+    linear-gradient(to left, rgba(0,0,0,.22) 0, rgba(0,0,0,.08) 12px, rgba(0,0,0,0) 48px),
+    linear-gradient(to right, rgba(0,0,0,.06) 0, rgba(0,0,0,0) 10px),
+    linear-gradient(to bottom, rgba(0,0,0,.05) 0, rgba(0,0,0,0) 8px),
+    linear-gradient(to top, rgba(0,0,0,.07) 0, rgba(0,0,0,0) 12px),
+    /* faint diagonal creases */
+    linear-gradient(97deg, transparent 0 62%, rgba(0,0,0,.035) 62.2%, transparent 62.5%),
+    linear-gradient(84deg, transparent 0 28%, rgba(255,255,255,.35) 28.2%, rgba(0,0,0,.03) 28.5%, transparent 28.8%);
 }
 .page--right {
   border-radius: 0 3px 3px 0;
   transform: translateX(-1px);
+  clip-path: polygon(0 0, 100% 0.6px, calc(100% - 1.4px) 22%, 100% 47%, calc(100% - 0.6px) 69%, calc(100% - 1.8px) 88%, calc(100% - 0.4px) 100%, 0 100%);
 }
 .page--right::after {
-  background: linear-gradient(to right, rgba(0,0,0,.26) 0, rgba(0,0,0,.09) 14px, rgba(0,0,0,0) 56px);
+  background:
+    linear-gradient(to right, rgba(0,0,0,.26) 0, rgba(0,0,0,.09) 14px, rgba(0,0,0,0) 56px),
+    linear-gradient(to left, rgba(0,0,0,.07) 0, rgba(0,0,0,0) 12px),
+    linear-gradient(to bottom, rgba(0,0,0,.05) 0, rgba(0,0,0,0) 8px),
+    linear-gradient(to top, rgba(0,0,0,.08) 0, rgba(0,0,0,0) 14px),
+    radial-gradient(ellipse 60% 40% at 96% 92%, rgba(0,0,0,.06), transparent 70%),
+    linear-gradient(-93deg, transparent 0 41%, rgba(0,0,0,.03) 41.2%, rgba(255,255,255,.3) 41.4%, transparent 41.7%);
 }
 
 /* elastic loop */
@@ -95,7 +110,7 @@ body { font-family: var(--font-hand); -webkit-user-select: none; user-select: no
   font-family: var(--font-hand); color: var(--ink);
   white-space: nowrap; line-height: 1; pointer-events: none;
 }
-.ink--vertical { writing-mode: vertical-rl; transform: rotate(180deg); }
+.ink--vertical { writing-mode: vertical-rl; } /* reads top→bottom, letter bottoms facing right */
 
 .title { left: calc(var(--cell) * 1.4); top: calc(var(--cell) * 1.15); font-size: 46px; font-weight: 500; }
 .subtitle { left: calc(var(--cell) * 18); top: calc(var(--cell) * 1.4); font-size: 27px; font-weight: 500; }
@@ -104,9 +119,15 @@ body { font-family: var(--font-hand); -webkit-user-select: none; user-select: no
 .lines { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
 .lines path { fill: none; stroke: var(--ink); stroke-width: 1.7; stroke-opacity: .85; stroke-linecap: round; }
 
-.header { position: absolute; top: 0; height: calc(var(--cell) * 8); }
-.header .ink { bottom: 8px; left: 3px; font-size: 16.5px; }
+.header {
+  position: absolute; top: 0; height: calc(var(--cell) * 8);
+  padding: 0; border: 0; background: transparent; font: inherit; -webkit-tap-highlight-color: transparent; touch-action: none;
+}
+.header .ink { bottom: 8px; left: 2px; font-size: 16.5px; }
+.header--number .ink--flat { left: 50%; transform: translateX(-50%) !important; bottom: 6px; }
 .header--dots .ink--dots-title { left: 50%; bottom: 30px; font-size: 16.5px; margin-left: -34px; }
+.header--add { width: var(--cell); }
+.header--add .ink { left: 4px; bottom: 4px; font-size: 20px; opacity: .35; }
 .header--dots .ink--scale { bottom: 4px; font-size: 13px; margin-left: -4px; }
 
 .tracker { position: absolute; }
@@ -151,5 +172,7 @@ body { font-family: var(--font-hand); -webkit-user-select: none; user-select: no
 .sheet label { grid-column: 1 / -1; color: #444; }
 .sheet input { font-size: 22px; padding: 8px 10px; border: 1px solid #bbb; border-radius: 8px; min-width: 0; }
 .sheet button { font-size: 16px; padding: 8px 18px; border: 0; border-radius: 8px; background: #1e2233; color: #fff; }
+.sheet select { font-size: 16px; padding: 8px 10px; border: 1px solid #bbb; border-radius: 8px; background: #fff; }
+.sheet .danger { background: #fff; color: #b3261e; border: 1px solid #b3261e; }
 .scale-tick { position: absolute; bottom: 0; width: 0; }
 .scale-tick .ink { left: 0; transform: translateX(-50%); }

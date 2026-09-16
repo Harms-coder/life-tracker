@@ -5,38 +5,43 @@ import { seededRandom } from "./random";
 
 const CELL = 20, PAGE_W = 704, PAGE_H = 1000, COVER = 14;
 const BOOK_W = PAGE_W * 2 + COVER * 2, BOOK_H = PAGE_H + COVER * 2;
-const HEADER_ROWS = 8; // header area is rows 1..8, days start at row 8
+const HEADER_ROWS = 8; // header area is rows 0..8, days start at row 8
 const TABLE_LEFT = CELL;
-
-type Column = { name: string; type: "check" | "number" | "rating" | "dots"; width: number };
-
-// ponytail: fixed month + columns; real data model (own columns, months) comes in roadmap step 2
-const MONTH = { year: 2026, month: 9, label: "September 2026" };
-const COLUMNS: Column[] = [
-  { name: "Vægt", type: "number", width: 2 },
-  { name: "Løb", type: "check", width: 1 },
-  { name: "Meditation", type: "check", width: 1 },
-  { name: "Udstrækning", type: "check", width: 1 },
-  { name: "Mindre brok", type: "check", width: 1 },
-  { name: "Spist clean", type: "check", width: 1 },
-  { name: "Dagbog", type: "check", width: 1 },
-  { name: "Overskud", type: "rating", width: 1 },
-  { name: "Produktiv", type: "rating", width: 1 },
-  { name: "Glad", type: "rating", width: 1 },
-  { name: "Skærmtid", type: "rating", width: 1 },
-  { name: "Søvn score", type: "dots", width: 6 },
-  { name: "Dagsscore", type: "rating", width: 1 },
-];
-/** x-position (px) of a 0..10 sleep value inside the 6-cell column; shared by dots and scale labels */
-const dotX = (v: number) => CELL / 2 + (v / 10) * (5 * CELL); // 0 and 10 sit mid-cell in the outer cells
 const DAY_COL_W = 2; // weekday letter + number
+
+type ColType = "check" | "number" | "rating" | "dots";
+type Column = { id: string; name: string; type: ColType };
+const TYPE_LABEL: Record<ColType, string> = { check: "Afkrydsning", number: "Tal", rating: "Rating 1–10", dots: "Prikgraf 0–10" };
+const widthOf = (t: ColType) => (t === "number" ? 2 : t === "dots" ? 6 : 1);
+
+// ponytail: fixed month; months + page turning come in roadmap step 2
+const MONTH = { year: 2026, month: 9, label: "September 2026" };
+const DEFAULT_COLUMNS: Column[] = [
+  { id: "vaegt", name: "Vægt", type: "number" },
+  { id: "loeb", name: "Løb", type: "check" },
+  { id: "meditation", name: "Meditation", type: "check" },
+  { id: "udstraekning", name: "Udstrækning", type: "check" },
+  { id: "brok", name: "Mindre brok", type: "check" },
+  { id: "clean", name: "Spist clean", type: "check" },
+  { id: "dagbog", name: "Dagbog", type: "check" },
+  { id: "overskud", name: "Overskud", type: "rating" },
+  { id: "produktiv", name: "Produktiv", type: "rating" },
+  { id: "glad", name: "Glad", type: "rating" },
+  { id: "skaermtid", name: "Skærmtid", type: "rating" },
+  { id: "soevn", name: "Søvn score", type: "dots" },
+  { id: "dagsscore", name: "Dagsscore", type: "rating" },
+];
 const DAYS = new Date(MONTH.year, MONTH.month, 0).getDate();
 const WEEKDAY = "SMTOTFL"; // indexed by Date.getDay()
-const STORAGE_KEY = `values-${MONTH.year}-${MONTH.month}`;
-const TABLE_W = (DAY_COL_W + COLUMNS.reduce((n, c) => n + c.width, 0)) * CELL;
+const VALUES_KEY = `values-${MONTH.year}-${MONTH.month}`;
+const COLUMNS_KEY = "columns";
+/** x-position (px) of a 0..10 value inside the 6-cell dots column; 0 and 10 sit mid-cell in the outer cells */
+const dotX = (v: number) => CELL / 2 + (v / 10) * (5 * CELL);
+const generateId = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
 
 type Values = Record<string, string>; // "x" for checks, "71,5" / "8" for numbers, "7.5" for dots
 
+/** All handwriting goes through here (and HandX) — swap in Lukas' own glyphs later in one place. */
 function Ink({ seed, text, className = "", size }: { seed: string; text: string; className?: string; size?: number }) {
   const r = seededRandom(seed);
   const style = { fontSize: size, transform: `rotate(${(r() - 0.5) * 5}deg) translate(${(r() - 0.5) * 2}px, ${(r() - 0.5) * 2}px)` };
@@ -55,27 +60,28 @@ function wobbly(x1: number, y1: number, x2: number, y2: number, seed: string) {
   return d;
 }
 
-function TableLines() {
-  const top = CELL, bottom = PAGE_H - CELL, headerY = HEADER_ROWS * CELL;
-  const xs = [TABLE_LEFT, TABLE_LEFT + DAY_COL_W * CELL];
-  for (const c of COLUMNS) xs.push(xs[xs.length - 1] + c.width * CELL);
+function TableLines({ xs }: { xs: number[] }) {
+  const top = CELL, bottom = PAGE_H - CELL, headerY = HEADER_ROWS * CELL, right = xs[xs.length - 1];
   return (
     <svg className="lines" viewBox={`0 0 ${PAGE_W} ${PAGE_H}`}>
       {xs.map((x, i) => <path key={i} d={wobbly(x, top, x, bottom, "v" + i)} />)}
-      <path d={wobbly(TABLE_LEFT, headerY, TABLE_LEFT + TABLE_W, headerY, "h")} />
-      <path d={wobbly(TABLE_LEFT, headerY + DAYS * CELL, TABLE_LEFT + TABLE_W, headerY + DAYS * CELL, "h2")} />
+      <path d={wobbly(TABLE_LEFT, headerY, right, headerY, "h")} />
+      <path d={wobbly(TABLE_LEFT, headerY + DAYS * CELL, right, headerY + DAYS * CELL, "h2")} />
     </svg>
   );
 }
 
-function load(): Values {
-  try { return JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "{}"); } catch { return {}; }
+function load<T>(key: string, fallback: T): T {
+  try { return JSON.parse(localStorage.getItem(key) ?? "") as T; } catch { return fallback; }
 }
 
-type Prompt = { key: string; label: string; value: string };
+type ValuePrompt = { kind: "value"; key: string; label: string; value: string };
+type ColumnPrompt = { kind: "column"; index: number; column: Column }; // index -1 = new
+type Prompt = ValuePrompt | ColumnPrompt;
 
 export default function App() {
-  const [values, setValues] = useState<Values>(load);
+  const [values, setValues] = useState<Values>(() => load(VALUES_KEY, {}));
+  const [columns, setColumns] = useState<Column[]>(() => load(COLUMNS_KEY, DEFAULT_COLUMNS));
   const [prompt, setPrompt] = useState<Prompt | null>(null);
   const lastWritten = useRef<string | null>(null);
 
@@ -84,29 +90,44 @@ export default function App() {
     if (value === null || value === "") delete next[key]; else next[key] = value;
     lastWritten.current = value ? key : null;
     setValues(next);
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+    localStorage.setItem(VALUES_KEY, JSON.stringify(next));
+  };
+  const saveColumns = (next: Column[]) => {
+    setColumns(next);
+    localStorage.setItem(COLUMNS_KEY, JSON.stringify(next));
+    setPrompt(null);
   };
 
   const onCell = (day: number, col: Column, e: React.MouseEvent<HTMLButtonElement>) => {
-    const key = `${day}:${col.name}`;
+    const key = `${day}:${col.id}`;
     if (col.type === "check") return write(key, values[key] ? null : "x");
     if (col.type === "dots") {
       const r = e.currentTarget.getBoundingClientRect();
       const v = Math.min(10, Math.max(0, Math.round((((e.clientX - r.left) / r.width) * 6 * CELL - CELL / 2) / (5 * CELL) * 20) / 2)); // 0..10 in halves
       return write(key, values[key] === String(v) ? null : String(v));
     }
-    setPrompt({ key, label: `${col.name} · ${day}. ${MONTH.label.split(" ")[0].toLowerCase()}`, value: values[key] ?? "" });
+    setPrompt({ kind: "value", key, label: `${col.name} · ${day}. ${MONTH.label.split(" ")[0].toLowerCase()}`, value: values[key] ?? "" });
   };
 
-  const submit = (e: FormEvent<HTMLFormElement>) => {
+  const submitValue = (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const v = (new FormData(e.currentTarget).get("v") as string).trim().replace(".", ",");
-    write(prompt!.key, v);
+    write((prompt as ValuePrompt).key, v);
     setPrompt(null);
   };
+  const submitColumn = (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const p = prompt as ColumnPrompt, fd = new FormData(e.currentTarget);
+    const col: Column = { ...p.column, name: (fd.get("name") as string).trim(), type: fd.get("type") as ColType };
+    if (!col.name) return;
+    const next = [...columns];
+    if (p.index < 0) next.push(col); else next[p.index] = col;
+    saveColumns(next);
+  };
 
-  let x = TABLE_LEFT + DAY_COL_W * CELL;
-  const headers = COLUMNS.map((c) => { const left = x; x += c.width * CELL; return { c, left }; });
+  // column x positions (px inside the page); xs has one extra entry = right edge of the table
+  const xs = [TABLE_LEFT, TABLE_LEFT + DAY_COL_W * CELL];
+  for (const c of columns) xs.push(xs[xs.length - 1] + widthOf(c.type) * CELL);
 
   return (
     <>
@@ -118,30 +139,40 @@ export default function App() {
               <Ink seed="subtitle" text="Mål denne måned" className="subtitle" />
             </div>
             <div className="page page--right">
-              <TableLines />
-              {headers.map(({ c, left }) =>
-                c.type === "dots" ? (
-                  <div key={c.name} className="header header--dots" style={{ left, width: c.width * CELL }}>
-                    <Ink seed={"h" + c.name} text={c.name} className="ink--dots-title" />
-                    {[0, 2, 4, 6, 8, 10].map((n) => (
-                      <span key={n} className="scale-tick" style={{ left: dotX(n) }}><Ink seed={"s" + n} text={String(n)} className="ink--scale" /></span>
-                    ))}
-                  </div>
-                ) : (
-                  <div key={c.name} className="header" style={{ left, width: c.width * CELL }}>
-                    <Ink seed={"h" + c.name} text={c.name} className="ink--vertical" />
-                  </div>
-                ),
-              )}
+              <TableLines xs={xs} />
+              {columns.map((c, i) => {
+                const w = widthOf(c.type) * CELL;
+                return (
+                  <button key={c.id} className={`header header--${c.type}`} style={{ left: xs[i + 1], width: w }}
+                    aria-label={`Kolonne ${c.name}`} onClick={() => setPrompt({ kind: "column", index: i, column: c })}>
+                    {c.type === "dots" ? (
+                      <>
+                        <Ink seed={"h" + c.id} text={c.name} className="ink--dots-title" />
+                        {[0, 2, 4, 6, 8, 10].map((n) => (
+                          <span key={n} className="scale-tick" style={{ left: dotX(n) }}><Ink seed={"s" + n} text={String(n)} className="ink--scale" /></span>
+                        ))}
+                      </>
+                    ) : c.type === "number" ? (
+                      <Ink seed={"h" + c.id} text={c.name} className="ink--flat" size={c.name.length > 5 ? 11 : 14} />
+                    ) : (
+                      <Ink seed={"h" + c.id} text={c.name} className="ink--vertical" />
+                    )}
+                  </button>
+                );
+              })}
+              <button className="header header--add" style={{ left: xs[xs.length - 1] }} aria-label="Ny kolonne"
+                onClick={() => setPrompt({ kind: "column", index: -1, column: { id: generateId(), name: "", type: "check" } })}>
+                <Ink seed="plus" text="+" />
+              </button>
               <div className="tracker" style={{ left: TABLE_LEFT, top: HEADER_ROWS * CELL }}>
                 {Array.from({ length: DAYS }, (_, i) => i + 1).map((day) => (
                   <div key={day} className="row">
                     <div className="cell cell--text"><Ink seed={"w" + day} text={WEEKDAY[new Date(MONTH.year, MONTH.month - 1, day).getDay()]} /></div>
                     <div className="cell cell--text"><Ink seed={"d" + day} text={String(day)} /></div>
-                    {COLUMNS.map((c) => {
-                      const key = `${day}:${c.name}`, v = values[key];
+                    {columns.map((c) => {
+                      const key = `${day}:${c.id}`, v = values[key];
                       return (
-                        <button key={c.name} className={`cell cell--${c.type}`} style={{ width: c.width * CELL }}
+                        <button key={c.id} className={`cell cell--${c.type}`} style={{ width: widthOf(c.type) * CELL }}
                           aria-label={`${c.name} dag ${day}`} aria-pressed={!!v} onClick={(e) => onCell(day, c, e)}>
                           {v && c.type === "check" && <HandX seed={key} animate={lastWritten.current === key} />}
                           {v && c.type === "dots" && <span className="dot" style={{ left: dotX(Number(v)) }} />}
@@ -157,12 +188,28 @@ export default function App() {
           <div className="band-loop" />
         </div>
       </Zoom>
-      {prompt && (
+
+      {prompt?.kind === "value" && (
         <div className="sheet-backdrop" onClick={() => setPrompt(null)}>
-          <form className="sheet" onSubmit={submit} onClick={(e) => e.stopPropagation()}>
+          <form className="sheet" onSubmit={submitValue} onClick={(e) => e.stopPropagation()}>
             <label>{prompt.label}</label>
             <input name="v" inputMode="decimal" autoFocus defaultValue={prompt.value} placeholder="tom = slet" />
             <button type="submit">Skriv</button>
+          </form>
+        </div>
+      )}
+      {prompt?.kind === "column" && (
+        <div className="sheet-backdrop" onClick={() => setPrompt(null)}>
+          <form className="sheet" onSubmit={submitColumn} onClick={(e) => e.stopPropagation()}>
+            <label>{prompt.index < 0 ? "Ny kolonne" : "Ret kolonne"}</label>
+            <input name="name" autoFocus defaultValue={prompt.column.name} placeholder="Navn" maxLength={16} />
+            <button type="submit">Gem</button>
+            <select name="type" defaultValue={prompt.column.type}>
+              {(Object.keys(TYPE_LABEL) as ColType[]).map((t) => <option key={t} value={t}>{TYPE_LABEL[t]}</option>)}
+            </select>
+            {prompt.index >= 0 && (
+              <button type="button" className="danger" onClick={() => saveColumns(columns.filter((_, i) => i !== prompt.index))}>Slet</button>
+            )}
           </form>
         </div>
       )}
