@@ -152,6 +152,18 @@ export function drawScene(ctx: Ctx, view: View, plane: Plane, scene: Scene, asse
   ctx.save(); ctx.translate(LEFT_PAGE.x, LEFT_PAGE.y); drawLeftPage(ctx, scene, { x: vis.x - LEFT_PAGE.x, y: vis.y - LEFT_PAGE.y, w: vis.w, h: vis.h }); ctx.restore();
   ctx.save(); ctx.translate(RIGHT_PAGE.x, RIGHT_PAGE.y); drawRightPage(ctx, scene, { x: vis.x - RIGHT_PAGE.x, y: vis.y - RIGHT_PAGE.y, w: vis.w, h: vis.h }, now); ctx.restore();
   drawSpine(ctx);
+  tint(ctx);
+}
+
+/** The room's light on the book: warm and a little darker towards the viewer (the window is behind). Only where
+ *  the book is drawn (source-atop), so the transparent surroundings stay transparent. */
+function tint(ctx: Ctx) {
+  ctx.save();
+  ctx.globalCompositeOperation = "source-atop";
+  const g = ctx.createLinearGradient(0, 0, 0, BOOK_H);
+  g.addColorStop(0, "rgba(255,160,70,.20)"); g.addColorStop(1, "rgba(150,70,30,.34)");
+  ctx.fillStyle = g; ctx.fillRect(-2, -2, BOOK_W + 4, BOOK_H + 4);
+  ctx.restore();
 }
 
 /** The book's shadow on the table. The light comes from the window behind, so it falls towards the viewer:
@@ -164,8 +176,8 @@ function drawShadow(ctx: Ctx) {
     g.addColorStop(0, `rgba(20,10,5,${alpha})`); g.addColorStop(0.6, `rgba(20,10,5,${alpha * 0.55})`); g.addColorStop(1, "rgba(20,10,5,0)");
     ctx.fillStyle = g; ctx.fillRect(-1, -1, 2, 2); ctx.restore();
   };
-  blob(10, 150, BOOK_W * 0.62, BOOK_H * 0.66, 0.5);
-  blob(0, 30, BOOK_W * 0.53, BOOK_H * 0.54, 0.6);
+  blob(10, 210, BOOK_W * 0.64, BOOK_H * 0.7, 0.55);
+  blob(0, 60, BOOK_W * 0.55, BOOK_H * 0.58, 0.7);
 }
 
 function roundRect(ctx: Ctx, x: number, y: number, w: number, h: number, r: number) {
@@ -182,13 +194,22 @@ function drawCover(ctx: Ctx, vis: Rect, assets: Assets) {
   const sheen = ctx.createLinearGradient(0, 0, BOOK_W, BOOK_H * 0.6);
   sheen.addColorStop(0, "rgba(255,255,255,.10)"); sheen.addColorStop(0.35, "rgba(255,255,255,0)"); sheen.addColorStop(1, "rgba(0,0,0,.18)");
   ctx.fillStyle = sheen; ctx.fill();
-  // the block of remaining pages, seen as thin cream edges outside each open page
-  for (let i = 0; i < 7; i++) {
-    ctx.fillStyle = i % 2 ? "#cfc6a8" : "#e6dfc6";
-    ctx.fillRect(COVER - 6 + i, COVER + 3, 1, PAGE_H + 1);
-    ctx.fillRect(BOOK_W - COVER + 5 - i, COVER + 3, 1, PAGE_H + 1);
-    ctx.fillRect(COVER, BOOK_H - COVER - 1 + i, BOOK_W - 2 * COVER, 1);
-  }
+  // the block of remaining pages: a band of page edges outside each open page (thicker at the front, where you look
+  // down onto the fore-edge), darker towards the cover
+  const edge = (x: number, y: number, w: number, h: number, horizontal: boolean) => {
+    const g = horizontal ? ctx.createLinearGradient(0, y, 0, y + h) : ctx.createLinearGradient(x, 0, x + w, 0);
+    const out = horizontal ? false : x < BOOK_W / 2; // which end is the cover
+    g.addColorStop(out ? 0 : 1, "#9c9074"); g.addColorStop(out ? 0.35 : 0.65, "#d9d0b3"); g.addColorStop(out ? 1 : 0, "#efe8d0");
+    if (horizontal) { g.addColorStop(0, "#efe8d0"); g.addColorStop(0.7, "#cfc5a6"); g.addColorStop(1, "#8f8467"); }
+    ctx.fillStyle = g; ctx.fillRect(x, y, w, h);
+    ctx.strokeStyle = "rgba(90,80,60,.35)"; ctx.lineWidth = 1; ctx.beginPath();
+    const n = horizontal ? Math.floor(h / 2.5) : Math.floor(w / 2.5);
+    for (let i = 1; i < n; i++) { if (horizontal) { ctx.moveTo(x, y + i * 2.5); ctx.lineTo(x + w, y + i * 2.5); } else { ctx.moveTo(x + i * 2.5, y); ctx.lineTo(x + i * 2.5, y + h); } }
+    ctx.stroke();
+  };
+  edge(4, COVER + 2, COVER - 4, PAGE_H + 2, false);
+  edge(BOOK_W - COVER, COVER + 2, COVER - 4, PAGE_H + 2, false);
+  edge(COVER, BOOK_H - COVER, BOOK_W - 2 * COVER, COVER - 3, true);
   // elastic loop
   ctx.fillStyle = "#101010"; roundRect(ctx, BOOK_W - 50, BOOK_H * 0.54, 44, 60, 3); ctx.fill();
 }
@@ -219,6 +240,12 @@ function drawPage(ctx: Ctx, vis: Rect, assets: Assets, at: { x: number; y: numbe
   const e = ctx.createLinearGradient(PAGE_W - spineX, 0, PAGE_W - spineX - dir * 30, 0);
   e.addColorStop(0, "rgba(0,0,0,.07)"); e.addColorStop(1, "rgba(0,0,0,0)");
   ctx.fillStyle = e; ctx.fillRect(0, 0, PAGE_W, PAGE_H);
+  // the paper is not perfectly flat: a few soft waves across the page
+  const w = ctx.createLinearGradient(0, 0, PAGE_W, 0);
+  const waves = side === "left" ? [0.12, 0.3, 0.52, 0.72] : [0.2, 0.42, 0.62, 0.84];
+  w.addColorStop(0, "rgba(0,0,0,0)");
+  for (const c of waves) { w.addColorStop(Math.max(0, c - 0.08), "rgba(0,0,0,0)"); w.addColorStop(c - 0.02, "rgba(0,0,0,.06)"); w.addColorStop(c + 0.03, "rgba(255,255,255,.08)"); w.addColorStop(Math.min(1, c + 0.09), "rgba(0,0,0,0)"); }
+  ctx.fillStyle = w; ctx.fillRect(0, 0, PAGE_W, PAGE_H);
   ctx.beginPath();
   if (side === "left") { ctx.moveTo(PAGE_W * 0.22, 0); ctx.lineTo(PAGE_W * 0.34, PAGE_H); } else { ctx.moveTo(PAGE_W * 0.5, 0); ctx.lineTo(PAGE_W * 0.38, PAGE_H); }
   ctx.strokeStyle = "rgba(255,255,255,.35)"; ctx.lineWidth = 1.2; ctx.stroke();

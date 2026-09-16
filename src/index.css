@@ -23,7 +23,6 @@ body { font-family: var(--font-hand); -webkit-user-select: none; user-select: no
   position: fixed; inset: 0;
   overflow: hidden;
   touch-action: none;
-  perspective: 1100px; perspective-origin: 50% 40%;
   background: #000;
   cursor: grab;
 }

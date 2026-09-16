@@ -94,6 +94,10 @@ Rækker = dage 1–31 (antal efter måneden). Kolonner = brugerens egne trackere
   kræver ffmpeg: `brew install ffmpeg`) laver web-udgaverne: navnet skal blot indeholde morgen/middag/aften/nat →
   1080×1920 JPEG (~0,4 MB) og H.264-video (~0,35 MB) med sømløst loop (sidste sekund crossfades ind i det første, så
   klippet slutter, hvor det starter). Lægger Lukas nye råfiler ind: kør scriptet, commit `public/baggrund/`.
+  Kvalitet: billederne er 1440×2560 JPEG (~0,7 MB), så de er skarpe på en 3×-telefon.
+  Bogen i lyset: efter alt er tegnet lægges en varm, let mørkere-mod-betragteren tone over bogen (`tint()` i draw.ts,
+  source-atop) – ellers ser det kridhvide papir forkert ud i aftenlyset. Sideblokken tegnes som bånd af sidekanter
+  omkring siderne (`edge()` i drawCover), og papiret har svage bølger (gradient i drawPage). Skyggen er lang fremad.
   Geometri: fotoet ligger i verdenskoordinater som `BG` i layout.ts (størrelse = hvor stor bogen er på bordet, offset = hvor
   den ligger; tunet efter øjemål, bogen vippes bagefter med TILT_MAX = 56° ≈ fotoets kameravinkel). Baggrundslaget
   (`.scene2d`) panorerer/zoomer i 2D med verden men vipper ikke; kun bogen vipper og flader ud, når man zoomer ind.
@@ -102,6 +106,9 @@ Rækker = dage 1–31 (antal efter måneden). Kolonner = brugerens egne trackere
   vippet, så intet hopper. Skyggen under bogen tegnes på den (ellers tomme) "shadow"-canvas i draw.ts: blød og lang
   fremad mod betragteren (lyset kommer fra vinduet) + en tæt mørk lige under.
   Bemærk: middag-fotoet har en lidt anden komposition end aften/nat; ligger bogen skævt på et nyt foto, justér BG/TABLE.
+  FALDGRUBE: Playwright-WebKit tegner CSS-3D uden rigtig perspektivprojektion (bogen bliver flad og sidder for højt), så
+  WebKit-skærmbilleder kan IKKE bruges til at bedømme geometri – brug Chrome (`deviceScaleFactor: 3`) og Lukas' telefon.
+  `perspective()` ligger som funktion inde i `.tilt`-transformen (ikke som CSS-egenskab på forælderen) for at være entydig.
 - 3D-dybde (2026-09-16): skygge og bog er TO canvas-bitmaps i hver sit `.gesture`-lag. Bogens canvas løftes med
   `translateZ(BOOK_T·s·tilt)` når scenen er vippet, og bordets tykkelse/bogens sideblok er en CSS-flade (`.book-face`) i `world3d`, skaleret med `scale3d(s, s, s·tilt)`. Løftet forsvinder, når kameraet er lige oppefra,
   så tryk (hit-test) er upåvirket. FALDGRUBE: fladerne SKAL ligge i deres eget 3D-lag (`tilt2`, søskende til `tilt`) –

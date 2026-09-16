@@ -5,6 +5,7 @@ import type { Part, Plane, View } from "./draw";
 const MAX_OVER_FIT = 7; // how far past "whole spread visible" you can zoom in
 const TAP_SLOP = 8;
 const TILT_MAX = (window as unknown as { __tiltMax?: number }).__tiltMax ?? 56; // degrees when fully zoomed out: matches the photo's camera
+const PERSPECTIVE = 1100; // px, camera distance for the tilt
 const TILT_RANGE = 0.7; // tilt is gone at fit * (1 + TILT_RANGE)
 const MARGIN = 0.35; // canvas overdraw around the viewport, share of its size
 const PIXEL_BUDGET = 9e6; // max canvas pixels (iOS is strict about big canvases)
@@ -83,7 +84,8 @@ export const BookCanvas = forwardRef<BookCanvasHandle, {
     bookCanvas.current!.style.transform = `translateZ(${BOOK_T * lift}px)`;
     world3d.current!.style.transform = `translate(${x}px, ${y}px) scale3d(${s}, ${s}, ${lift})`;
     world3d.current!.style.visibility = lift > 0 ? "" : "hidden";
-    tilt.current!.style.transform = tilt2.current!.style.transform = `rotateX(${tiltFor(s)}deg)`;
+    // perspective inside the transform itself: as a property on the parent Chrome and WebKit apply it differently
+    tilt.current!.style.transform = tilt2.current!.style.transform = `perspective(${PERSPECTIVE}px) rotateX(${tiltFor(s)}deg)`;
   };
   const apply = () => { clamp(); if (!frame.current) frame.current = requestAnimationFrame(paint); };
 

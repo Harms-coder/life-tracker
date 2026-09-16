@@ -1,7 +1,7 @@
 #!/bin/sh
 # Builds the web versions of the background scenes from the raw Higgsfield files.
 #   baggrund-kilder/<noget med morgen|middag|aften|nat>.png|jpg|mp4  ->  public/baggrund/<tid>.jpg / <tid>.mp4
-# Image: 1080x1920 JPEG. Video: H.264 1080x1920 24 fps, no audio, and the loop is made seamless by
+# Image: 1440x2560 JPEG (sharp on a 3x phone). Video: H.264 1080x1920 24 fps, no audio, and the loop is made seamless by
 # crossfading the last second into the first second (so the clip ends where it starts).
 set -e
 cd "$(dirname "$0")/.."
@@ -14,7 +14,7 @@ for f in baggrund-kilder/*; do
   case "$lower" in
     *.png|*.jpg|*.jpeg)
       echo "$f -> public/baggrund/$slot.jpg"
-      ffmpeg -v error -y -i "$f" -vf "scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920" -q:v 3 "public/baggrund/$slot.jpg";;
+      ffmpeg -v error -y -i "$f" -vf "scale=1440:2560:force_original_aspect_ratio=increase,crop=1440:2560" -q:v 3 "public/baggrund/$slot.jpg";;
     *.mp4|*.mov)
       dur=$(ffprobe -v error -show_entries format=duration -of csv=p=0 "$f")
       fade=1; body=$(echo "$dur - $fade" | bc); off=$(echo "$dur - 2*$fade" | bc)
