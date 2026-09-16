@@ -4,7 +4,11 @@ import { LAYERS, layerRect, type Rect } from "./layout";
 
 export type LayerEl = { el: HTMLElement; rect: Rect; depth: number };
 const url = (file: string) => `${import.meta.env.BASE_URL}${scene.path}${file}`;
-const NOPLANE = new URLSearchParams(location.search).has("noplane"); // the table as a flat 2D layer instead (to bisect on a phone)
+// To bisect a crash on a phone: ?noplane = the table as a flat 2D layer instead of tilting with the book;
+// ?lag=N = only the first N layers of scene.json (0 = the book alone).
+const PARAMS = new URLSearchParams(location.search);
+const NOPLANE = PARAMS.has("noplane");
+const N = PARAMS.has("lag") ? Number(PARAMS.get("lag")) : LAYERS.length;
 const TABLE_AT = LAYERS.findIndex((l) => l.isTablePlane);
 
 /** A layer image as a canvas holding its bitmap. Not an <img>: iOS Safari crashed ("a problem repeatedly occurred")
@@ -27,7 +31,7 @@ function LayerCanvas({ file, className, style, onEl }: { file: string; className
 export function SceneLayers({ near, register }: { near: boolean; register: (id: string, l: LayerEl | null) => void }) {
   return (
     <div className="scene2d">
-      {LAYERS.filter((l, i) => (NOPLANE || !l.flat) && i > TABLE_AT === near).map((l) => {
+      {LAYERS.filter((l, i) => i < N && (NOPLANE || !l.flat) && i > TABLE_AT === near).map((l) => {
         const rect = layerRect(l);
         return <LayerCanvas key={l.id} file={l.id + ".webp"} className="layer" style={{ width: rect.w, height: rect.h }}
           onEl={(el) => register(l.id, el && { el, rect, depth: l.depth })} />;
@@ -39,6 +43,6 @@ export function SceneLayers({ near, register }: { near: boolean; register: (id: 
 /** The table top unwarped into the book's plane (`flat` tiles from tools/scene-assets.py), lying under the book inside
  *  the tilt, so the two tip together: at the identity view the tilt projects it back onto the photo exactly. */
 export function TablePlane() {
-  const tiles = NOPLANE ? [] : LAYERS.find((l) => l.isTablePlane)?.flat ?? [];
+  const tiles = NOPLANE || TABLE_AT >= N ? [] : LAYERS.find((l) => l.isTablePlane)?.flat ?? [];
   return <>{tiles.map((f) => <LayerCanvas key={f.file} file={f.file} className="plane" style={{ left: f.x, top: f.y, width: f.w, height: f.h }} />)}</>;
 }
