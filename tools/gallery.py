@@ -4,7 +4,7 @@
 """
 import base64, sys, json
 spec=json.loads(sys.argv[1]); lead=sys.argv[2] if len(sys.argv) > 2 else "Seneste skærmbilleder fra appen."
-def uri(f): return "data:image/png;base64,"+base64.b64encode(open("screenshots/"+f,"rb").read()).decode()
+def uri(f): return f"data:image/{'jpeg' if f.endswith('.jpg') else 'png'};base64,"+base64.b64encode(open("screenshots/"+f,"rb").read()).decode()
 cards="".join(f'<figure><figcaption><b>{t}</b><span>{d}</span></figcaption><img src="{uri(f)}" alt="{t}" loading="lazy"></figure>' for f,t,d in spec)
 html=f'''<title>Månedsbog skærmbilleder</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Caveat:wght@500&display=swap">
