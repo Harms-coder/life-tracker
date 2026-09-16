@@ -106,6 +106,21 @@ Rækker = dage 1–31 (antal efter måneden). Kolonner = brugerens egne trackere
 - Test-scripts ligger i sessionens scratchpad (`pw/shots.mjs` skærmbilleder, `pw/bench.mjs` frame-tider i WebKit,
   `pw/tapcheck.mjs` tryk). Dev-server: `npm run dev`. I dev sætter BookCanvas `window.__view` (x, y, s) til scripts.
 
+## Status 2026-09-16 (sådan fortsætter man)
+- Live: https://harms-coder.github.io/life-tracker/ · repo `Harms-coder/life-tracker` · alt er committet og pushet.
+- Kør lokalt: `npm install` (én gang), `npm run dev` → http://localhost:5173/life-tracker/ (også fra telefonen på LAN-ip).
+- Test: `npm run shots` (skærmbilleder i `screenshots/`), `npm run bench` (frame-tider i WebKit, kræver 0 frames > 33 ms),
+  `npm run tapcheck` (tryk virker). Scripts starter selv dev-serveren. Playwright-browsere: `npx playwright install` hvis de mangler.
+- Vis billeder til Lukas: `python3 tools/gallery.py '[["1-opslag.png","Titel","Tekst"]]'` → `screenshots/galleri.html`,
+  publiceres som Artifact (samme URL hver gang: https://claude.ai/artifact/S914mdZ2Tq4gAuqWUrxLYb).
+- Færdigt: hele opslaget (venstre: titel i kasse, seks mål; højre: skema med alle kolonnetyper, søvnkurve,
+  gennemsnit/antal, fire fritekstfelter), kolonner kan rettes, eksempeldata, scenen (bord, vindue, vip),
+  glidende zoom (canvas). Data ligger i localStorage (values-/notes-/columns-nøgler) – kun én måned.
+- Næste skridt (Lukas' ønsker i rækkefølge): 1) Higgsfield-billede af bord + vindue, når han har forbundet
+  connectoren. 2) Trin 2: flere måneder + sidevending + rigtig datamodel (IndexedDB). 3) PWA-ikon og
+  "læg på hjemmeskærm". 4) Trin 4: hans egen håndskrift som glyffer (byttes ind i `text()`/`handX()` i draw.ts).
+- Kendt: skriften er en anelse blød UNDER en pinch, skarp ved slip (bevidst, jf. arkitektur ovenfor).
+
 ## Roadmap
 1. ~~Prototype af ét opslag: bog på bord, ternede sider, pinch-zoom, afkrydsning med håndskrevne X-varianter.~~ ✅ 2026-09-16
 2. Sidevending mellem måneder + datamodel (måneder, trackere, værdier) med lokal lagring.
