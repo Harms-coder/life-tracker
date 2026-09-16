@@ -1,1 +1,1 @@
-{"root":["./src/app.tsx","./src/handx.tsx","./src/zoom.tsx","./src/main.tsx","./src/random.ts","./src/vite-env.d.ts"],"version":"5.9.3"}
+{"root":["./src/app.tsx","./src/bookcanvas.tsx","./src/draw.ts","./src/layout.ts","./src/main.tsx","./src/random.ts","./src/vite-env.d.ts"],"version":"5.9.3"}

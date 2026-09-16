@@ -60,11 +60,19 @@ Rækker = dage 1–31 (antal efter måneden). Kolonner = brugerens egne trackere
 - Stak (valgt 2026-09-16): React + TypeScript + Vite, almindelig CSS (ingen Tailwind – bogen har sit eget look).
   Hosting: GitHub Pages fra repo `Harms-coder/life-tracker` (`base: /life-tracker/`), workflow bygger ved push til main.
   Live: https://harms-coder.github.io/life-tracker/
-- Pinch-zoom er lavet selv (`src/Zoom.tsx`, pointer events) i stedet for browserens egen zoom, så opslaget
-  starter tilpasset skærmen og kan zoomes op til 7× derfra. Et tryk tæller kun, hvis fingeren ikke har flyttet sig >8 px.
+- ARKITEKTUR (2026-09-16, efter måling): hele bordet + bogen tegnes som ÉT canvas-billede (`src/draw.ts`), som
+  telefonen kun flytter/skalerer/vipper med CSS-transform (`src/BookCanvas.tsx`). Først når fingrene slippes,
+  tegnes det synlige udsnit igen, skarpt, én gang. Grund: DOM-udgaven fik Safari til at tegne hele bogen om
+  (300–600 ms) ved hvert zoomtrin og hver ændring af 3D-vippet. Målt i WebKit (Playwright) med `bench.mjs`:
+  0 frames over 33 ms efter ombygningen. Geometri + hit-test ligger i `src/layout.ts`; DOM'en har kun
+  rummet (vindue), bordkanten (3D) og input-fladerne (sheets). Ingen aria/knapper i bogen længere.
+- Pinch-zoom er lavet selv (pointer events) i stedet for browserens egen zoom, så opslaget starter tilpasset
+  skærmen og kan zoomes op til 7× derfra. Et tryk tæller kun, hvis fingeren ikke har flyttet sig >8 px, og kun
+  når vippet er væk (zoomet ind).
 - Gitteret: 1 tern = 20 px ved zoom 1; side = 704 × 1000 px (B5-forhold). Alt på siden placeres i tern.
-- Håndskrift indtil Lukas' egne glyffer: Google-fonten Caveat + lille seedet rotation/forskydning pr. tekst.
-  X'er tegnes som SVG (to let buede streger, seedet af dag+kolonne) og animeres frem, når de sættes.
+- Håndskrift indtil Lukas' egne glyffer: Google-fonten Caveat + lille seedet rotation/forskydning pr. tekst
+  (`text()` i draw.ts). X'er tegnes som to let buede streger (`handX()`), seedet af dag+kolonne, og animeres frem
+  med lineDash, når de sættes.
 - Trin 1 gemmer alle værdier i localStorage (én nøgle pr. måned). Erstattes af rigtig datamodel i trin 2.
 - Højresiden (2026-09-16, efter Lukas' feedback): håndtegnede sorte streger om alle kolonner og under
   overskrifterne (`TableLines` i App.tsx, let vaklende SVG-linjer). Dagskolonnen er 2 tern: ugedagsbogstav
@@ -75,7 +83,7 @@ Rækker = dage 1–31 (antal efter måneden). Kolonner = brugerens egne trackere
   Overskrifter læses oppefra og ned (bogstavernes bund mod højre). Tal-kolonner (2 tern) har vandret overskrift.
 - Papiret er let uperfekt: ujævne yderkanter (clip-path) og et par svage folder (gradienter i `.page::after`).
 - Lukas' egen håndskrift (trin 4): han udfylder fysiske ark med alle bogstaver og tal. Al tekst tegnes via
-  `Ink` i App.tsx og X'er via `HandX.tsx` – glyfferne byttes ind DER, intet andet sted skal røres.
+  `text()` og X'er via `handX()` i `src/draw.ts` – glyfferne byttes ind DER, intet andet sted skal røres.
 - Scene (2026-09-16): bogen ligger på et træbord foran et vindue. Himlen i vinduet følger klokkeslættet
   (solopgang 5–9, dag 9–17, solnedgang 17–21, nat). Zoomet helt ud ses bordet skråt fra en stol (rotateX op til 48°);
   zoomer man ind, retter kameraet sig op til lige oppefra (`Zoom.tsx`, TILT_*). Bordet ligger i "verden" inde i
@@ -95,7 +103,8 @@ Rækker = dage 1–31 (antal efter måneden). Kolonner = brugerens egne trackere
 ## Reference
 - `referencer/` – billeder af papirbogen (august 2025-opslaget og tomt opslag).
 - `screenshots/` – seneste skærmbilleder fra den automatiske test (ikke i git).
-- Skærmbilleder tages med Playwright-scriptet fra playbookens verifikation.md (390×844, touch), dev-server: `npm run dev`.
+- Test-scripts ligger i sessionens scratchpad (`pw/shots.mjs` skærmbilleder, `pw/bench.mjs` frame-tider i WebKit,
+  `pw/tapcheck.mjs` tryk). Dev-server: `npm run dev`. I dev sætter BookCanvas `window.__view` (x, y, s) til scripts.
 
 ## Roadmap
 1. ~~Prototype af ét opslag: bog på bord, ternede sider, pinch-zoom, afkrydsning med håndskrevne X-varianter.~~ ✅ 2026-09-16
