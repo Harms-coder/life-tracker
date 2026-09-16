@@ -280,7 +280,7 @@ export default function App() {
                 <div key={i}>
                   <span className="goal__number" style={{ left: goalPos(i).x, top: goalPos(i).y }}><Ink seed={"gn" + i} text={String(i + 1)} /></span>
                   <NoteBox field={`goal${i}`} notes={notes} onOpen={openNote}
-                    box={{ left: goalPos(i).x + CELL + 4, top: goalPos(i).y - CELL / 2, width: GOAL_COL_W - CELL - 14, height: 2 * CELL }} />
+                    box={{ left: goalPos(i).x + CELL + 4, top: goalPos(i).y, width: GOAL_COL_W - CELL - 14, height: 2 * CELL }} />
                 </div>
               ))}
             </div>
