@@ -128,7 +128,7 @@ body { font-family: var(--font-hand); -webkit-user-select: none; user-select: no
 .header--dots .ink--dots-title { left: 50%; bottom: 30px; font-size: 16.5px; margin-left: -34px; }
 .header--add { width: var(--cell); }
 .header--add .ink { left: 4px; bottom: 4px; font-size: 20px; opacity: .35; }
-.header--dots .ink--scale { bottom: 4px; font-size: 13px; margin-left: -4px; }
+.header--dots .ink--scale { bottom: 4px; font-size: 12px; }
 
 .tracker { position: absolute; }
 .row { display: flex; height: var(--cell); }

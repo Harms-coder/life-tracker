@@ -37,6 +37,15 @@ const VALUES_KEY = `values-${MONTH.year}-${MONTH.month}`;
 const COLUMNS_KEY = "columns";
 /** x-position (px) of a 0..10 value inside the 6-cell dots column; 0 and 10 sit mid-cell in the outer cells */
 const dotX = (v: number) => CELL / 2 + (v / 10) * (5 * CELL);
+/** Month average of a numeric column, written the Danish way ("7,3"); null when nothing is filled in. */
+function average(values: Values, col: Column): string | null {
+  const nums = Object.entries(values)
+    .filter(([k]) => k.endsWith(":" + col.id))
+    .map(([, v]) => Number(v.replace(",", ".")))
+    .filter((n) => !Number.isNaN(n));
+  if (!nums.length) return null;
+  return (nums.reduce((a, b) => a + b, 0) / nums.length).toFixed(1).replace(".", ",");
+}
 const generateId = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
 
 type Values = Record<string, string>; // "x" for checks, "71,5" / "8" for numbers, "7.5" for dots
@@ -67,6 +76,7 @@ function TableLines({ xs }: { xs: number[] }) {
       {xs.map((x, i) => <path key={i} d={wobbly(x, top, x, bottom, "v" + i)} />)}
       <path d={wobbly(TABLE_LEFT, headerY, right, headerY, "h")} />
       <path d={wobbly(TABLE_LEFT, headerY + DAYS * CELL, right, headerY + DAYS * CELL, "h2")} />
+      <path d={wobbly(TABLE_LEFT, headerY + (DAYS + 1) * CELL, right, headerY + (DAYS + 1) * CELL, "h3")} />
     </svg>
   );
 }
@@ -182,6 +192,17 @@ export default function App() {
                     })}
                   </div>
                 ))}
+                <div className="row row--avg">
+                  <div className="cell cell--text" style={{ width: DAY_COL_W * CELL }}><Ink seed="avg" text="gns." size={13} /></div>
+                  {columns.map((c) => {
+                    const avg = c.type === "check" ? null : average(values, c);
+                    return (
+                      <div key={c.id} className="cell cell--text" style={{ width: widthOf(c.type) * CELL }}>
+                        {avg && <Ink seed={"avg" + c.id} text={avg} size={avg.length > 2 ? 12.5 : 15} />}
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
             </div>
           </div>
