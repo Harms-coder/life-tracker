@@ -166,29 +166,29 @@ Rækker = dage 1–31 (antal efter måneden). Kolonner = brugerens egne trackere
 - Test-scripts ligger i sessionens scratchpad (`pw/shots.mjs` skærmbilleder, `pw/bench.mjs` frame-tider i WebKit,
   `pw/tapcheck.mjs` tryk). Dev-server: `npm run dev`. I dev sætter BookCanvas `window.__view` (x, y, s) til scripts.
 
-## Status 2026-09-17 kl. 21.00 – HER ER VI
+## Status 2026-09-17 kl. 21.30 – HER ER VI
 
-**Live:** https://harms-coder.github.io/life-tracker/ (gammel flad bog) · **?bog3d** = den nye bog med rigtig dybde.
+**Live:** https://harms-coder.github.io/life-tracker/ — den nye bog med rigtig dybde er nu DEN ENESTE.
+Lukas godkendte den, `?bog3d`-flaget og hele den gamle flade CSS-vip-vej er fjernet.
 Alt er committet og pushet. Galleriet til Lukas: https://claude.ai/artifact/S914mdZ2Tq4gAuqWUrxLYb
 
 ### Hvad vi lavede i dag (17/9)
 1. **Dybdelagene fra 16/9 er SLETTET.** Lukas: "ser ikke godt ud – hakker, planten er gennemsigtig". Vi er tilbage
    ved ét fladt foto i `scene2d` + bogen ovenpå. Byg dem IKKE igen; afsnittet under Beslutninger er historik.
 2. **Nyt aftenfoto og skarpt bord**, begge lavet herfra med Higgsfield-connectoren.
-3. **Lukas' egen håndskrift** er i bogen: 424 glyffer skåret ud af hans tre fotograferede ark.
-4. **Bogen har rigtig dybde** på `?bog3d`: buede, bølgende sider, fold, papirstak – WebGL uden three.js.
+3. **Lukas' egen håndskrift** i bogen: 424 glyffer skåret ud af hans tre fotograferede ark.
+4. **Bogen har rigtig dybde**: buede, bølgende sider, fold og papirstak i WebGL uden three.js. Godkendt og låst.
 5. **Den højre skyggestribe** på bordet er fjernet (der var intet til at kaste den).
 
-### Første skridt i næste session
-Spørg Lukas om hans dom på `?bog3d` på telefonen. Den er tunet over fire runder, men han har ikke sagt god for
-den samlet. Når han gør: fjern flaget, så den nye bog bliver den eneste, og slet den gamle CSS-vip-vej.
-
 ### Åbent, i den rækkefølge det gav mening sidst
-- **Bogens skygge på bordet** er stadig to DOM-ellipser i `.tilt`. Den følger ikke buen. Opgavens trin 4–5.
+- **Bogens skygge på bordet** er stadig to DOM-ellipser i `.tilt`. Den vipper nu med bordet, men følger ikke buen
+  og er ikke tunet efter den nye bog. Det er det mest iøjnefaldende, der mangler.
 - **Omslaget** kunne have en synlig kant ned til bordet.
 - `&` mangler i håndskriften (Lukas udfyldte den ikke). Falder tilbage til Caveat.
 - Roadmap trin 2: flere måneder, sidevending, rigtig datamodel (IndexedDB). Buefunktionen i `bog3d.ts` er bygget,
   så en sidevending kan genbruge den.
+- De andre tidspunkter (morgen/middag/nat) er stadig låst til aften via `ONLY` i Backdrop.tsx. Nye fotos skal
+  matche det nye lys, og bordpladen (bord.webp) er lavet ud fra aftenfotoet.
 
 ### ARBEJDSFORM – læs den, det kostede runder at lære
 - **Ret efter referencebilledet, ikke efter tal i Lukas' ord.** Mål i billedet.
