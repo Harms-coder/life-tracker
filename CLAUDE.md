@@ -184,7 +184,15 @@ først NÅR svaret kommer, så meshet aldrig viser en gammel tekstur i en ny rec
   fejler). `.book-source`-canvasset er væk fra DOM'en.
 - Hukommelse: `transferToImageBitmap` giver workeren et frisk buffer pr. omtegning (24 MB zoomet ind) + bitmap i
   transit (lukkes med `close()` straks efter upload). Går iPhone ned igen: PIXEL_BUDGET ned (6e6 → 4e6).
-- FØRSTE SKRIDT NÆSTE GANG: Lukas' dom på telefonen (glat?) + "værst"-tallene fra `?maal`.
+- LUKAS' FØRSTE MÅLING (iPhone Pro Max, 23.09): "fuld tråd 47 ms · rundtur 109 ms · værst 53/120 ms · 1925×3295". Dvs.
+  tegningen i workeren tager ~60 ms, men UPLOADEN af bitmappet til WebGL koster stadig 47 ms på hovedtråden. Det er
+  nu den post, der skal ned. Knapper: `?pm=0` (upload uden premultiply-konvertering – mål), PIXEL_BUDGET 6e6 → 4e6
+  (33 % færre pixels), eller uploade i striber over flere frames til en bagtekstur (ping-pong, +24 MB) – bygges kun
+  hvis de billige knapper ikke rækker.
+- FEJL RETTET (dbf62dc): efter zoom ind og pinch UD dækkede teksturen kun det gamle udsnit; shaderen kasserer pages
+  uden for u_tex, så bordet sås gennem venstresiden (Lukas' skærmbillede). Nu tegnes der også om midt i pinchen,
+  når ratio < 1/LIVE_RATIO. Worker-fejl svares tilbage som `{error}` (ellers låste `inflight` al omtegning).
+- FØRSTE SKRIDT NÆSTE GANG: Lukas' dom på telefonen efter dbf62dc + upload-tallet med og uden `?pm=0`.
 
 ## Status 2026-09-17 kl. 23.00 – HER ER VI
 
