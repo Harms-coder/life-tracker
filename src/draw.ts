@@ -158,7 +158,7 @@ function tint(ctx: Ctx) {
   ctx.save();
   ctx.globalCompositeOperation = "source-atop";
   const g = ctx.createLinearGradient(0, 0, 0, BOOK_H);
-  g.addColorStop(0, "rgba(255,160,70,.20)"); g.addColorStop(1, "rgba(150,70,30,.34)");
+  g.addColorStop(0, "rgba(255,170,90,.10)"); g.addColorStop(1, "rgba(160,90,45,.17)");
   ctx.fillStyle = g; ctx.fillRect(-2, -2, BOOK_W + 4, BOOK_H + 4);
   ctx.restore();
 }

@@ -4,7 +4,7 @@ await withServer(async () => {
 const browser = await webkit.launch();
 const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 3, hasTouch: true, isMobile: true });
 const page = await ctx.newPage();
-await page.goto(URL); await page.waitForSelector(".viewport");
+await page.goto(URL + (process.env.Q ?? "")); await page.waitForSelector(".viewport");
 await page.evaluate(() => localStorage.clear()); await page.reload(); await page.waitForSelector(".viewport"); await page.waitForTimeout(1500);
 const out = await page.evaluate(async () => {
   const vp = document.querySelector(".viewport");

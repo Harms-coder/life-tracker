@@ -7,7 +7,7 @@ await withServer(async () => {
   const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 3, hasTouch: true, isMobile: true });
   const page = await ctx.newPage();
   page.on("console", (m) => m.type() === "error" && console.log("console:", m.text()));
-  await page.goto(URL); await page.waitForSelector(".viewport"); await page.waitForTimeout(2500);
+  await page.goto(URL + (process.env.Q ?? "")); await page.waitForSelector(".viewport"); await page.waitForTimeout(2500);
   const cdp = await ctx.newCDPSession(page);
   const touch = (type, pts) => cdp.send("Input.dispatchTouchEvent", { type, touchPoints: pts });
   const pinch = async (cx, cy, from, to, steps = 12) => {
