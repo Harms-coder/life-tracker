@@ -122,11 +122,13 @@ export const BookCanvas = forwardRef<BookCanvasHandle, {
     lastRender.current = performance.now();
     worker.current.postMessage(req);
   };
+  /** Whatever happened to the job that was out, the next one may go. */
+  const next = () => { inflight.current = null; if (queued.current !== null) { const b = queued.current; queued.current = null; render(b); } };
   const onReply = (e: MessageEvent<RenderReply>) => {
     const job = inflight.current;
-    inflight.current = null;
+    if ("error" in e.data) { console.error("draw.worker:", e.data.error); next(); return; }
     const { bitmap, k } = e.data;
-    if (!job || !book3d.current) { bitmap.close(); return; }
+    if (!job || !book3d.current) { bitmap.close(); next(); return; }
     const t0 = performance.now();
     const { x, y, s } = job.req.view, bp = job.req.plane;
     committed.current = job.req.view;
@@ -135,25 +137,28 @@ export const BookCanvas = forwardRef<BookCanvasHandle, {
     // is kept rather than reallocated). Telling the mesh it only covers bp squeezed the spread into a fraction
     // of its size for a frame - the book "went small" while pinching.
     book3d.current.setTexture(bitmap, { x: (bp.x0 - x) / s, y: (bp.y0 - y) / s, w: bitmap.width / k / s, h: bitmap.height / k / s });
+    const t1 = performance.now();
     paint();
     if (meter.current) {
       const main = performance.now() - t0, trip = performance.now() - job.at;
       if (performance.now() > 3000) worst.current = { main: Math.max(worst.current.main, main), trip: Math.max(worst.current.trip, trip) }; // the one-off background build at start-up is not what we are after
-      meter.current.textContent = `${job.req.live ? "live" : "fuld"} tråd ${Math.round(main)} ms · rundtur ${Math.round(trip)} ms · værst ${Math.round(worst.current.main)}/${Math.round(worst.current.trip)} ms · ${bitmap.width}×${bitmap.height}`;
+      meter.current.textContent = `${job.req.live ? "live" : "fuld"} tråd ${Math.round(main)} ms (upload ${Math.round(t1 - t0)} + gl ${Math.round(performance.now() - t1)}) · rundtur ${Math.round(trip)} ms · værst ${Math.round(worst.current.main)}/${Math.round(worst.current.trip)} ms · ${bitmap.width}×${bitmap.height}`;
     }
     bitmap.close();
-    if (queued.current !== null) { const b = queued.current; queued.current = null; render(b); }
+    next();
   };
   const commit = () => { if (!pointers.current.size && !glide.current) render(); };
   const commitSoon = () => { clearTimeout(commitTimer.current); commitTimer.current = window.setTimeout(commit, 100); };
   /** Mid-gesture: redraw (coarser) when the bitmap is stretched too far or the camera has tipped over. */
   const renderLive = () => {
     const { s } = t.current, cs = committed.current.s, ratio = s / cs;
-    // The shader re-projects and re-curves every frame on its own, so the texture is only about sharpness and can
-    // be refreshed at a calm pace. Zooming OUT the old one is only ever too sharp and can stay; the one case that
-    // must be caught is going from flat to curved, where it holds a slice and the mesh needs the whole spread.
+    // The shader re-projects and re-curves every frame on its own, so the texture is only about sharpness and
+    // coverage and can be refreshed at a calm pace. Zooming OUT the old one stays sharp but soon covers only a
+    // slice of the spread: the shader discards the page outside it, and the table showed through where the book
+    // should be (Lukas' screenshot 17/9). Going from flat to curved is the same case, only sharper: the mesh
+    // needs the whole spread at once.
     const tipped = tiltFor(s) > 0 && tiltFor(cs) === 0;
-    if ((ratio > LIVE_RATIO || tipped) && performance.now() - lastRender.current > LIVE_GAP) render(LIVE_BUDGET);
+    if ((ratio > LIVE_RATIO || ratio < 1 / LIVE_RATIO || tipped) && performance.now() - lastRender.current > LIVE_GAP) render(LIVE_BUDGET);
   };
 
   useImperativeHandle(ref, () => ({ redraw: () => { if (t.current.s) render(); } }), []);
@@ -175,6 +180,7 @@ export const BookCanvas = forwardRef<BookCanvasHandle, {
     if (!worker.current) {
       worker.current = new Worker(new URL("./draw.worker.ts", import.meta.url), { type: "module" });
       worker.current.onmessage = onReply;
+      worker.current.onerror = (e) => { console.error("draw.worker:", e.message); next(); };
     }
     if (!book3d.current && glCanvas.current) {
       book3d.current = createBook3D(glCanvas.current, PERSPECTIVE * (window.devicePixelRatio || 1));

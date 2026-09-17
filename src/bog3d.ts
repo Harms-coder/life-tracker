@@ -325,6 +325,8 @@ export type Book3D = {
   dispose(): void;
 };
 
+const PREMULTIPLY = new URLSearchParams(location.search).get("pm") !== "0";
+
 export function createBook3D(canvas: HTMLCanvasElement, persp: number): Book3D | null {
   // ?aa=0: no multisampling (a 3 MP buffer at 4 samples is ~50 MB on the phone - a suspect when Safari gives up on the page)
   const antialias = new URLSearchParams(location.search).get("aa") !== "0";
@@ -411,7 +413,7 @@ export function createBook3D(canvas: HTMLCanvasElement, persp: number): Book3D |
     setTexture(src, rect) {
       texRect = rect;
       gl.bindTexture(gl.TEXTURE_2D, tex);
-      gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, 1);
+      gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, PREMULTIPLY ? 1 : 0); // ?pm=0: is the upload cheaper on the phone without the conversion?
       // same size as last time: write into the texture that is there instead of making a new one (a fresh
       // 20-30 MB texture on every zoom was part of what ran the iPhone out of memory)
       if (texW === src.width && texH === src.height) gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, gl.RGBA, gl.UNSIGNED_BYTE, src);

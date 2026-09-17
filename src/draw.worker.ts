@@ -9,20 +9,25 @@ import leatherUrl from "./textures/leather.png";
  * no longer freezes the finger tracking (93 ms worst on the phone before this).
  */
 export type RenderRequest = { id: number; view: View; plane: Plane; live: boolean; scene: Scene; now: number };
-export type RenderReply = { id: number; bitmap: ImageBitmap; k: number };
+export type RenderReply = { id: number; bitmap: ImageBitmap; k: number } | { id: number; error: string };
 
 const canvas = new OffscreenCanvas(1, 1);
 const ctx = canvas.getContext("2d")!;
 const assets: Assets = {};
 const bitmapOf = (url: string) => fetch(url).then((r) => r.blob()).then((b) => createImageBitmap(b)).catch(() => undefined);
-// the textures are two small local PNGs: wait for them, so the background cache is built once, not once before and once after
-const ready = Promise.all([bitmapOf(paperUrl).then((b) => (assets.paper = b)), bitmapOf(leatherUrl).then((b) => (assets.leather = b))]);
+// the textures are two small local PNGs: wait for them, so the background cache is built once, not once before and once
+// after - but not for ever (a stalled fetch must not leave the book blank)
+const ready = Promise.race([
+  Promise.all([bitmapOf(paperUrl).then((b) => (assets.paper = b)), bitmapOf(leatherUrl).then((b) => (assets.leather = b))]),
+  new Promise((r) => setTimeout(r, 3000)),
+]);
 
 const port = self as unknown as { postMessage(m: RenderReply, transfer: Transferable[]): void };
 
 onmessage = async (e: MessageEvent<RenderRequest>) => {
   const { id, view, plane: p, live, scene, now } = e.data;
   await ready;
+  try {
   // The bitmap only ever GROWS: shrinking and regrowing it on every zoom meant a fresh 20-30 MB buffer each
   // time, and the iPhone's memory did not keep up. Mid-gesture (`live`) it is kept whatever its size and the
   // plane's resolution is adapted to it. The part beyond the drawn plane stays transparent; the shader shows
@@ -35,4 +40,5 @@ onmessage = async (e: MessageEvent<RenderRequest>) => {
   drawScene(ctx, view, p, scene, assets, now);
   const bitmap = canvas.transferToImageBitmap();
   port.postMessage({ id, bitmap, k: p.k }, [bitmap]);
+  } catch (err) { port.postMessage({ id, error: String(err) }, []); } // the main thread must hear back either way, or it waits for ever
 };
