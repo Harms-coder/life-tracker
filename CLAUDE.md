@@ -230,6 +230,16 @@ Rækker = dage 1–31 (antal efter måneden). Kolonner = brugerens egne trackere
 - SKRIFTENS TYKKELSE: glyfferne er sporet fra et ark udfyldt med en fin pen, så de stod tyndere end X'erne (som
   tegnes store i en celle). `BOLD` i glyf.ts (0,009 af boksens højde) lægger en streg langs hver kontur. Skru på
   den, hvis Lukas vil have den tykkere eller tyndere – ikke på glyfferne.
+- BUEN OG KANTERNE EFTER REFERENCEN (837b804). Lukas: buen for høj på toppen, yderkanten går bare lige ned, og
+  papirenderne mangler i siderne. Tunede tal nu: ARCH 24, STACK 54, BOW 0,62, OVERHANG 20, ROLL 5, LIP 30.
+  Buen topper LAVT og TIDLIGT, og yderkanten ligger HØJERE end midten (z(1) = 61 mod z(0,5) = 54), så siden går
+  lidt op ude i siderne i stedet for at skråne tilbage ned.
+  Sidestakken var en lodret væg: langs forkanten sås den, men langs venstre og højre kant stod den på kanten mod
+  kameraet og forsvandt helt. Nu RULLER den over – forlader sidens kant vandret, lander lodret på brættet
+  (kvartcirkel i ROLL trin) – så dens overside vender op mod kameraet hele vejen rundt. Derfor glider `a_meta.x`
+  nu 1..0 gennem rullet, og shaderen bruger `mix(coverT, pageZ(s), a_meta.x)` i stedet for et valg mellem to.
+  FALDGRUBE: LIP skal være STØRRE end OVERHANG, ellers ruller stakken hen over brættet og den mørke kant rundt
+  om bogen forsvinder.
 - Kør: `node tools/fit3d.mjs screenshots/b3d.png "?bog3d"` (ét startbillede), `Q="?bog3d" node tools/steps.mjs
   screenshots` (seks zoom-trin), `Q="?bog3d" npm run bench|tapcheck`. Uden Q tester de den gamle bog.
 
