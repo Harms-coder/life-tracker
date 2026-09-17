@@ -149,18 +149,6 @@ export function drawScene(ctx: Ctx, view: View, plane: Plane, scene: Scene, asse
   ctx.save(); ctx.translate(LEFT_PAGE.x, LEFT_PAGE.y); drawLeftPage(ctx, scene, { x: vis.x - LEFT_PAGE.x, y: vis.y - LEFT_PAGE.y, w: vis.w, h: vis.h }); ctx.restore();
   ctx.save(); ctx.translate(RIGHT_PAGE.x, RIGHT_PAGE.y); drawRightPage(ctx, scene, { x: vis.x - RIGHT_PAGE.x, y: vis.y - RIGHT_PAGE.y, w: vis.w, h: vis.h }, now); ctx.restore();
   drawSpine(ctx);
-  tint(ctx);
-}
-
-/** The room's light on the book: warm and a little darker towards the viewer (the window is behind). Only where
- *  the book is drawn (source-atop), so the transparent surroundings stay transparent. */
-function tint(ctx: Ctx) {
-  ctx.save();
-  ctx.globalCompositeOperation = "source-atop";
-  const g = ctx.createLinearGradient(0, 0, 0, BOOK_H);
-  g.addColorStop(0, "rgba(255,170,90,.10)"); g.addColorStop(1, "rgba(160,90,45,.17)");
-  ctx.fillStyle = g; ctx.fillRect(-2, -2, BOOK_W + 4, BOOK_H + 4);
-  ctx.restore();
 }
 
 function roundRect(ctx: Ctx, x: number, y: number, w: number, h: number, r: number) {
