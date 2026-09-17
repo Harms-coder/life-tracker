@@ -15,6 +15,9 @@ const GLYPHS = glyffer as unknown as Record<string, Variant[]>;
 const EM = 1.42;   // box heights per nominal font size
 const SPACE = 0.2; // a word space, in box heights
 const GAP = 0.035; // between two characters
+/** Pen weight added along every outline, in box heights. The template was filled in with a fine pen, so traced
+ *  straight the letters read thinner on the page than the X's, which are drawn large in a cell. */
+const BOLD = 0.009;
 /** Where a capital reaches above the baseline, in box heights: used to place "middle" and "top" text. */
 const CAP = 0.36;
 
@@ -55,7 +58,13 @@ export function drawText(ctx: CanvasRenderingContext2D, str: string, x: number, 
     ctx.scale(v.k, v.k);
     ctx.translate(v.tr[0], v.tr[1]);
     ctx.scale(v.tr[2], v.tr[3]);
-    ctx.fill(pathFor(v.d));
+    const p = pathFor(v.d);
+    ctx.fill(p);
+    // widen the stroke: one unit here is em * v.k * |sx| screen px after the transforms above
+    ctx.lineWidth = BOLD / (v.k * Math.abs(v.tr[2]));
+    ctx.lineJoin = "round"; ctx.lineCap = "round";
+    ctx.strokeStyle = ctx.fillStyle;
+    ctx.stroke(p);
     ctx.restore();
     pen += (v.w + GAP) * em;
   }

@@ -57,7 +57,10 @@ varying vec2 v_uv;
 varying float v_shade;
 varying float v_layer;
 
-/** Height of the page above the board at distance s from the spine. */
+/** Height of the page above the board at distance s from the spine. u_book.y and .z both fade out with the
+ *  tilt, so looking straight down the page is exactly flat - which is what lets the flat hit-test in layout.ts
+ *  stay correct. Leave the stack in at that point and the page is still a ramp: every cell is nudged outwards
+ *  by the perspective, and a tap lands in the neighbouring column. */
 float pageZ(float s) {
   s = clamp(s, 0.0, 1.0);
   return u_book.x + u_book.y * s + u_book.z * sin(3.14159265 * pow(max(s, 0.0005), 0.7));
@@ -186,7 +189,7 @@ export type Book3D = {
   /** Upload the flat spread canvas as the page texture. `rect` is the part of the spread it covers. */
   setTexture(src: HTMLCanvasElement, rect: { x: number; y: number; w: number; h: number }): void;
   /** Draw one frame. `arch` 0 = flat. */
-  draw(o: { w: number; h: number; view: { x: number; y: number; s: number }; origin: [number, number]; tilt: number; arch: number }): void;
+  draw(o: { w: number; h: number; view: { x: number; y: number; s: number }; origin: [number, number]; tilt: number; arch: number; flat: number }): void;
   dispose(): void;
 };
 
@@ -251,7 +254,7 @@ export function createBook3D(canvas: HTMLCanvasElement, persp: number): Book3D |
       gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, 1);
       gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, src);
     },
-    draw({ w, h, view, origin, tilt, arch }) {
+    draw({ w, h, view, origin, tilt, arch, flat }) {
       if (canvas.width !== w || canvas.height !== h) { canvas.width = w; canvas.height = h; }
       gl.viewport(0, 0, w, h);
       gl.clearColor(0, 0, 0, 0);
@@ -264,7 +267,10 @@ export function createBook3D(canvas: HTMLCanvasElement, persp: number): Book3D |
       gl.uniform1f(U.persp, persp);
       gl.uniform2f(U.res, w, h);
       gl.uniform4f(U.tex, texRect.x, texRect.y, texRect.w, texRect.h);
-      gl.uniform4f(U.book, COVER_T, STACK, arch, PAGE_W);
+      // every part of the height fades out with the tilt. At flat = 0 the page sits exactly on the plane the
+      // hit-test assumes, so a tap lands in the cell it touched; leave any height in and the perspective nudges
+      // the far side of the page outwards by more than a column.
+      gl.uniform4f(U.book, COVER_T * flat, STACK * flat, arch, PAGE_W);
       gl.uniform1f(U.spine, BOOK_W / 2);
       gl.uniform1f(U.fold, FOLD_DARK);
       // a sheet must stay at least ~3 screen px apart, or the lines turn into a moire pattern

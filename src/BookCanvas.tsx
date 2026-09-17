@@ -94,6 +94,7 @@ export const BookCanvas = forwardRef<BookCanvasHandle, {
         origin: [(x + (BOOK_W / 2) * s) * dpr, (y + (BOOK_H / 2) * s) * dpr],
         tilt: (tiltFor(s) * Math.PI) / 180,
         arch: Math.round(ARCH * a),   // whole world px: a finer step just rebuilds the mesh for nothing
+        flat: a,                      // the page stack collapses with the tilt too, so the page ends up truly flat
       });
       tableTop.current!.style.opacity = `${Math.min(1, (1 - a) * 1.6)}`;
       return;
