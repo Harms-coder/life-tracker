@@ -166,100 +166,39 @@ Rækker = dage 1–31 (antal efter måneden). Kolonner = brugerens egne trackere
 - Test-scripts ligger i sessionens scratchpad (`pw/shots.mjs` skærmbilleder, `pw/bench.mjs` frame-tider i WebKit,
   `pw/tapcheck.mjs` tryk). Dev-server: `npm run dev`. I dev sætter BookCanvas `window.__view` (x, y, s) til scripts.
 
-## Status 2026-09-17 kl. 19.40 (sådan fortsætter man)
-- BOGEN MED RIGTIG DYBDE ligger på `?bog3d` (commit ea2687e). Opgaven var `TASK_bog_3d.md`. IKKE SET AF LUKAS ENDNU.
-  FØRSTE SKRIDT: https://harms-coder.github.io/life-tracker/?bog3d på hans telefon. Spørg om tre ting: virker den
-  overhovedet (WebGL på hans iPhone), hakker den, og ligner den `referencer/bog-maal.jpg`.
-  Uden `?bog3d` er alt præcis som før – den gamle flade bog er urørt og skal blive det, til han har godkendt den nye.
-- VALG: WebGL skrevet direkte, IKKE three.js som opgaven foreslog. Vi bruger ét mesh og én tekstur (~200 linjer);
-  three.js ville lægge ~600 kB og en ny slags lag på en side hvor Safari er gået ned fem gange. Opgaven bad selv om
-  at vælge det med mindst risiko på telefonen. Hvis WebGL viser sig at crashe på hans iPhone, er plan B at tegne
-  buen stribe for stribe i 2D-canvas (samme teknik som `projectImage` brugte til bordpladen) – dårligere, men sikkert.
-- SÅDAN VIRKER DEN (`src/bog3d.ts`): siderne er to underopdelte flader med
-  z = COVER_T + STACK*s + ARCH*sin(pi*s^BOW), s = afstanden fra ryggen (0) til forkanten (1). Tallene der er tunet
-  efter referencen: COVER_T 7, STACK 40, ARCH 54, BOW 0,7 (mindre end 1 flytter buens top mod ryggen).
-  Sidestakken er et skørt fra hver sides kant ned til omslaget; omslaget er et tyndt bræt der ligger fladt og stikker
-  LIP=10 ud. Lyset er en funktion af hældningen (`lightAt`), så folden er mørk.
-  Kameraet gentager CSS' `perspective(700) rotateX(tilt)` om bogens 2D-centrum PIXEL FOR PIXEL – derfor ligger bogen
-  stadig præcis samme sted på bordfotoet, og BG/TABLE skulle ikke røres.
-  Buen skaleres med `tiltAmount`, samme tal som vippet: zoomet ind er siden helt flad, og den flade hit-test i
-  `layout.ts` er dermed uændret. Rør ikke den kobling – det er den, der holder tryk korrekt.
-- DOM (vigtigt for iPhone): WebGL-canvasset ligger i `.viewport` UDEN egen transform, EFTER `.tilt` (så det tegnes
-  over skyggen) og uden for CSS-3D-kæden. FALDGRUBE der kostede en runde: lå det FØR `.tilt`, blev bogen tegnet
-  under skyggens to mørke ellipser, og papiret så gråbrunt ud i stedet for cremet.
-- Teksturen er det samme flade opslag `draw.ts` altid har tegnet, uploadet ved hver `render()`. Fragment-shaderen
-  discarder uden for teksturens udsnit, så zoomet ind (hvor kun det synlige stykke tegnes) er resten bare væk.
-  Mesh'et uploades kun når buen ændrer sig, og buen kvantiseres til hele verdens-px – ellers kostede det ~45 ms
-  på hver niende frame. `renderLive` kører roligere i 3D (260 ms, 1,5x) fordi shaderen selv holder vip og bue
-  korrekte hver frame; teksturen handler kun om skarphed.
-- `tint()` i draw.ts er SVÆKKET (opgavens punkt 5): papiret var for mørkt mod referencen. Gælder BEGGE udgaver.
-- Målt: pinch-in 4/129 frames >33 ms (som før), pinch-out 5/131 (1 før). tapcheck OK i begge udgaver.
-- MANGLER mod `bog-maal.jpg` (opgavens trin 4–5): bogens skygge på bordet er stadig de to gamle DOM-ellipser og
-  følger ikke buen, og omslaget kunne have en synlig kant ned til bordet.
-- RUNDE 2 (d53d53b), efter Lukas' fem punkter på runde 1:
-  1) Bogen ca. 6 % mindre: BG = {x:-648, y:-2069, w:2752, h:4892} (samme centrum 0,50/0,53 af fotoet).
-  2) Folden lysere: FOLD_DARK 0,46 → 0,30.
-  3+4) "Man kan se felterne og streger, der løber ned i tykkelsen": det var den GAMLE flade sidestak (`edge()` i
-     drawCover), som stadig blev tegnet i teksturen og lå oven på den nye geometri. Den springes nu over når
-     USE_3D. Sidestakken er ark med FAST tykkelse i verdens-px, båret i `a_meta.z` som afstand ned fra sidens kant.
-     FALDGRUBE: som en 0..1-andel af skørtet gav det moiré, fordi skørtet bliver tyndere mod ryggen. Tykkelsen
-     åbnes op ved udzoom (`3 / view.s`), så to linjer aldrig kommer tættere end ca. 3 skærm-px.
-     Og tegnerækkefølgen SKAL være bræt → stak → sider: brættet er bredere end stakken og malede hen over den.
-  5) "Bogen bliver helt lille" under pinch: midt i en pinch genbruger `fitCanvas` bufferen i en STØRRE størrelse
-     end det tegnede udsnit, men `setTexture` fik kun udsnittets mål. Rektanglet dækker nu hele bufferen.
-     Hakket: buen ligger nu i VERTEX-SHADEREN, så mesh'et bygges ÉN gang – før blev det bygget om ved hvert helt
-     verdens-px af bue, altså ~54 gange pr. pinch. Og `renderLive` springer udzoom over i 3D (den gamle tekstur
-     kan kun være for skarp); den ene undtagelse er flad → buet, hvor mesh'et skal bruge hele opslaget.
-  Målt efter: pinch-ud 2/132 frames >33 ms (9 før), pinch-ind 4/129 = samme som den gamle bog. tapcheck OK i begge.
-  IKKE SET AF LUKAS ENDNU.
-- HØJRE SKYGGESTRIBE PÅ BORDET FJERNET (deb44fa). Lukas: den venstre er vinduets midterstolpe og skal blive,
-  den højre havde intet til at kaste sig. Den lå i BÅDE aften.jpg og bord.webp. `tools/skyggevaek.py` løfter
-  båndet tilbage til træets lysstyrke i stedet for at generere billederne igen (kompositionen er godkendt).
-  En skygge er multiplikativ, så den divideres ud: pr. række aflæses lyset lige uden for båndet i begge sider,
-  der interpoleres lige over, og pixlerne skaleres op. Båndets geometri står som JOBS øverst i filen – skal et
-  andet bånd væk, måles det med ratio-metoden (L delt med en meget sløret L) og føjes til listen.
-  FALDGRUBE: første forsøg satte båndet for bredt (0,115), så korrektionen blev tværet ud og skyggen blev kun
-  svækket. Mål bredden, gæt den ikke. Målt i båndet: 0,74–0,83 før, 0,85–1,04 efter.
-- TRYK RAMTE FELTET VED SIDEN AF (5cb91cf). Årsag: siden var ikke HELT flad zoomet ind. Buen (ARCH) døde ud med
-  vippet, men sidestakken (STACK = 40 verdens-px fra ryggen ud til forkanten) og brættet blev stående, så siden
-  var en rampe. Perspektivet skubber en hævet flade UDAD fra bogens centrum, og ude ved kanten var det mere end
-  en hel kolonne. REGEL: alt i `pageZ` skal ganges med `flat` (= tiltAmount), så z er præcis 0 når
-  `tiltFor(s) === 0`. Så er projektionen identisk med den flade transform, og hit-testen i layout.ts passer per
-  konstruktion. Rører du højderne i bog3d.ts, så tjek den kobling først.
-  Test: `Q="?bog3d" node tools/tapnoej.mjs screenshots` trykker seks steder og tegner en rød ring hvert sted.
-- SKRIFTENS TYKKELSE: glyfferne er sporet fra et ark udfyldt med en fin pen, så de stod tyndere end X'erne (som
-  tegnes store i en celle). `BOLD` i glyf.ts (0,009 af boksens højde) lægger en streg langs hver kontur. Skru på
-  den, hvis Lukas vil have den tykkere eller tyndere – ikke på glyfferne.
-- BUEN OG KANTERNE EFTER REFERENCEN (837b804). Lukas: buen for høj på toppen, yderkanten går bare lige ned, og
-  papirenderne mangler i siderne. Tunede tal nu: ARCH 24, STACK 54, BOW 0,62, OVERHANG 20, ROLL 5, LIP 30.
-  Buen topper LAVT og TIDLIGT, og yderkanten ligger HØJERE end midten (z(1) = 61 mod z(0,5) = 54), så siden går
-  lidt op ude i siderne i stedet for at skråne tilbage ned.
-  Sidestakken var en lodret væg: langs forkanten sås den, men langs venstre og højre kant stod den på kanten mod
-  kameraet og forsvandt helt. Nu RULLER den over – forlader sidens kant vandret, lander lodret på brættet
-  (kvartcirkel i ROLL trin) – så dens overside vender op mod kameraet hele vejen rundt. Derfor glider `a_meta.x`
-  nu 1..0 gennem rullet, og shaderen bruger `mix(coverT, pageZ(s), a_meta.x)` i stedet for et valg mellem to.
-  FALDGRUBE: LIP skal være STØRRE end OVERHANG, ellers ruller stakken hen over brættet og den mørke kant rundt
-  om bogen forsvinder.
-- SIDEN BØLGER (9b3b1b3). Lukas: "det er bare én bue, hvor i referencebilledet der bølger den rigtigt. Der går
-  den op, ned, og så lidt op igen til sidst." Profilen havde kun ét led (en halv sinus = én pukkel). Nu ligger
-  der en HEL periode mere ovenpå: `arch * (sin(pi*s^BOW) + WAVE*sin(2pi*s^BOW2))`, WAVE = 0,55, BOW 0,7,
-  BOW2 0,9, ARCH 22, STACK 46. Højderne i verdens-px: 7 – 47 – 53 – 48 – 41 – 47 – 53.
-  VIGTIGT: `pageZ` findes BÅDE i shaderen og i JS (skørtet bruger den). Rettes kun den ene, passer stakken ikke
-  til siden. BOW/BOW2/WAVE ligger som uniformen `u_bow`, så formen tunes ét sted.
-- ENDEN NED, ARKENE FINE (4e70379). Lukas: yderkanten svingede for højt op, og stakken lignede ti brædder.
-  Profilen har nu et DIP-led (9 px fra s = 0,84, smoothstep) og STACK 42. Højder: 7 – 41 – 51 – 48 – 41 – 39 –
-  39 – 40 – 40. DIP fader ud med buen ligesom resten, så siden stadig er præcis flad zoomet ind (tryk!).
-  Arkene: linjen var en sinus = brede bånd. Nu en smal mørk fure med bredt lyst mellemrum (cos opløftet i 7.).
-  FALDGRUBE, kostede en runde med moiré: linjeafstanden skal måles EFTER tiltens forkortning. Stakken står op fra
-  brættet, så en lodret afstand ses kun som cos(tilt) af sig selv – uden den faktor kom linjerne dobbelt så tæt
-  som beregnet. Og når de alligevel ikke kan opløses, fader `u_sheetAmp` dem ud til en jævn tone.
-- OPSVINGET I ENDEN (775085b): DIP tager kun en DEL af løftet tilbage. `?dip=0|3|5|7` giver opsving +11, +8, +6,
-  +4 verdens-px; standard er 5 = C, Lukas valgte den. ARBEJDSFORM der virkede her: da jeg havde gættet forkert to gange i træk, renderede
-  jeg alle fire og lod Lukas pege. Gør det igen næste gang en form skal rammes – det er én runde i stedet for tre.
-- Kør: `node tools/fit3d.mjs screenshots/b3d.png "?bog3d"` (ét startbillede), `Q="?bog3d" node tools/steps.mjs
-  screenshots` (seks zoom-trin), `Q="?bog3d" npm run bench|tapcheck`. Uden Q tester de den gamle bog.
+## Status 2026-09-17 kl. 21.00 – HER ER VI
 
-## Status 2026-09-17 kl. 18.10 (ældre)
+**Live:** https://harms-coder.github.io/life-tracker/ (gammel flad bog) · **?bog3d** = den nye bog med rigtig dybde.
+Alt er committet og pushet. Galleriet til Lukas: https://claude.ai/artifact/S914mdZ2Tq4gAuqWUrxLYb
+
+### Hvad vi lavede i dag (17/9)
+1. **Dybdelagene fra 16/9 er SLETTET.** Lukas: "ser ikke godt ud – hakker, planten er gennemsigtig". Vi er tilbage
+   ved ét fladt foto i `scene2d` + bogen ovenpå. Byg dem IKKE igen; afsnittet under Beslutninger er historik.
+2. **Nyt aftenfoto og skarpt bord**, begge lavet herfra med Higgsfield-connectoren.
+3. **Lukas' egen håndskrift** er i bogen: 424 glyffer skåret ud af hans tre fotograferede ark.
+4. **Bogen har rigtig dybde** på `?bog3d`: buede, bølgende sider, fold, papirstak – WebGL uden three.js.
+5. **Den højre skyggestribe** på bordet er fjernet (der var intet til at kaste den).
+
+### Første skridt i næste session
+Spørg Lukas om hans dom på `?bog3d` på telefonen. Den er tunet over fire runder, men han har ikke sagt god for
+den samlet. Når han gør: fjern flaget, så den nye bog bliver den eneste, og slet den gamle CSS-vip-vej.
+
+### Åbent, i den rækkefølge det gav mening sidst
+- **Bogens skygge på bordet** er stadig to DOM-ellipser i `.tilt`. Den følger ikke buen. Opgavens trin 4–5.
+- **Omslaget** kunne have en synlig kant ned til bordet.
+- `&` mangler i håndskriften (Lukas udfyldte den ikke). Falder tilbage til Caveat.
+- Roadmap trin 2: flere måneder, sidevending, rigtig datamodel (IndexedDB). Buefunktionen i `bog3d.ts` er bygget,
+  så en sidevending kan genbruge den.
+
+### ARBEJDSFORM – læs den, det kostede runder at lære
+- **Ret efter referencebilledet, ikke efter tal i Lukas' ord.** Mål i billedet.
+- **Skal en form eller et niveau rammes: RENDER FLERE VARIANTER og lad ham pege.** Da jeg havde gættet forkert to
+  gange i træk på buens ende, lavede jeg fire og lagde dem bag `?dip=N`. Det tog én runde i stedet for tre.
+  Lukas sagde direkte: "du er nødt til at lytte noget mere... stil mig nogle spørgsmål, hvis det er uklart."
+- **Overkorrigér ikke.** "Lidt mindre" betyder lidt mindre, ikke væk.
+- Én runde = rettelse → Chrome-billede (390×844, dsf 3) → push → galleri → hans dom på telefonen.
+
+## Status 2026-09-17 kl. 18.10 (historik – tallene nedenfor er overhalet, se øverst)
 - DYBDELAGENE ER SLETTET (commit ea5402d). Lukas' dom: "ser ikke godt ud – hakker, planten er gennemsigtig". Vi er tilbage
   ved runde 5-arkitekturen: ét fladt foto i scene2d + bogen som ét canvas i vippet. DYBDELAG-afsnittet under Beslutninger
   er historik; byg det IKKE igen.
