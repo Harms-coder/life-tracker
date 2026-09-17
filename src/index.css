@@ -42,6 +42,8 @@ body { font-family: var(--font-hand); -webkit-user-select: none; user-select: no
 .table-top img { position: absolute; display: block; }
 @keyframes bg-fade { from { opacity: 0; } to { opacity: 1; } }
 
+.meter { position: fixed; left: 8px; top: calc(8px + env(safe-area-inset-top, 0px)); padding: 4px 8px; background: rgba(0,0,0,.6); color: #fff; font: 13px -apple-system, system-ui, sans-serif; border-radius: 6px; pointer-events: none; z-index: 9; }
+
 /* --- number input sheet ----------------------------------------------- */
 .sheet-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,.25); display: flex; align-items: flex-end; }
 .sheet {

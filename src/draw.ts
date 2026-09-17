@@ -143,12 +143,11 @@ export function drawScene(ctx: Ctx, view: View, plane: Plane, scene: Scene, asse
   ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
   ctx.setTransform(s * k, 0, 0, s * k, (view.x - plane.x0) * k, (view.y - plane.y0) * k);
   const vis: Rect = { x: (plane.x0 - view.x) / s, y: (plane.y0 - view.y) / s, w: plane.w / s, h: plane.h / s };
-  drawCover(ctx, vis, assets);
-  drawPage(ctx, vis, assets, LEFT_PAGE, "left");
-  drawPage(ctx, vis, assets, RIGHT_PAGE, "right");
+  drawBackground(ctx, vis, assets);
+  drawGrid(ctx, vis, LEFT_PAGE);
+  drawGrid(ctx, vis, RIGHT_PAGE);
   ctx.save(); ctx.translate(LEFT_PAGE.x, LEFT_PAGE.y); drawLeftPage(ctx, scene, { x: vis.x - LEFT_PAGE.x, y: vis.y - LEFT_PAGE.y, w: vis.w, h: vis.h }); ctx.restore();
   ctx.save(); ctx.translate(RIGHT_PAGE.x, RIGHT_PAGE.y); drawRightPage(ctx, scene, { x: vis.x - RIGHT_PAGE.x, y: vis.y - RIGHT_PAGE.y, w: vis.w, h: vis.h }, now); ctx.restore();
-  drawSpine(ctx);
 }
 
 function roundRect(ctx: Ctx, x: number, y: number, w: number, h: number, r: number) {
@@ -169,7 +168,51 @@ function drawCover(ctx: Ctx, vis: Rect, assets: Assets) {
   ctx.fillStyle = "#101010"; roundRect(ctx, BOOK_W - 50, BOOK_H * 0.54, 44, 60, 3); ctx.fill();
 }
 
-function drawPage(ctx: Ctx, vis: Rect, assets: Assets, at: { x: number; y: number }, side: "left" | "right") {
+/** Everything on the spread that never changes - cover, paper, its texture, the curvature and wave shading, the
+ *  spine - drawn ONCE into a bitmap and copied in from there on every redraw. Drawn afresh at every zoom step it
+ *  was the whole cost of a redraw (50-120 ms of pattern and gradient fills); one copy is a few ms. It is all
+ *  soft, so CACHE_K = 1.5 px per world px is plenty even zoomed right in. The grid and the ink are drawn live:
+ *  they have to stay crisp. */
+const CACHE_K = 1.5;
+let cache: { canvas: HTMLCanvasElement; paper?: HTMLImageElement; leather?: HTMLImageElement } | null = null;
+function drawBackground(ctx: Ctx, vis: Rect, assets: Assets) {
+  // built once before the textures arrive and once after: each build is ~100 ms, not one per image
+  const complete = !!(assets.paper && assets.leather);
+  if (!cache || (complete && (cache.paper !== assets.paper || cache.leather !== assets.leather))) {
+    const canvas = cache?.canvas ?? document.createElement("canvas");
+    canvas.width = Math.round(BOOK_W * CACHE_K); canvas.height = Math.round(BOOK_H * CACHE_K);
+    const c = canvas.getContext("2d")!;
+    c.setTransform(CACHE_K, 0, 0, CACHE_K, 0, 0);
+    const all: Rect = { x: 0, y: 0, w: BOOK_W, h: BOOK_H };
+    drawCover(c, all, assets);
+    drawPaper(c, all, assets, LEFT_PAGE, "left");
+    drawPaper(c, all, assets, RIGHT_PAGE, "right");
+    drawSpine(c);
+    cache = { canvas, paper: assets.paper, leather: assets.leather };
+  }
+  // only the visible part: the source is clipped, so a deep zoom does not ask for a blit the size of the world
+  const x0 = Math.max(0, vis.x), y0 = Math.max(0, vis.y), x1 = Math.min(BOOK_W, vis.x + vis.w), y1 = Math.min(BOOK_H, vis.y + vis.h);
+  if (x1 <= x0 || y1 <= y0) return;
+  ctx.drawImage(cache.canvas, x0 * CACHE_K, y0 * CACHE_K, (x1 - x0) * CACHE_K, (y1 - y0) * CACHE_K, x0, y0, x1 - x0, y1 - y0);
+}
+
+/** The squared grid, live and crisp. Multiplied onto the paper so the fold's shadow still darkens it. */
+function drawGrid(ctx: Ctx, vis: Rect, at: { x: number; y: number }) {
+  const page: Rect = { x: at.x, y: at.y, w: PAGE_W, h: PAGE_H };
+  if (!overlaps(vis, page)) return;
+  ctx.save();
+  ctx.translate(at.x, at.y);
+  ctx.beginPath(); ctx.rect(2, 0, PAGE_W - 4, PAGE_H); ctx.clip(); // inside the paper's uneven outer edge
+  const vx0 = Math.max(0, vis.x - at.x), vy0 = Math.max(0, vis.y - at.y), vx1 = Math.min(PAGE_W, vis.x + vis.w - at.x), vy1 = Math.min(PAGE_H, vis.y + vis.h - at.y);
+  ctx.beginPath();
+  for (let x = Math.floor(vx0 / CELL) * CELL; x <= vx1; x += CELL) { ctx.moveTo(x + 0.5, vy0); ctx.lineTo(x + 0.5, vy1); }
+  for (let y = Math.floor(vy0 / CELL) * CELL; y <= vy1; y += CELL) { ctx.moveTo(vx0, y + 0.5); ctx.lineTo(vx1, y + 0.5); }
+  ctx.globalCompositeOperation = "multiply";
+  ctx.strokeStyle = GRID; ctx.lineWidth = 1; ctx.stroke();
+  ctx.restore();
+}
+
+function drawPaper(ctx: Ctx, vis: Rect, assets: Assets, at: { x: number; y: number }, side: "left" | "right") {
   const page: Rect = { x: at.x, y: at.y, w: PAGE_W, h: PAGE_H };
   if (!overlaps(vis, page)) return;
   ctx.save();
@@ -181,12 +224,6 @@ function drawPage(ctx: Ctx, vis: Rect, assets: Assets, at: { x: number; y: numbe
   ctx.closePath(); ctx.clip();
   ctx.fillStyle = PAPER; ctx.fillRect(0, 0, PAGE_W, PAGE_H);
   if (assets.paper) { const p = ctx.createPattern(assets.paper, "repeat"); if (p) { ctx.fillStyle = p; ctx.globalAlpha = 0.5; ctx.fillRect(0, 0, PAGE_W, PAGE_H); ctx.globalAlpha = 1; } }
-  // grid, only the visible part
-  const vx0 = Math.max(0, vis.x - at.x), vy0 = Math.max(0, vis.y - at.y), vx1 = Math.min(PAGE_W, vis.x + vis.w - at.x), vy1 = Math.min(PAGE_H, vis.y + vis.h - at.y);
-  ctx.beginPath();
-  for (let x = Math.floor(vx0 / CELL) * CELL; x <= vx1; x += CELL) { ctx.moveTo(x + 0.5, vy0); ctx.lineTo(x + 0.5, vy1); }
-  for (let y = Math.floor(vy0 / CELL) * CELL; y <= vy1; y += CELL) { ctx.moveTo(vx0, y + 0.5); ctx.lineTo(vx1, y + 0.5); }
-  ctx.strokeStyle = GRID; ctx.lineWidth = 1; ctx.stroke();
   // curvature: pages bulge up before they dive into the spine; a light outer edge; one faint crease
   const spineX = side === "left" ? PAGE_W : 0, dir = side === "left" ? -1 : 1;
   const g = ctx.createLinearGradient(spineX, 0, spineX + dir * 130, 0);

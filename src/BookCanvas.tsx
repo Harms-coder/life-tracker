@@ -51,6 +51,8 @@ export const BookCanvas = forwardRef<BookCanvasHandle, {
   const commitTimer = useRef(0);
   const lastRender = useRef(0);
   const drawRef = useRef(draw); drawRef.current = draw;
+  const meter = useRef<HTMLDivElement>(null); // ?maal: redraw times in the corner, for reading off the phone
+  const worst = useRef(0);
 
   /** 0 (looking straight down) .. 1 (fully tipped back) */
   const tiltAmount = (s: number) => { const out = Math.min(1, Math.max(0, (fitScale.current * (1 + TILT_RANGE) - s) / (fitScale.current * TILT_RANGE))); return out * out; };
@@ -118,6 +120,7 @@ export const BookCanvas = forwardRef<BookCanvasHandle, {
     const bx0 = Math.max(p.x0, x), by0 = Math.max(p.y0, y), bx1 = Math.min(p.x0 + p.w, x + BOOK_W * s), by1 = Math.min(p.y0 + p.h, y + BOOK_H * s);
     const bp = { x0: bx0, y0: by0, w: Math.max(1, bx1 - bx0), h: Math.max(1, by1 - by0), k: p.k };
     fitCanvas(bookCanvas.current!, bp, live);
+    const t0 = performance.now();
     drawRef.current(bookCanvas.current!.getContext("2d")!, committed.current, bp);
     // The texture is the WHOLE canvas buffer, which mid-pinch is deliberately larger than the part just drawn
     // (fitCanvas reuses it rather than reallocating). Telling the mesh it only covers bp squeezed the spread into
@@ -126,6 +129,10 @@ export const BookCanvas = forwardRef<BookCanvasHandle, {
     book3d.current?.setTexture(cv, { x: (bp.x0 - x) / s, y: (bp.y0 - y) / s, w: cv.width / bp.k / s, h: cv.height / bp.k / s });
     lastRender.current = performance.now();
     paint();
+    if (meter.current) {
+      const ms = performance.now() - t0; worst.current = Math.max(worst.current, ms);
+      meter.current.textContent = `${live ? "live" : "fuld"} ${Math.round(ms)} ms · værst ${Math.round(worst.current)} ms · ${cv.width}×${cv.height}`;
+    }
   };
   const commit = () => { if (!pointers.current.size && !glide.current) render(); };
   const commitSoon = () => { clearTimeout(commitTimer.current); commitTimer.current = window.setTimeout(commit, 100); };
@@ -280,6 +287,7 @@ export const BookCanvas = forwardRef<BookCanvasHandle, {
       </div>
       {/* the book, and its shadow on the table, drawn as one */}
       <canvas ref={glCanvas} className="book-gl" />
+      {new URLSearchParams(location.search).has("maal") && <div ref={meter} className="meter" />}
       {/* the flat spread, drawn by draw.ts and handed to the book as its page texture; never shown on its own */}
       <canvas ref={bookCanvas} className="book-source" />
     </div>
