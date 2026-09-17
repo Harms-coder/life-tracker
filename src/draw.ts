@@ -3,7 +3,7 @@ import { drawInBox, drawText, widthOfText } from "./glyf";
 import {
   CELL, PAGE_W, PAGE_H, COVER, BOOK_W, BOOK_H, LEFT_PAGE, RIGHT_PAGE, HEADER_Y, TABLE_LEFT, DAY_COL_W,
   TITLE_BOX_X, TITLE_BOX_Y, GOALS, goalPos, goalTextBox, widthOf, dotX, columnXs, bottomY, noteBoxes, NOTE_LABEL,
-  USE_3D, type Column, type NoteField, type Rect,
+  type Column, type NoteField, type Rect,
 } from "./layout";
 
 /**
@@ -177,27 +177,6 @@ function drawCover(ctx: Ctx, vis: Rect, assets: Assets) {
   const sheen = ctx.createLinearGradient(0, 0, BOOK_W, BOOK_H * 0.6);
   sheen.addColorStop(0, "rgba(255,255,255,.10)"); sheen.addColorStop(0.35, "rgba(255,255,255,0)"); sheen.addColorStop(1, "rgba(0,0,0,.18)");
   ctx.fillStyle = sheen; ctx.fill();
-  // the block of remaining pages: a band of page edges outside each open page (thicker at the front, where you look
-  // down onto the fore-edge), darker towards the cover
-  const edge = (x: number, y: number, w: number, h: number, horizontal: boolean) => {
-    const g = horizontal ? ctx.createLinearGradient(0, y, 0, y + h) : ctx.createLinearGradient(x, 0, x + w, 0);
-    const out = horizontal ? false : x < BOOK_W / 2; // which end is the cover
-    g.addColorStop(out ? 0 : 1, "#9c9074"); g.addColorStop(out ? 0.35 : 0.65, "#d9d0b3"); g.addColorStop(out ? 1 : 0, "#efe8d0");
-    if (horizontal) { g.addColorStop(0, "#efe8d0"); g.addColorStop(0.7, "#cfc5a6"); g.addColorStop(1, "#8f8467"); }
-    ctx.fillStyle = g; ctx.fillRect(x, y, w, h);
-    ctx.strokeStyle = "rgba(90,80,60,.35)"; ctx.lineWidth = 1; ctx.beginPath();
-    const n = horizontal ? Math.floor(h / 2.5) : Math.floor(w / 2.5);
-    for (let i = 1; i < n; i++) { if (horizontal) { ctx.moveTo(x, y + i * 2.5); ctx.lineTo(x + w, y + i * 2.5); } else { ctx.moveTo(x + i * 2.5, y); ctx.lineTo(x + i * 2.5, y + h); } }
-    ctx.stroke();
-  };
-  // A narrow band of page edges just outside the pages; the rest of COVER stays black board. In 3D the stack is
-  // real geometry, and this flat version would sit on top of it – Lukas saw the page grid and its lines running
-  // down over the book's thickness.
-  if (!USE_3D) {
-    edge(COVER - 8, COVER + 2, 8, PAGE_H + 2, false);
-    edge(BOOK_W - COVER, COVER + 2, 8, PAGE_H + 2, false);
-    edge(COVER, BOOK_H - COVER, BOOK_W - 2 * COVER, 8, true);
-  }
   // elastic loop
   ctx.fillStyle = "#101010"; roundRect(ctx, BOOK_W - 50, BOOK_H * 0.54, 44, 60, 3); ctx.fill();
 }

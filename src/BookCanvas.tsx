@@ -1,5 +1,5 @@
 import { forwardRef, useImperativeHandle, useLayoutEffect, useRef, type ReactNode } from "react";
-import { BG, BOOK_H, BOOK_T, BOOK_W, TABLE, TABLE_PAD, USE_3D } from "./layout";
+import { BG, BOOK_H, BOOK_W, TABLE, TABLE_PAD } from "./layout";
 import { ARCH, createBook3D, type Book3D } from "./bog3d";
 import type { Plane, View } from "./draw";
 
@@ -11,8 +11,8 @@ const TILT_RANGE = 0.7; // tilt is gone at fit * (1 + TILT_RANGE)
 const MARGIN = 0.35; // canvas overdraw around the viewport, share of its size
 const PIXEL_BUDGET = 9e6; // max canvas pixels (iOS is strict about big canvases)
 const LIVE_BUDGET = 2e6; // budget for the quick redraws in the middle of a pinch
-const LIVE_RATIO = 1.15; // redraw mid-pinch once the bitmap is stretched this much
-const LIVE_GAP = 120; // ms between such redraws
+const LIVE_RATIO = 1.5; // redraw mid-pinch once the page texture is stretched this much
+const LIVE_GAP = 260;   // ms between such redraws
 
 export type BookCanvasHandle = { redraw: () => void };
 
@@ -32,9 +32,6 @@ export const BookCanvas = forwardRef<BookCanvasHandle, {
 }>(function BookCanvas({ width, height, draw, onTap, backdrop }, ref) {
   const view = useRef<HTMLDivElement>(null);
   const tilt = useRef<HTMLDivElement>(null);
-  const tilt2 = useRef<HTMLDivElement>(null); // the faces get their own 3D context: Chrome mis-sorts them against the big canvases
-  const gesture = useRef<HTMLDivElement>(null);
-  const world3d = useRef<HTMLDivElement>(null);
   const worldFlat = useRef<HTMLDivElement>(null); // things lying on the table plane (the shadow)
   const scene2d = useRef<HTMLDivElement>(null); // the room: pans and zooms with the world, never tilts
   const tableTop = useRef<HTMLDivElement>(null); // the sharp top-down table, fading in as the camera goes overhead
@@ -77,38 +74,27 @@ export const BookCanvas = forwardRef<BookCanvasHandle, {
 
   const paint = () => {
     frame.current = 0;
-    const { x, y, s } = t.current, c = committed.current;
+    const { x, y, s } = t.current;
     if (import.meta.env.DEV) (window as unknown as { __view: View }).__view = t.current; // for the test scripts
-    const a = tiltAmount(s), lift = a * s; // z scale: world px -> screen px, fading out as the camera goes overhead
-    const gs = s / c.s;
-    gesture.current!.style.transform = `translate(${x - gs * c.x}px, ${y - gs * c.y}px) scale(${gs})`;
+    const a = tiltAmount(s);
     scene2d.current!.style.transform = worldFlat.current!.style.transform = `translate(${x}px, ${y}px) scale(${s})`;
-    if (USE_3D) {
-      // the book is redrawn in full every frame: the mesh is a few thousand vertices and the page texture only
-      // changes when render() runs, so the tilt and the curve stay exact all the way through a pinch.
-      const v = view.current!, dpr = window.devicePixelRatio || 1;
-      if (!v.clientWidth || !v.clientHeight) return; // mid-layout: drawing into a zero-sized canvas blanked the book
-      book3d.current?.draw({
-        w: Math.round(v.clientWidth * dpr), h: Math.round(v.clientHeight * dpr),
-        view: { x: x * dpr, y: y * dpr, s: s * dpr },
-        origin: [(x + (BOOK_W / 2) * s) * dpr, (y + (BOOK_H / 2) * s) * dpr],
-        tilt: (tiltFor(s) * Math.PI) / 180,
-        arch: Math.round(ARCH * a),   // whole world px: a finer step just rebuilds the mesh for nothing
-        flat: a,                      // the page stack collapses with the tilt too, so the page ends up truly flat
-      });
-      tableTop.current!.style.opacity = `${Math.min(1, (1 - a) * 1.6)}`;
-      return;
-    }
-    bookCanvas.current!.style.transform = `translateZ(${BOOK_T * lift}px)`;
-    world3d.current!.style.transform = `translate(${x}px, ${y}px) scale3d(${s}, ${s}, ${lift})`;
-    world3d.current!.style.opacity = `${Math.min(1, a / 0.3)}`; // the page block flattens away as the camera goes overhead
-    world3d.current!.style.visibility = lift > 0 ? "" : "hidden";
     tableTop.current!.style.opacity = `${Math.min(1, (1 - a) * 1.6)}`; // in a little ahead of the book flattening, so the photo's far table edge is gone before the book reaches it
-    // The book tips over its own centre, so it stays where it lies on the photo's table at every zoom level (tipping
-    // over the screen centre pushed it down the screen as the tilt went away). Perspective inside the transform itself:
-    // as a property on the parent Chrome and WebKit apply it differently.
-    const origin = `${x + (BOOK_W / 2) * s}px ${y + (BOOK_H / 2) * s}px`;
-    for (const el of [tilt.current!, tilt2.current!]) { el.style.transformOrigin = origin; el.style.transform = `perspective(${PERSPECTIVE}px) rotateX(${tiltFor(s)}deg)`; }
+    // The shadow lies on the table, so it tips with it, about the book's own centre – the same origin the book
+    // itself turns about, which is what keeps the book in its place on the photo at every zoom level.
+    tilt.current!.style.transformOrigin = `${x + (BOOK_W / 2) * s}px ${y + (BOOK_H / 2) * s}px`;
+    tilt.current!.style.transform = `perspective(${PERSPECTIVE}px) rotateX(${tiltFor(s)}deg)`;
+    // The book is redrawn in full every frame: the mesh is a few thousand vertices and the page texture only
+    // changes when render() runs, so the tilt and the curve stay exact all the way through a pinch.
+    const v = view.current!, dpr = window.devicePixelRatio || 1;
+    if (!v.clientWidth || !v.clientHeight) return; // mid-layout: drawing into a zero-sized canvas blanked the book
+    book3d.current?.draw({
+      w: Math.round(v.clientWidth * dpr), h: Math.round(v.clientHeight * dpr),
+      view: { x: x * dpr, y: y * dpr, s: s * dpr },
+      origin: [(x + (BOOK_W / 2) * s) * dpr, (y + (BOOK_H / 2) * s) * dpr],
+      tilt: (tiltFor(s) * Math.PI) / 180,
+      arch: Math.round(ARCH * a), // whole world px: a finer step just rebuilds the mesh for nothing
+      flat: a,                    // every part of the height collapses with the tilt, so the page ends up truly flat
+    });
   };
   const apply = () => { clamp(); if (!frame.current) frame.current = requestAnimationFrame(paint); };
 
@@ -129,7 +115,7 @@ export const BookCanvas = forwardRef<BookCanvasHandle, {
     const vp: Plane = { x0: -mw, y0: -mh, w: v.clientWidth + 2 * mw, h: v.clientHeight + 2 * mh, k: 1 }; // the screen and a margin around it
     // tipped back you see the whole book, so draw all of it (at a resolution the budget allows)
     const p: Plane = tiltFor(s) > 0 ? { x0: x, y0: y, w: BOOK_W * s, h: BOOK_H * s, k: 1 } : { ...vp };
-    if (USE_3D && tiltFor(s) > 0) { p.x0 -= 4 * s; p.y0 -= 4 * s; p.w += 8 * s; p.h += 8 * s; } // a hair of margin: the mesh samples right up to the edge
+    if (tiltFor(s) > 0) { p.x0 -= 4 * s; p.y0 -= 4 * s; p.w += 8 * s; p.h += 8 * s; } // a hair of margin: the mesh samples right up to the edge
     p.k = Math.min(dpr, Math.sqrt(budget / (p.w * p.h)));
     plane.current = p;
     committed.current = { x, y, s };
@@ -142,10 +128,8 @@ export const BookCanvas = forwardRef<BookCanvasHandle, {
     // The texture is the WHOLE canvas buffer, which mid-pinch is deliberately larger than the part just drawn
     // (fitCanvas reuses it rather than reallocating). Telling the mesh it only covers bp squeezed the spread into
     // a fraction of its size for a frame - the book "went small" while pinching.
-    if (USE_3D) {
-      const cv = bookCanvas.current!;
-      book3d.current?.setTexture(cv, { x: (bp.x0 - x) / s, y: (bp.y0 - y) / s, w: cv.width / bp.k / s, h: cv.height / bp.k / s });
-    }
+    const cv = bookCanvas.current!;
+    book3d.current?.setTexture(cv, { x: (bp.x0 - x) / s, y: (bp.y0 - y) / s, w: cv.width / bp.k / s, h: cv.height / bp.k / s });
     lastRender.current = performance.now();
     paint();
   };
@@ -154,14 +138,11 @@ export const BookCanvas = forwardRef<BookCanvasHandle, {
   /** Mid-gesture: redraw (coarser) when the bitmap is stretched too far or the camera has tipped over. */
   const renderLive = () => {
     const { s } = t.current, cs = committed.current.s, ratio = s / cs;
-    // in 3D the shader re-projects and re-curves every frame on its own; the texture is only about sharpness,
-    // so it can be refreshed at a calmer pace. Flat, the bitmap IS the picture, so it keeps the old cadence.
-    const gap = USE_3D ? 260 : LIVE_GAP, grow = USE_3D ? 1.5 : LIVE_RATIO;
-    // Zooming OUT in 3D the old texture is only ever too sharp, so it can stay; the one case that must be caught
-    // is going from flat to curved, where the texture holds a slice and the mesh needs the whole spread.
-    const tipped = USE_3D ? tiltFor(s) > 0 && tiltFor(cs) === 0 : (tiltFor(s) > 0) !== (tiltFor(cs) > 0);
-    const stale = USE_3D ? ratio > grow : ratio > grow || ratio < 1 / grow;
-    if ((stale || tipped) && performance.now() - lastRender.current > gap) render(LIVE_BUDGET);
+    // The shader re-projects and re-curves every frame on its own, so the texture is only about sharpness and can
+    // be refreshed at a calm pace. Zooming OUT the old one is only ever too sharp and can stay; the one case that
+    // must be caught is going from flat to curved, where it holds a slice and the mesh needs the whole spread.
+    const tipped = tiltFor(s) > 0 && tiltFor(cs) === 0;
+    if ((ratio > LIVE_RATIO || tipped) && performance.now() - lastRender.current > LIVE_GAP) render(LIVE_BUDGET);
   };
 
   useImperativeHandle(ref, () => ({ redraw: () => { if (t.current.s) render(); } }), []);
@@ -180,9 +161,9 @@ export const BookCanvas = forwardRef<BookCanvasHandle, {
       clamp();
       render();
     };
-    if (USE_3D && !book3d.current && glCanvas.current) {
+    if (!book3d.current && glCanvas.current) {
       book3d.current = createBook3D(glCanvas.current, PERSPECTIVE * (window.devicePixelRatio || 1));
-      if (!book3d.current) console.error("WebGL kunne ikke startes – bogen tegnes fladt");
+      if (!book3d.current) console.error("WebGL kunne ikke startes");
     }
     fit();
     const ro = new ResizeObserver(fit); // also catches the first real layout (in dev the CSS can land after mount)
@@ -292,24 +273,17 @@ export const BookCanvas = forwardRef<BookCanvasHandle, {
                style={{ left: TABLE_PAD, top: TABLE_PAD, width: TABLE.w, height: TABLE.h }} />
         </div>
       </div>
+      {/* the book's shadow, lying on the table: long and soft towards the viewer (the light is the window behind), tight underneath */}
       <div ref={tilt} className="tilt">
-        {/* the book's shadow, lying on the table: long and soft towards the viewer (the light is the window behind), tight underneath */}
         <div ref={worldFlat} className="worldflat">
           <div className="shadow" style={{ left: BOOK_W / 2 + 10 - BOOK_W * 0.66, top: BOOK_H / 2 + 230 - BOOK_H * 0.72, width: BOOK_W * 1.32, height: BOOK_H * 1.44, opacity: 0.55 }} />
           <div className="shadow" style={{ left: BOOK_W / 2 - BOOK_W * 0.56, top: BOOK_H / 2 + 60 - BOOK_H * 0.6, width: BOOK_W * 1.12, height: BOOK_H * 1.2, opacity: 0.7 }} />
         </div>
-        <div ref={gesture} className="gesture" style={USE_3D ? { display: "none" } : undefined}><canvas ref={bookCanvas} className="book-canvas" /></div>
       </div>
-      {/* the book itself, drawn over the shadow that lies on the table under it */}
-      {USE_3D && <canvas ref={glCanvas} className="book-gl" />}
-      {/* the page block under the lifted spread: its front, standing on the table up to the cover's front edge. (Side
-          faces cannot be seen from where you sit; drawn ones just looked like wings.) Its own 3D context: in the same
-          one as the canvases Chrome mis-sorts the planes. */}
-      <div ref={tilt2} className="tilt" style={USE_3D ? { display: "none" } : undefined}>
-        <div ref={world3d} className="world3d">
-          <div className="book-face" style={{ left: 2, top: BOOK_H, width: BOOK_W - 4, height: BOOK_T }} />
-        </div>
-      </div>
+      {/* the book itself, drawn over that shadow */}
+      <canvas ref={glCanvas} className="book-gl" />
+      {/* the flat spread, drawn by draw.ts and handed to the book as its page texture; never shown on its own */}
+      <canvas ref={bookCanvas} className="book-source" />
     </div>
   );
 });

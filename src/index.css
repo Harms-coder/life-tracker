@@ -27,17 +27,16 @@ body { font-family: var(--font-hand); -webkit-user-select: none; user-select: no
   cursor: grab;
 }
 .viewport:active { cursor: grabbing; }
-.tilt { position: absolute; inset: 0; transform-style: preserve-3d; will-change: transform; } /* transform-origin = the book's centre, set per frame */
-.gesture { position: absolute; left: 0; top: 0; transform-origin: 0 0; transform-style: preserve-3d; will-change: transform; }
-.book-canvas { position: absolute; display: block; }
-.world3d { position: absolute; left: 0; top: 0; transform-origin: 0 0; transform-style: preserve-3d; will-change: transform; }
+.tilt { position: absolute; inset: 0; will-change: transform; } /* carries the shadow on the table; origin = the book's centre, set per frame */
+/* the flat spread that feeds the book its page texture: never shown, only read from */
+.book-source { position: absolute; visibility: hidden; pointer-events: none; }
 /* the room: photo + looping video per time of day, in world units inside the 2D scene layer */
 .scene2d { position: absolute; left: 0; top: 0; transform-origin: 0 0; will-change: transform; }
 .bg-layer { position: absolute; overflow: hidden; background: #000; }
 .bg-layer img, .bg-layer video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: block; pointer-events: none; }
 .bg-layer video { transition: opacity 1.2s ease; }
 .bg-layer.fade-in { animation: bg-fade 2.4s ease both; }
-/* ?bog3d: the book drawn as real geometry. It projects into screen pixels itself, so it carries no transform
+/* the book, drawn as real geometry. It projects into screen pixels itself, so it carries no transform
    and sits outside the CSS 3D chain entirely. */
 .book-gl { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; will-change: transform; }
 .table-top { position: absolute; pointer-events: none; background: #b47f51; }
@@ -47,14 +46,6 @@ body { font-family: var(--font-hand); -webkit-user-select: none; user-select: no
 /* things lying on the table plane, in world units */
 .worldflat { position: absolute; left: 0; top: 0; transform-origin: 0 0; will-change: transform; }
 .shadow { position: absolute; pointer-events: none; border-radius: 50%; background: radial-gradient(closest-side, rgba(20,10,5,1), rgba(20,10,5,.55) 55%, rgba(20,10,5,0)); }
-
-/* the book's page block (the closed half): its front face standing up from the table under the lifted spread.
-   Local y = 0 (the element's top edge) is the table, so "to bottom" runs from the table up to the rim: cover board at
-   the table, then the pages, lit from above. Seen from behind by the camera, so no backface culling. */
-.book-face {
-  position: absolute; pointer-events: none; transform-origin: 0 0; transform: rotateX(90deg);
-  background: linear-gradient(to bottom, rgba(0,0,0,.5), rgba(0,0,0,.12) 40%, rgba(255,255,255,.14) 100%), linear-gradient(to bottom, #121212 0 14px, transparent 14px), repeating-linear-gradient(to bottom, #f0e9d2 0 2px, #c9bf9f 2px 3px);
-}
 
 /* --- number input sheet ----------------------------------------------- */
 .sheet-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,.25); display: flex; align-items: flex-end; }

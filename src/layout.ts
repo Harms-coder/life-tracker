@@ -1,7 +1,3 @@
-/** ?bog3d: the book as real curved geometry instead of the flat CSS-tilted plate. Read here so both the
- *  drawing and the canvas component see the same answer. */
-export const USE_3D = new URLSearchParams(location.search).has("bog3d");
-
 /** Geometry of the spread in world pixels (1 grid square = 20 px). Shared by drawing and hit-testing. */
 export const CELL = 20, PAGE_W = 704, PAGE_H = 1000, COVER = 24;
 export const BOOK_W = PAGE_W * 2 + COVER * 2, BOOK_H = PAGE_H + COVER * 2;
@@ -16,8 +12,6 @@ export const BG = { x: -648, y: -2069, w: 2752, h: 4892 };
 export const TABLE = { x: -222, y: -742, w: 1900, h: 2533 };
 /** How far the table's flat colour reaches past that picture, so a tall screen never sees past the wood. */
 export const TABLE_PAD = 700;
-/** Thickness of the closed half of the book (the page block), in world px (1 cell = 5 mm): 2 cm, as in the reference. */
-export const BOOK_T = 80;
 
 export const HEADER_H = 8 * CELL, HEADER_Y = CELL + HEADER_H;
 export const DAY_COL_W = 2, TABLE_LEFT = CELL;
