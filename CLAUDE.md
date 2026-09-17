@@ -253,6 +253,9 @@ Rækker = dage 1–31 (antal efter måneden). Kolonner = brugerens egne trackere
   FALDGRUBE, kostede en runde med moiré: linjeafstanden skal måles EFTER tiltens forkortning. Stakken står op fra
   brættet, så en lodret afstand ses kun som cos(tilt) af sig selv – uden den faktor kom linjerne dobbelt så tæt
   som beregnet. Og når de alligevel ikke kan opløses, fader `u_sheetAmp` dem ud til en jævn tone.
+- OPSVINGET I ENDEN (775085b): DIP tager kun en DEL af løftet tilbage. `?dip=0|3|5|7` giver opsving +11, +8, +6,
+  +4 verdens-px; standard er 3. ARBEJDSFORM der virkede her: da jeg havde gættet forkert to gange i træk, renderede
+  jeg alle fire og lod Lukas pege. Gør det igen næste gang en form skal rammes – det er én runde i stedet for tre.
 - Kør: `node tools/fit3d.mjs screenshots/b3d.png "?bog3d"` (ét startbillede), `Q="?bog3d" node tools/steps.mjs
   screenshots` (seks zoom-trin), `Q="?bog3d" npm run bench|tapcheck`. Uden Q tester de den gamle bog.
 
