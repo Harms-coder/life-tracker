@@ -40,7 +40,8 @@ body { font-family: var(--font-hand); -webkit-user-select: none; user-select: no
 /* the book, drawn as real geometry. It projects into screen pixels itself, so it carries no transform
    and sits outside the CSS 3D chain entirely. */
 .book-gl { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; will-change: transform; }
-.table-top { position: absolute; pointer-events: none; background: #b47f51; }
+.table-top { position: absolute; pointer-events: none; }
+.table-fill { position: absolute; inset: 0; background: #b47f51; }
 .table-top img { position: absolute; display: block; }
 @keyframes bg-fade { from { opacity: 0; } to { opacity: 1; } }
 

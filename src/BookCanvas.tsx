@@ -78,7 +78,12 @@ export const BookCanvas = forwardRef<BookCanvasHandle, {
     if (import.meta.env.DEV) (window as unknown as { __view: View }).__view = t.current; // for the test scripts
     const a = tiltAmount(s);
     scene2d.current!.style.transform = `translate(${x}px, ${y}px) scale(${s})`;
-    tableTop.current!.style.opacity = `${Math.min(1, (1 - a) * 1.6)}`; // in a little ahead of the book flattening, so the photo's far table edge is gone before the book reaches it
+    // in a little ahead of the book flattening, so the photo's far table edge is gone before the book reaches it.
+    // Faded element by element, never as a group: a group with opacity makes Safari draw the two into a temporary
+    // surface the size of the layer on screen (tens of MB) - and again on every frame the zoom moves. Zooming slowly
+    // through the tilt, that was what made the iPhone give the page up.
+    const fade = `${Math.min(1, (1 - a) * 1.6)}`;
+    for (const el of tableTop.current!.children) (el as HTMLElement).style.opacity = fade;
     // The book is redrawn in full every frame: the mesh is a few thousand vertices and the page texture only
     // changes when render() runs, so the tilt and the curve stay exact all the way through a pinch.
     const v = view.current!, dpr = window.devicePixelRatio || 1;
@@ -282,6 +287,7 @@ export const BookCanvas = forwardRef<BookCanvasHandle, {
             wherever the screen reaches beyond it. */}
         <div ref={tableTop} className="table-top"
              style={{ left: TABLE.x - TABLE_PAD, top: TABLE.y - TABLE_PAD, width: TABLE.w + 2 * TABLE_PAD, height: TABLE.h + 2 * TABLE_PAD }}>
+          <div className="table-fill" />
           {/* decoded at start-up: left to the first pinch, unpacking it cost a ~200 ms stall there */}
           {/* ?bord=0 leaves the 51 MB (decoded) table picture out, to test whether the phone's memory is what gives */}
           {!new URLSearchParams(location.search).has("bord") && <img src={`${import.meta.env.BASE_URL}baggrund/bord.webp`} alt="" draggable={false} decoding="async"

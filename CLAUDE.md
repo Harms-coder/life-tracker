@@ -213,10 +213,21 @@ set af ham endnu. Første skridt: hans dom på telefonen.
   `?lys=0` (intet lyskort). Nyt siden den godkendte bog 16/9 aften: 6 tegnepas/frame, lyskort + ekstra dekodet aften.jpg
   (15 MB), baggrunds-cache (10 MB), grow-only canvas (24 MB permanent + 24 MB tekstur i stedet for at skrumpe zoomet ud).
 
+- NEDBRUDDETS MØNSTER (Lukas, 17/9 sent): hurtig zoom er OK; det går ned ved LANGSOMT zoom, lige når bogen begynder at
+  rejse sig – dvs. i det bånd hvor `.table-top` toner (opacity 0..1). Årsag (hypotese, rettet i f5066d3+1): opacity
+  på en GRUPPE (div m. farveflade + img) tvinger Safari til et midlertidigt gruppe-billede i lagets skærmstørrelse
+  (op mod 80 MB) – og igen for hvert frame zoomet flytter sig. Nu tones `.table-fill` og <img> hver for sig (ingen
+  gruppe). Regel: SÆT ALDRIG opacity/filter på en container med flere børn i scenen – kun på blad-elementer.
+  Bisect-kontakterne (`?aa=0` `?bord=0` `?skygge=0` `?lys=0`) er stadig i koden.
+
 ### Åbent
-- FØRSTE SKRIDT: Lukas' svar på de tre bisect-links (aa=0 / bord=0 / skygge=0): hvilke går IKKE ned? Ret derefter
-  standarden. Glatheden: værst 93 ms på telefonen = den fulde omtegning zoomet ind (tegning + 24 MB upload); næste
-  skridt for "fuldstændig glat" er at flytte 2D-tegningen til en Worker/OffscreenCanvas (iOS ≥16.4) eller sænke budget.
+- FØRSTE SKRIDT: går appen stadig ned ved langsomt zoom gennem vippet? Hvis ja: Lukas' bisect-svar (hvilket link
+  klarede sig bedst – han sagde noget der lød som "nummer to" = bord=0).
+- PLAN (Lukas: "noget vi skal have klaret, bare ikke lige nu"): "fuldstændig glat" zoom. Værst 93 ms på telefonen =
+  den fulde omtegning ved slip zoomet ind (2D-tegning + 24 MB upload på hovedtråden). Rigtig løsning: flyt draw.ts
+  til en Worker med OffscreenCanvas (iOS ≥ 16.4), send ImageBitmap tilbage, texImage2D fra den. Kræver: glyf-paths
+  og cache i workeren, Caveat-fallback via FontFace i workeren (tjek iOS), assets som ImageBitmap. Anslået 1–2 timer.
+  Billigere delskridt: LIVE_RATIO 1,5 → 2,2 (færre omtegninger midt i pinch), PIXEL_BUDGET 6e6 → 4e6 (blødere skrift).
 - Lukas' dom på runde 2+3: er skyggestriben på papiret for mørk? Passer farverne? (Han sagde før runde 3: "passer
   ikke i farverne til resten".)
 - Ryggen: Lukas sagde ja til "lys/skygge i folden set fladt oppefra" – den gradient findes allerede (drawSpine +
@@ -340,6 +351,7 @@ Alt er committet og pushet. Galleriet til Lukas: https://claude.ai/artifact/S914
 
 ## Roadmap
 1. ~~Prototype af ét opslag: bog på bord, ternede sider, pinch-zoom, afkrydsning med håndskrevne X-varianter.~~ ✅ 2026-09-16
+1b. Fuldstændig glat zoom på iPhone: 2D-tegningen i en Worker (se "PLAN" under Status 17/9). Ikke nu (Lukas 17/9).
 2. Sidevending mellem måneder + datamodel (måneder, trackere, værdier) med lokal lagring.
 3. Venstre side (mål/undermål/plan) med tekst i håndskrift.
 4. Lukas' egen håndskrift som glyffer.
