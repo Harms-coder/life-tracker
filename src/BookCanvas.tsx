@@ -1,5 +1,5 @@
 import { forwardRef, useImperativeHandle, useLayoutEffect, useRef, type ReactNode } from "react";
-import { BG, BOOK_H, BOOK_W, TABLE, TABLE_PAD } from "./layout";
+import { BG, BOOK_H, BOOK_W, TABLE } from "./layout";
 import { ARCH, createBook3D, type Book3D } from "./bog3d";
 import type { Plane, View } from "./draw";
 
@@ -32,7 +32,6 @@ export const BookCanvas = forwardRef<BookCanvasHandle, {
 }>(function BookCanvas({ width, height, draw, onTap, backdrop }, ref) {
   const view = useRef<HTMLDivElement>(null);
   const scene2d = useRef<HTMLDivElement>(null); // the room: pans and zooms with the world, never tilts
-  const tableTop = useRef<HTMLDivElement>(null); // the sharp top-down table, fading in as the camera goes overhead
   const bookCanvas = useRef<HTMLCanvasElement>(null);
   const glCanvas = useRef<HTMLCanvasElement>(null);
   const book3d = useRef<Book3D | null>(null);
@@ -78,12 +77,7 @@ export const BookCanvas = forwardRef<BookCanvasHandle, {
     if (import.meta.env.DEV) (window as unknown as { __view: View }).__view = t.current; // for the test scripts
     const a = tiltAmount(s);
     scene2d.current!.style.transform = `translate(${x}px, ${y}px) scale(${s})`;
-    // in a little ahead of the book flattening, so the photo's far table edge is gone before the book reaches it.
-    // Faded element by element, never as a group: a group with opacity makes Safari draw the two into a temporary
-    // surface the size of the layer on screen (tens of MB) - and again on every frame the zoom moves. Zooming slowly
-    // through the tilt, that was what made the iPhone give the page up.
-    const fade = `${Math.min(1, (1 - a) * 1.6)}`;
-    for (const el of tableTop.current!.children) (el as HTMLElement).style.opacity = fade;
+
     // The book is redrawn in full every frame: the mesh is a few thousand vertices and the page texture only
     // changes when render() runs, so the tilt and the curve stay exact all the way through a pinch.
     const v = view.current!, dpr = window.devicePixelRatio || 1;
@@ -95,6 +89,9 @@ export const BookCanvas = forwardRef<BookCanvasHandle, {
       tilt: (tiltFor(s) * Math.PI) / 180,
       arch: Math.round(ARCH * a), // whole world px: a finer step just rebuilds the mesh for nothing
       flat: a,                    // every part of the height collapses with the tilt, so the page ends up truly flat
+      // the sharp top-down table comes in a little ahead of the book flattening, so the photo's far table edge is
+      // gone before the unfolding book reaches it
+      fade: Math.min(1, (1 - a) * 1.6),
     });
   };
   const apply = () => { clamp(); if (!frame.current) frame.current = requestAnimationFrame(paint); };
@@ -184,6 +181,12 @@ export const BookCanvas = forwardRef<BookCanvasHandle, {
         else if (tries > 0) setTimeout(() => light(tries - 1), 1500);
       });
       light(3);
+      // the sharp table the book lies on when seen from above, as a texture in the same drawing (?bord=0 leaves it out)
+      if (!new URLSearchParams(location.search).has("bord")) {
+        const table = new Image();
+        table.src = `${import.meta.env.BASE_URL}baggrund/bord.webp`;
+        table.decode().catch(() => {}).then(() => { book3d.current?.setTable(table); if (t.current.s) paint(); });
+      }
     }
     fit();
     const ro = new ResizeObserver(fit); // also catches the first real layout (in dev the CSS can land after mount)
@@ -281,19 +284,6 @@ export const BookCanvas = forwardRef<BookCanvasHandle, {
     <div ref={view} className="viewport" onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerCancel={onPointerUp} onWheel={onWheel}>
       <div ref={scene2d} className="scene2d">
         {backdrop}
-        {/* looking straight down it is this crisp top-down photo of the same table you see, not the room photo's
-            blurred, foreshortened one – and it has no far edge, so the unfolding book never grows past the table.
-            The box behind it is the table's own colour, so the picture's soft edges have wood to fade into
-            wherever the screen reaches beyond it. */}
-        <div ref={tableTop} className="table-top"
-             style={{ left: TABLE.x - TABLE_PAD, top: TABLE.y - TABLE_PAD, width: TABLE.w + 2 * TABLE_PAD, height: TABLE.h + 2 * TABLE_PAD }}>
-          <div className="table-fill" />
-          {/* decoded at start-up: left to the first pinch, unpacking it cost a ~200 ms stall there */}
-          {/* ?bord=0 leaves the 51 MB (decoded) table picture out, to test whether the phone's memory is what gives */}
-          {!new URLSearchParams(location.search).has("bord") && <img src={`${import.meta.env.BASE_URL}baggrund/bord.webp`} alt="" draggable={false} decoding="async"
-               ref={(el) => { el?.decode?.().catch(() => {}); }}
-               style={{ left: TABLE_PAD, top: TABLE_PAD, width: TABLE.w, height: TABLE.h }} />}
-        </div>
       </div>
       {/* the book, and its shadow on the table, drawn as one */}
       <canvas ref={glCanvas} className="book-gl" />

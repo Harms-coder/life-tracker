@@ -1,4 +1,4 @@
-import { BOOK_H, BOOK_W, COVER, PAGE_H, PAGE_W } from "./layout";
+import { BOOK_H, BOOK_W, COVER, PAGE_H, PAGE_W, TABLE, TABLE_PAD } from "./layout";
 
 /**
  * The open book as real geometry (WebGL, no library).
@@ -108,8 +108,11 @@ uniform vec3 u_bow;        // BOW, BOW2, WAVE: the shape of the page's wave
 uniform vec2 u_dip;        // how far, and from where, the page tips back down at the fore-edge
 uniform vec3 u_shadow;     // z > 0: draw the shadow instead - every point laid on the table, moved xy per unit of height
 uniform vec4 u_lightRect;  // the part of the spread the light map covers: x, y, w, h
+uniform float u_table;     // > 0: the table pass - lies flat in the 2D world like the photo, never tilted
+uniform vec4 u_tableRect;  // where the table picture lies, in world px
 varying vec2 v_uv;
 varying vec2 v_luv;
+varying vec2 v_tuv;
 varying float v_shade;
 varying float v_layer;
 
@@ -149,6 +152,8 @@ void main() {
   float rz = d.y * u_trig.y + h * u_trig.x;
   float k = u_persp / max(u_persp - rz, 1.0);
   vec2 sp = u_origin + vec2(d.x * k, ry * k);
+  if (u_table > 0.0) sp = flat_px;
+  v_tuv = (a_pos.xy - u_tableRect.xy) / u_tableRect.zw;
   gl_Position = vec4((sp / u_res) * 2.0 - 1.0, 0.0, 1.0);
   gl_Position.y = -gl_Position.y;
   v_uv = (a_pos.xy - u_tex.xy) / u_tex.zw;
@@ -159,9 +164,13 @@ const FRAG = `
 precision mediump float;
 varying vec2 v_uv;
 varying vec2 v_luv;
+varying vec2 v_tuv;
 varying float v_shade;
 varying float v_layer;
 uniform sampler2D u_img;
+uniform sampler2D u_tableTex; // the sharp top-down table
+uniform highp float u_table;  // 1: the table's colour (u_flat) 2: its picture; both faded by u_fade (highp: shared with the vertex shader, or it does not link)
+uniform float u_fade;
 uniform sampler2D u_light;  // the room's light over the book's footprint, see LIGHT_STRENGTH
 uniform vec4 u_lightAmt;    // x: how much of it to apply (0 = none), yzw: 1 / its mean, per channel
 uniform vec3 u_tone;        // the room's colour, see TONE
@@ -171,6 +180,8 @@ uniform float u_sheets;    // one sheet every this many world px, widened when z
 uniform float u_sheetAmp;  // fades the lines out when they get too close to resolve, leaving an even tone
 uniform vec4 u_shadowC;    // when a > 0: paint this (premultiplied) and nothing else - the shadow pass
 void main() {
+  if (u_table > 1.5) { vec4 t = texture2D(u_tableTex, v_tuv); gl_FragColor = vec4(t.rgb * u_fade, t.a * u_fade); return; }
+  if (u_table > 0.5) { gl_FragColor = vec4(u_flat.rgb * u_fade, u_fade); return; }
   if (u_shadowC.a > 0.0) { gl_FragColor = u_shadowC; return; }
   vec3 light = u_tone;
   if (u_lightAmt.x > 0.0) light *= mix(vec3(1.0), texture2D(u_light, v_luv).rgb * u_lightAmt.yzw, u_lightAmt.x);
@@ -227,6 +238,12 @@ function buildRim(): Mesh {
     quad(push(ax, ay, true, shade[i]), push(bx, by, true, shade[i]), push(bx, by, false, shade[i]), push(ax, ay, false, shade[i]));
   }
   return { pos: new Float32Array(pos), meta: new Float32Array(meta), idx: new Uint16Array(idx), n: idx.length };
+}
+
+/** A flat quad in world px, for the table under the book. */
+function buildQuad(x: number, y: number, w: number, h: number): Mesh {
+  const pos = [x, y, 0, x + w, y, 0, x + w, y + h, 0, x, y + h, 0];
+  return { pos: new Float32Array(pos), meta: new Float32Array([-1, 1, 0, -1, 1, 0, -1, 1, 0, -1, 1, 0]), idx: new Uint16Array([0, 1, 2, 0, 2, 3]), n: 6 };
 }
 
 function buildPages(): Mesh {
@@ -301,8 +318,10 @@ export type Book3D = {
   /** The room photo and where it lies in spread coordinates: the light over the book is taken from it.
    *  False when nothing usable came of it (the light then stays off; try again later). */
   setLight(img: HTMLImageElement, bg: { x: number; y: number; w: number; h: number }): boolean;
-  /** Draw one frame. `arch` 0 = flat. */
-  draw(o: { w: number; h: number; view: { x: number; y: number; s: number }; origin: [number, number]; tilt: number; arch: number; flat: number }): void;
+  /** The sharp top-down picture of the table (lies in TABLE, world px). */
+  setTable(img: HTMLImageElement): void;
+  /** Draw one frame. `arch` 0 = flat. `fade` 0..1: how far the top-down table is in over the photo. */
+  draw(o: { w: number; h: number; view: { x: number; y: number; s: number }; origin: [number, number]; tilt: number; arch: number; flat: number; fade: number }): void;
   dispose(): void;
 };
 
@@ -327,12 +346,13 @@ export function createBook3D(canvas: HTMLCanvasElement, persp: number): Book3D |
     book: loc("u_book"), spine: loc("u_spine"), fold: loc("u_foldDark"), sheets: loc("u_sheets"),
     bow: loc("u_bow"), dip: loc("u_dip"), amp: loc("u_sheetAmp"), shadow: loc("u_shadow"), shadowC: loc("u_shadowC"),
     light: loc("u_light"), lightAmt: loc("u_lightAmt"), lightRect: loc("u_lightRect"), tone: loc("u_tone"), paper: loc("u_paper"),
+    table: loc("u_table"), tableTex: loc("u_tableTex"), tableRect: loc("u_tableRect"), fade: loc("u_fade"),
   };
   const aPos = gl.getAttribLocation(prog, "a_pos"), aMeta = gl.getAttribLocation(prog, "a_meta");
   /** One set of buffers per mesh, so a frame that changes nothing only binds them. Re-uploading both meshes
    *  every frame cost ~45 ms on roughly every ninth frame of a pinch. */
   const slot = () => ({ pos: gl.createBuffer()!, meta: gl.createBuffer()!, idx: gl.createBuffer()!, n: 0 });
-  const slots = { cover: slot(), rim: slot(), pages: slot(), edges: slot() };
+  const slots = { cover: slot(), rim: slot(), pages: slot(), edges: slot(), tableFill: slot(), tableImg: slot() };
   const tex = gl.createTexture()!;
   gl.bindTexture(gl.TEXTURE_2D, tex);
   for (const p of [gl.TEXTURE_WRAP_S, gl.TEXTURE_WRAP_T]) gl.texParameteri(gl.TEXTURE_2D, p, gl.CLAMP_TO_EDGE);
@@ -343,16 +363,22 @@ export function createBook3D(canvas: HTMLCanvasElement, persp: number): Book3D |
   gl.bindTexture(gl.TEXTURE_2D, lightTex);
   for (const p of [gl.TEXTURE_WRAP_S, gl.TEXTURE_WRAP_T]) gl.texParameteri(gl.TEXTURE_2D, p, gl.CLAMP_TO_EDGE);
   for (const p of [gl.TEXTURE_MIN_FILTER, gl.TEXTURE_MAG_FILTER]) gl.texParameteri(gl.TEXTURE_2D, p, gl.LINEAR);
+  const tableTex = gl.createTexture()!;
+  gl.activeTexture(gl.TEXTURE2);
+  gl.bindTexture(gl.TEXTURE_2D, tableTex);
+  for (const p of [gl.TEXTURE_WRAP_S, gl.TEXTURE_WRAP_T]) gl.texParameteri(gl.TEXTURE_2D, p, gl.CLAMP_TO_EDGE);
+  for (const p of [gl.TEXTURE_MIN_FILTER, gl.TEXTURE_MAG_FILTER]) gl.texParameteri(gl.TEXTURE_2D, p, gl.LINEAR);
+  let hasTable = false;
   gl.activeTexture(gl.TEXTURE0);
   gl.uniform1i(U.light, 1);
+  gl.uniform1i(U.tableTex, 2);
+  gl.uniform4f(U.tableRect, TABLE.x, TABLE.y, TABLE.w, TABLE.h);
+  gl.uniform1f(U.table, 0);
   let lightK: [number, number, number] | null = null; // 1 / mean of the light map, per channel; null until one is set
   const lightRect = { x: -LIGHT_MARGIN, y: -LIGHT_MARGIN, w: BOOK_W + 2 * LIGHT_MARGIN, h: BOOK_H + 2 * LIGHT_MARGIN };
   gl.enable(gl.BLEND);
   gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
-  // The shadow passes use MAX blending: where the laid-down mesh overlaps itself (the page stack's shadow on the
-  // page's) the pixel keeps the darkest value instead of darkening twice, and the passes stack into a penumbra.
-  // Without the extension the passes just add up - a bit too dark, never wrong.
-  const minmax = gl.getExtension("EXT_blend_minmax");
+
 
   let texRect = { x: 0, y: 0, w: BOOK_W, h: BOOK_H };
   let texW = 0, texH = 0;
@@ -378,6 +404,8 @@ export function createBook3D(canvas: HTMLCanvasElement, persp: number): Book3D |
   fill(slots.rim, buildRim());
   fill(slots.pages, buildPages());
   fill(slots.edges, buildEdges());
+  fill(slots.tableFill, buildQuad(TABLE.x - TABLE_PAD, TABLE.y - TABLE_PAD, TABLE.w + 2 * TABLE_PAD, TABLE.h + 2 * TABLE_PAD));
+  fill(slots.tableImg, buildQuad(TABLE.x, TABLE.y, TABLE.w, TABLE.h));
 
   return {
     setTexture(src, rect) {
@@ -388,6 +416,14 @@ export function createBook3D(canvas: HTMLCanvasElement, persp: number): Book3D |
       // 20-30 MB texture on every zoom was part of what ran the iPhone out of memory)
       if (texW === src.width && texH === src.height) gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, gl.RGBA, gl.UNSIGNED_BYTE, src);
       else { gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, src); texW = src.width; texH = src.height; }
+    },
+    setTable(img) {
+      gl.activeTexture(gl.TEXTURE2);
+      gl.bindTexture(gl.TEXTURE_2D, tableTex);
+      gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, 1);
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, img);
+      hasTable = gl.getError() === gl.NO_ERROR;
+      gl.activeTexture(gl.TEXTURE0);
     },
     setLight(img, bg) {
       // the footprint (and a margin) of the photo, shrunk in two steps to a handful of texels: an average, not a sample
@@ -425,7 +461,7 @@ export function createBook3D(canvas: HTMLCanvasElement, persp: number): Book3D |
       if (!ok) console.error("lyskortet kunne ikke lægges ind – lyset er slået fra");
       return ok;
     },
-    draw({ w, h, view, origin, tilt, arch, flat }) {
+    draw({ w, h, view, origin, tilt, arch, flat, fade }) {
       if (canvas.width !== w || canvas.height !== h) { canvas.width = w; canvas.height = h; }
       gl.viewport(0, 0, w, h);
       gl.clearColor(0, 0, 0, 0);
@@ -475,30 +511,38 @@ export function createBook3D(canvas: HTMLCanvasElement, persp: number): Book3D |
         gl.uniform4f(U.paper, 0.94, 0.91, 0.83, 1); // draw.ts' PAPER
         bind(slots.pages); gl.drawElements(gl.TRIANGLES, slots.pages.n, gl.UNSIGNED_SHORT, 0);
       };
-      // the shadow first, under the book: the longest, faintest pass first, the shortest and darkest last, so with
-      // MAX blending a pixel ends up as dark as the darkest pass that reaches it - dark at the foot, fading outwards.
-      // ?skygge=0 skips it (to tell its GPU work apart from other trouble on the phone)
+      // the table under everything: its colour out to the padding, then the picture, both faded in as the camera
+      // goes overhead. Drawn here rather than as an <img> in the page: a picture this size under a scale that
+      // changes every frame had Safari on the iPhone re-rasterising it over and over, until it gave the page up.
+      if (fade > 0) {
+        gl.uniform1f(U.fade, fade);
+        gl.uniform1f(U.table, 1); gl.uniform4f(U.flat, 0.706, 0.498, 0.318, 1); // #b47f51, the wood's own colour
+        bind(slots.tableFill); gl.drawElements(gl.TRIANGLES, slots.tableFill.n, gl.UNSIGNED_SHORT, 0);
+        if (hasTable) { gl.uniform1f(U.table, 2); bind(slots.tableImg); gl.drawElements(gl.TRIANGLES, slots.tableImg.n, gl.UNSIGNED_SHORT, 0); }
+        gl.uniform1f(U.table, 0);
+      }
+      // the shadow, under the book: passes of growing length add up to a penumbra - dark at the foot, fading out.
+      // Where the laid-down mesh overlaps itself a pixel darkens twice; that strip lies along the book's edge and
+      // is what Lukas approved. ?skygge=0 skips it.
       const sf = Math.max(flat, SHADOW_MIN);
       shape(sf, ARCH * sf);
-      if (minmax) gl.blendEquation(minmax.MAX_EXT);
-      for (let k = SHADOW_PASSES - 1; k >= 0 && SHADOW_ON; k--) {
+      const a = 1 - Math.pow(1 - SHADOW_DARK, 1 / SHADOW_PASSES);
+      gl.uniform4f(U.shadowC, 0.08 * a, 0.04 * a, 0.02 * a, a);
+      for (let k = 0; k < SHADOW_PASSES && SHADOW_ON; k++) {
         const len = SHADOW_LEN * (0.7 + (0.6 * k) / (SHADOW_PASSES - 1));
-        // with MAX the passes do not add up, so each carries the darkness the stack would have reached at its foot
-        const a = minmax ? SHADOW_DARK * (1 - k / SHADOW_PASSES) : 1 - Math.pow(1 - SHADOW_DARK, 1 / SHADOW_PASSES);
-        gl.uniform4f(U.shadowC, 0.08 * a, 0.04 * a, 0.02 * a, a);
         gl.uniform3f(U.shadow, SHADOW_DIR[0] * len, SHADOW_DIR[1] * len, 1);
         drawAll(true);
       }
-      if (minmax) gl.blendEquation(gl.FUNC_ADD);
       gl.uniform4f(U.shadowC, 0, 0, 0, 0);
       gl.uniform3f(U.shadow, 0, 0, 0);
       shape(flat, arch);
       drawAll(false);
     },
     dispose() {
-      for (const sl of [slots.cover, slots.rim, slots.pages, slots.edges]) for (const b of [sl.pos, sl.meta, sl.idx]) gl.deleteBuffer(b);
+      for (const sl of Object.values(slots)) for (const b of [sl.pos, sl.meta, sl.idx]) gl.deleteBuffer(b);
       gl.deleteTexture(tex);
       gl.deleteTexture(lightTex);
+      gl.deleteTexture(tableTex);
       gl.deleteProgram(prog);
     },
   };

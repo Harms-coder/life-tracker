@@ -220,8 +220,20 @@ set af ham endnu. Første skridt: hans dom på telefonen.
   gruppe). Regel: SÆT ALDRIG opacity/filter på en container med flere børn i scenen – kun på blad-elementer.
   Bisect-kontakterne (`?aa=0` `?bord=0` `?skygge=0` `?lys=0`) er stadig i koden.
 
+- BORDPLADEN I WEBGL (17/9 sent, efter at hverken lys=0 / aa=0 / element-vis opacity hjalp): den skarpe top-down-plade
+  er IKKE længere et <img> i DOM'en. bord.webp lægges som GL-tekstur (unit 2, `setTable`) og tegnes som to flade,
+  UVIPPEDE quads (`u_table` 1 = træfarve ud til TABLE_PAD, 2 = billedet) i starten af hver frame med `u_fade`
+  (= min(1, (1-a)·1,6), sat i paint). Grund: et 51 MB billede under en skala, der ændrer sig hvert frame, fik Safari
+  til at gentegne det igen og igen ved langsomt zoom. Skyggen er tilbage til additive pas (MAX-blanding ville
+  forsvinde over bordet). `.table-top`/`.table-fill`-CSS er væk. FALDGRUBE: uniforms delt mellem vertex og fragment
+  skal have SAMME præcision (fragment er mediump) – ellers linker programmet ikke, og bogen forsvinder tavst
+  ("WebGL kunne ikke startes"). `tools/tablecheck.mjs`, `Q="?bord=0" node tools/steps.mjs screenshots/nobord`.
+
 ### Åbent
-- FØRSTE SKRIDT: går appen stadig ned ved langsomt zoom gennem vippet? Hvis ja: Lukas' bisect-svar (hvilket link
+- FØRSTE SKRIDT: går appen stadig ned ved langsomt zoom gennem vippet, nu hvor bordpladen ligger i WebGL? Hvis JA:
+  det er ikke bordpladen; tilbage er fotolaget (.bg-layer, 2752×4892 verdens-px div m. background #000 + img + video)
+  under samme skala-ændring – prøv at fjerne background/overflow eller lægge fotoet i GL også. Ellers: bed om Safari-
+  Web Inspector via kabel til Mac'en (Indstillinger → Safari → Avanceret → Web Inspector) for at se nedbrudstypen. Hvis ja: Lukas' bisect-svar (hvilket link
   klarede sig bedst – han sagde noget der lød som "nummer to" = bord=0).
 - PLAN (Lukas: "noget vi skal have klaret, bare ikke lige nu"): "fuldstændig glat" zoom. Værst 93 ms på telefonen =
   den fulde omtegning ved slip zoomet ind (2D-tegning + 24 MB upload på hovedtråden). Rigtig løsning: flyt draw.ts
