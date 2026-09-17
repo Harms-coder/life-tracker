@@ -240,6 +240,12 @@ Rækker = dage 1–31 (antal efter måneden). Kolonner = brugerens egne trackere
   nu 1..0 gennem rullet, og shaderen bruger `mix(coverT, pageZ(s), a_meta.x)` i stedet for et valg mellem to.
   FALDGRUBE: LIP skal være STØRRE end OVERHANG, ellers ruller stakken hen over brættet og den mørke kant rundt
   om bogen forsvinder.
+- SIDEN BØLGER (9b3b1b3). Lukas: "det er bare én bue, hvor i referencebilledet der bølger den rigtigt. Der går
+  den op, ned, og så lidt op igen til sidst." Profilen havde kun ét led (en halv sinus = én pukkel). Nu ligger
+  der en HEL periode mere ovenpå: `arch * (sin(pi*s^BOW) + WAVE*sin(2pi*s^BOW2))`, WAVE = 0,55, BOW 0,7,
+  BOW2 0,9, ARCH 22, STACK 46. Højderne i verdens-px: 7 – 47 – 53 – 48 – 41 – 47 – 53.
+  VIGTIGT: `pageZ` findes BÅDE i shaderen og i JS (skørtet bruger den). Rettes kun den ene, passer stakken ikke
+  til siden. BOW/BOW2/WAVE ligger som uniformen `u_bow`, så formen tunes ét sted.
 - Kør: `node tools/fit3d.mjs screenshots/b3d.png "?bog3d"` (ét startbillede), `Q="?bog3d" node tools/steps.mjs
   screenshots` (seks zoom-trin), `Q="?bog3d" npm run bench|tapcheck`. Uden Q tester de den gamle bog.
 
