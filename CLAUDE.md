@@ -212,6 +212,14 @@ Rækker = dage 1–31 (antal efter måneden). Kolonner = brugerens egne trackere
      kan kun være for skarp); den ene undtagelse er flad → buet, hvor mesh'et skal bruge hele opslaget.
   Målt efter: pinch-ud 2/132 frames >33 ms (9 før), pinch-ind 4/129 = samme som den gamle bog. tapcheck OK i begge.
   IKKE SET AF LUKAS ENDNU.
+- HØJRE SKYGGESTRIBE PÅ BORDET FJERNET (deb44fa). Lukas: den venstre er vinduets midterstolpe og skal blive,
+  den højre havde intet til at kaste sig. Den lå i BÅDE aften.jpg og bord.webp. `tools/skyggevaek.py` løfter
+  båndet tilbage til træets lysstyrke i stedet for at generere billederne igen (kompositionen er godkendt).
+  En skygge er multiplikativ, så den divideres ud: pr. række aflæses lyset lige uden for båndet i begge sider,
+  der interpoleres lige over, og pixlerne skaleres op. Båndets geometri står som JOBS øverst i filen – skal et
+  andet bånd væk, måles det med ratio-metoden (L delt med en meget sløret L) og føjes til listen.
+  FALDGRUBE: første forsøg satte båndet for bredt (0,115), så korrektionen blev tværet ud og skyggen blev kun
+  svækket. Mål bredden, gæt den ikke. Målt i båndet: 0,74–0,83 før, 0,85–1,04 efter.
 - Kør: `node tools/fit3d.mjs screenshots/b3d.png "?bog3d"` (ét startbillede), `Q="?bog3d" node tools/steps.mjs
   screenshots` (seks zoom-trin), `Q="?bog3d" npm run bench|tapcheck`. Uden Q tester de den gamle bog.
 
