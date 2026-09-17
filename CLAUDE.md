@@ -166,7 +166,25 @@ Rækker = dage 1–31 (antal efter måneden). Kolonner = brugerens egne trackere
 - Test-scripts ligger i sessionens scratchpad (`pw/shots.mjs` skærmbilleder, `pw/bench.mjs` frame-tider i WebKit,
   `pw/tapcheck.mjs` tryk). Dev-server: `npm run dev`. I dev sætter BookCanvas `window.__view` (x, y, s) til scripts.
 
-## Status 2026-09-16 kl. 23.00 (sådan fortsætter man i morgen)
+## Status 2026-09-17 kl. 17.35 (sådan fortsætter man)
+- DYBDELAGENE ER SLETTET (commit ea5402d). Lukas' dom på gårsdagens lag-udgave: "ser ikke godt ud – hakker, planten er gennemsigtig,
+  bunden forkert". Vi er tilbage ved runde 5-koden (ét fladt foto, bogen tegnet ovenpå) – den arkitektur er den rigtige.
+  DYBDELAG-afsnittet under Beslutninger er historik; byg det IKKE igen.
+- NYT AFTENFOTO (commit 2cd021d): lavet herfra med Higgsfield-connectoren (gpt_image_2_5, gammelt foto som image_references,
+  "same scene, empty table, soft golden-hour light") + upscale_image 4k → 2294×4096 → `baggrund-kilder/aften.png` →
+  `npm run baggrund` → public/baggrund/aften.jpg. Lukas' reference: hans billede af bogen på bordet i gyldent (ikke orange) lys.
+  De tre fravalgte varianter ligger i screenshots/bord-v2..4.jpg. Gamle orange filer: baggrund-kilder/gamle/ (ikke i git).
+  Aften-VIDEOEN er taget af (orange lys passer ikke); ny video kan laves fra det nye foto med generate_video (image-to-video),
+  hvis Lukas vil have skyerne til at drive igen.
+- Bogen på det nye bord: BG = {x:-372, y:-1549, w:2200, h:3911} (bogens centrum 0,53 af fotoets højde, bogen = 66 % af fotoets
+  bredde ≈ 80 % af skærmen), TABLE 0,36–0,76. Tunet efter Lukas' referencebillede. `node tools/fit.mjs screenshots/fit.png` =
+  ét Chrome-billede af startvisningen (hurtigste runde). zoomcheck OK.
+- IKKE SET AF LUKAS ENDNU. Første skridt: bed om hans dom på telefonen (start, pinch, panorering) + skærmbillede.
+- Higgsfield: CLI installeret og logget ind (`higgsfield`), 8 skills i ~/.claude/skills, connectoren virker herfra
+  (media_import_url med den live jpg-adresse er vejen til at give et eksisterende foto som reference – widget-upload virker
+  ikke i Claude Code).
+
+## Status 2026-09-16 kl. 23.00 (FORÆLDET – dybdelagene er slettet 17/9)
 - Dybdelag + fælles bordplan (TASK_scene_depth.md trin 1–3) VIRKER på Lukas' iPhone (bekræftet 22.50 med build 22.47).
   Han så to fejl i det build: tynde vandrette streger over bordet (Safaris sømme mellem striberne) og bordets forkant
   tegnet to gange (telefonen havde GAMLE bordplade-filer i cachen – samme filnavne, nyt indhold). Begge rettet i build
