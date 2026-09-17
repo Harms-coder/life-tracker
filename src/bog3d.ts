@@ -22,12 +22,20 @@ import { BOOK_H, BOOK_W, COVER, PAGE_H, PAGE_W } from "./layout";
 
 /** Thickness of the cover board and of the page stack under one open half, in world px (1 cell = 20 px = 5 mm). */
 export const COVER_T = 7;
-export const STACK = 40;
-/** How high the page arches above the straight line from fold to fore-edge, and where that arch peaks. */
-export const ARCH = 54;
-const BOW = 0.7; // s^BOW inside the sine: < 1 moves the top of the arch towards the spine
-/** The cover sticks out past the pages by this much. */
-const LIP = 10;
+export const STACK = 54;
+/** How high the page arches above the straight line from fold to fore-edge, and where that arch peaks.
+ *  Tuned against referencer/bog-maal.jpg: a low arch that peaks early and then barely falls, so the page is
+ *  nearly level from the middle out and its outer edge sits high, rather than a tall hump sloping back down. */
+export const ARCH = 24;
+const BOW = 0.62; // s^BOW inside the sine: < 1 moves the top of the arch towards the spine
+/** The cover sticks out past the pages by this much. It has to clear OVERHANG, or the page stack rolls out over
+ *  the board and the thin dark rim around the book disappears. */
+const LIP = 30;
+/** How far the foot of the page stack stands out past the page above it, and in how many steps it rolls over.
+ *  A real book's stack is not a vertical wall: it curves out of the page's rim and then down, so the top of it
+ *  faces upwards and you see the sheet ends even along the sides, where a flat wall is edge on to the camera. */
+const OVERHANG = 20;
+const ROLL = 5;
 
 const SEG_X = 56, SEG_Y = 10; // segments per page: across the curve, and along it
 /** How dark the fold goes, and the thinnest a sheet is allowed to look (world px). */
@@ -40,7 +48,7 @@ export const pageZ = (s: number, arch: number) =>
 
 const VERT = `
 attribute vec3 a_pos;      // x, y in spread coordinates; z = s, the distance from the spine (0..1)
-attribute vec3 a_meta;     // x: 0 lies on the board, 1 follows the page curve
+attribute vec3 a_meta;     // x: 1 = at the page surface, 0 = down on the board, sliding between
                            // y: fixed shade, or 0 to work it out from the slope
                            // z: 0..1 across the page stack, for the sheet lines
 uniform vec2 u_view;       // where the spread's origin sits on screen
@@ -68,7 +76,7 @@ float pageZ(float s) {
 
 void main() {
   float s = a_pos.z;
-  float z = a_meta.x < 0.5 ? u_book.x : pageZ(s);
+  float z = mix(u_book.x, pageZ(s), a_meta.x);  // a_meta.x slides 1..0 as the stack rolls over to the board
   if (a_meta.y > 0.0) {
     v_shade = a_meta.y;
   } else {
@@ -169,16 +177,33 @@ function buildEdges(): Mesh {
 
   for (const dir of [-1, 1]) {
     const xo = spine + dir * PAGE_W;                  // the fore-edge
-    // fore-edge: straight down to the board
-    quad(push(xo, top, 1, 1, 1.0, 0), push(xo, bot, 1, 1, 0.98, 0),
-         push(xo, bot, 1, 0, 0.74, 1), push(xo, top, 1, 0, 0.78, 1));
-    // the long edges, top and bottom: they follow the curve, so one quad per segment
-    for (const [y, sh] of [[top, 0.84], [bot, 1.06]] as const) {
+    // How far out and how far down the stack has rolled after `t` of its turn: it leaves the page rim going
+    // sideways and arrives at the board going straight down, so its upper part faces the camera.
+    const out = (t: number) => Math.sin((t * Math.PI) / 2);
+    const drop = (t: number) => 1 - Math.cos((t * Math.PI) / 2);
+    const lit = (t: number) => 1.04 - 0.34 * t;            // the top of the roll catches the light, the foot is in shade
+
+    // the fore-edge
+    for (let k = 0; k < ROLL; k++) {
+      const t0 = k / ROLL, t1 = (k + 1) / ROLL;
+      const xa = xo + dir * OVERHANG * out(t0), xb = xo + dir * OVERHANG * out(t1);
+      quad(push(xa, top, 1, 1 - drop(t0), lit(t0), drop(t0)), push(xa, bot, 1, 1 - drop(t0), lit(t0) * 0.98, drop(t0)),
+           push(xb, bot, 1, 1 - drop(t1), lit(t1) * 0.98, drop(t1)), push(xb, top, 1, 1 - drop(t1), lit(t1), drop(t1)));
+    }
+    // the long edges, top and bottom: they follow the curve along the page, and roll over the same way
+    for (const [y, sh, sgn] of [[top, 0.9, -1], [bot, 1.06, 1]] as const) {
       for (let i = 0; i < SEG_X; i++) {
         const s0 = i / SEG_X, s1 = (i + 1) / SEG_X;
         const x0 = spine + dir * s0 * PAGE_W, x1 = spine + dir * s1 * PAGE_W;
-        quad(push(x0, y, s0, 1, sh, 0), push(x1, y, s1, 1, sh, 0),
-             push(x1, y, s1, 0, sh * 0.8, 1), push(x0, y, s0, 0, sh * 0.8, 1));
+        for (let k = 0; k < ROLL; k++) {
+          const t0 = k / ROLL, t1 = (k + 1) / ROLL;
+          // the roll grows with the stack, so the skirt closes to nothing at the fold instead of flaring there
+          const ya = y + sgn * OVERHANG * out(t0), yb = y + sgn * OVERHANG * out(t1);
+          quad(push(x0, y + (ya - y) * s0, s0, 1 - drop(t0), sh * lit(t0), drop(t0)),
+               push(x1, y + (ya - y) * s1, s1, 1 - drop(t0), sh * lit(t0), drop(t0)),
+               push(x1, y + (yb - y) * s1, s1, 1 - drop(t1), sh * lit(t1), drop(t1)),
+               push(x0, y + (yb - y) * s0, s0, 1 - drop(t1), sh * lit(t1), drop(t1)));
+        }
       }
     }
   }
