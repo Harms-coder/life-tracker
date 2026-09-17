@@ -21,7 +21,7 @@ import { BOOK_H, BOOK_W, COVER, PAGE_H, PAGE_W } from "./layout";
  */
 
 /** Thickness of the cover board and of the page stack under one open half, in world px (1 cell = 20 px = 5 mm). */
-export const COVER_T = 7;
+export const COVER_T = 12;
 export const STACK = 42;
 /** The page does not rise in one hump. In referencer/bog-maal.jpg it waves: up out of the fold, back down
  *  through the middle, on down, and lifting again at the fore-edge. That second movement is WAVE, a full period
@@ -54,6 +54,14 @@ const SHADOW_DIR = [-0.3, 1] as const;
 const SHADOW_LEN = Number(new URLSearchParams(location.search).get("sh") ?? 2.5);
 const SHADOW_DARK = 0.55;
 const SHADOW_PASSES = 5;
+
+/** The room's light falls across the book as it falls across the table under it: the photo's own brightness
+ *  over the book's footprint (blurred, so the wood grain stays out of it, and normalised to its mean) is laid
+ *  over the page. This is what makes the window frame's long shadows run on across the paper instead of
+ *  stopping at the cover. Fades out with the tilt, like the top-down table it then lies on has no such stripes. */
+const LIGHT_STRENGTH = 0.85;
+const LIGHT_MARGIN = 120;   // spread px around the book the light map covers (the shadow and edges reach out there)
+const LIGHT_RES = Number(new URLSearchParams(location.search).get("lr") ?? 10); // texels across: coarse on purpose, that is the blur
 
 const SEG_X = 56, SEG_Y = 10; // segments per page: across the curve, and along it
 /** How dark the fold goes, and the thinnest a sheet is allowed to look (world px). A book of 150 leaves wants
@@ -89,7 +97,9 @@ uniform float u_spine;     // x of the fold, in spread coordinates
 uniform vec3 u_bow;        // BOW, BOW2, WAVE: the shape of the page's wave
 uniform vec2 u_dip;        // how far, and from where, the page tips back down at the fore-edge
 uniform vec3 u_shadow;     // z > 0: draw the shadow instead - every point laid on the table, moved xy per unit of height
+uniform vec4 u_lightRect;  // the part of the spread the light map covers: x, y, w, h
 varying vec2 v_uv;
+varying vec2 v_luv;
 varying float v_shade;
 varying float v_layer;
 
@@ -107,7 +117,7 @@ float pageZ(float s) {
 
 void main() {
   float s = a_pos.z;
-  float z = mix(u_book.x, pageZ(s), a_meta.x);  // a_meta.x slides 1..0 as the stack rolls over to the board
+  float z = a_meta.x < 0.0 ? 0.0 : mix(u_book.x, pageZ(s), a_meta.x);  // a_meta.x slides 1..0 as the stack rolls over to the board; < 0 = down on the table
   if (a_meta.y > 0.0) {
     v_shade = a_meta.y;
   } else {
@@ -132,20 +142,26 @@ void main() {
   gl_Position = vec4((sp / u_res) * 2.0 - 1.0, 0.0, 1.0);
   gl_Position.y = -gl_Position.y;
   v_uv = (a_pos.xy - u_tex.xy) / u_tex.zw;
+  v_luv = (a_pos.xy - u_lightRect.xy) / u_lightRect.zw;
 }`;
 
 const FRAG = `
 precision mediump float;
 varying vec2 v_uv;
+varying vec2 v_luv;
 varying float v_shade;
 varying float v_layer;
 uniform sampler2D u_img;
+uniform sampler2D u_light;  // the room's light over the book's footprint, see LIGHT_STRENGTH
+uniform vec2 u_lightAmt;    // x: how much of it to apply (0 = none), y: 1 / its mean brightness
 uniform vec4 u_flat;       // when a > 0: ignore the texture and use this colour (the page stack)
 uniform float u_sheets;    // one sheet every this many world px, widened when zoomed out so the lines never alias
 uniform float u_sheetAmp;  // fades the lines out when they get too close to resolve, leaving an even tone
 uniform vec4 u_shadowC;    // when a > 0: paint this (premultiplied) and nothing else - the shadow pass
 void main() {
   if (u_shadowC.a > 0.0) { gl_FragColor = u_shadowC; return; }
+  float light = 1.0;
+  if (u_lightAmt.x > 0.0) light = mix(1.0, dot(texture2D(u_light, v_luv).rgb, vec3(0.299, 0.587, 0.114)) * u_lightAmt.y, u_lightAmt.x);
   // zoomed in, the texture holds only the visible slice of the spread; the rest of the mesh is off screen anyway
   if (u_flat.a <= 0.0 && (v_uv.x < 0.0 || v_uv.x > 1.0 || v_uv.y < 0.0 || v_uv.y > 1.0)) discard;
   if (u_flat.a > 0.0) {
@@ -153,12 +169,12 @@ void main() {
     float ph = fract(v_layer / u_sheets);
     float line = pow(0.5 + 0.5 * cos(ph * 6.2831853), 7.0);
     float sheet = 1.0 - 0.34 * u_sheetAmp * line;
-    gl_FragColor = vec4(u_flat.rgb * v_shade * sheet, 1.0);
+    gl_FragColor = vec4(u_flat.rgb * v_shade * sheet * light, 1.0);
     return;
   }
   vec4 c = texture2D(u_img, v_uv);
   if (c.a < 0.01) discard;
-  gl_FragColor = vec4(c.rgb * v_shade, c.a);
+  gl_FragColor = vec4(c.rgb * v_shade * light, c.a);
 }`;
 
 type Mesh = { pos: Float32Array; meta: Float32Array; idx: Uint16Array; n: number };
@@ -180,6 +196,21 @@ function buildCover(): Mesh {
   const meta = [0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0];
   const idx = [0, 1, 2, 0, 2, 3];
   return { pos: new Float32Array(pos), meta: new Float32Array(meta), idx: new Uint16Array(idx), n: 6 };
+}
+
+/** The board's edge: a skirt from the cover's rim down to the table, so the book has a visible thickness at its
+ *  front instead of ending in a line. The window is behind the book, so the front face gets only the room's
+ *  light and the sides less still. */
+function buildRim(): Mesh {
+  const pos: number[] = [], meta: number[] = [], idx: number[] = [];
+  const push = (x: number, y: number, top: boolean, shade: number) => { pos.push(x, y, 0); meta.push(top ? 0 : -1, shade, 0); return pos.length / 3 - 1; };
+  const quad = (a: number, b: number, c: number, d: number) => idx.push(a, b, c, a, c, d);
+  const corners = [[0, 0], [BOOK_W, 0], [BOOK_W, BOOK_H], [0, BOOK_H]], shade = [0.5, 0.7, 1, 0.7];
+  for (let i = 0; i < 4; i++) {
+    const [ax, ay] = corners[i], [bx, by] = corners[(i + 1) % 4];
+    quad(push(ax, ay, true, shade[i]), push(bx, by, true, shade[i]), push(bx, by, false, shade[i]), push(ax, ay, false, shade[i]));
+  }
+  return { pos: new Float32Array(pos), meta: new Float32Array(meta), idx: new Uint16Array(idx), n: idx.length };
 }
 
 function buildPages(): Mesh {
@@ -251,6 +282,8 @@ function buildEdges(): Mesh {
 export type Book3D = {
   /** Upload the flat spread canvas as the page texture. `rect` is the part of the spread it covers. */
   setTexture(src: HTMLCanvasElement, rect: { x: number; y: number; w: number; h: number }): void;
+  /** The room photo and where it lies in spread coordinates: the light over the book is taken from it. */
+  setLight(img: HTMLImageElement, bg: { x: number; y: number; w: number; h: number }): void;
   /** Draw one frame. `arch` 0 = flat. */
   draw(o: { w: number; h: number; view: { x: number; y: number; s: number }; origin: [number, number]; tilt: number; arch: number; flat: number }): void;
   dispose(): void;
@@ -274,17 +307,27 @@ export function createBook3D(canvas: HTMLCanvasElement, persp: number): Book3D |
     persp: loc("u_persp"), res: loc("u_res"), tex: loc("u_tex"), flat: loc("u_flat"), img: loc("u_img"),
     book: loc("u_book"), spine: loc("u_spine"), fold: loc("u_foldDark"), sheets: loc("u_sheets"),
     bow: loc("u_bow"), dip: loc("u_dip"), amp: loc("u_sheetAmp"), shadow: loc("u_shadow"), shadowC: loc("u_shadowC"),
+    light: loc("u_light"), lightAmt: loc("u_lightAmt"), lightRect: loc("u_lightRect"),
   };
   const aPos = gl.getAttribLocation(prog, "a_pos"), aMeta = gl.getAttribLocation(prog, "a_meta");
   /** One set of buffers per mesh, so a frame that changes nothing only binds them. Re-uploading both meshes
    *  every frame cost ~45 ms on roughly every ninth frame of a pinch. */
   const slot = () => ({ pos: gl.createBuffer()!, meta: gl.createBuffer()!, idx: gl.createBuffer()!, n: 0 });
-  const slots = { cover: slot(), pages: slot(), edges: slot() };
+  const slots = { cover: slot(), rim: slot(), pages: slot(), edges: slot() };
   const tex = gl.createTexture()!;
   gl.bindTexture(gl.TEXTURE_2D, tex);
   for (const p of [gl.TEXTURE_WRAP_S, gl.TEXTURE_WRAP_T]) gl.texParameteri(gl.TEXTURE_2D, p, gl.CLAMP_TO_EDGE);
   for (const p of [gl.TEXTURE_MIN_FILTER, gl.TEXTURE_MAG_FILTER]) gl.texParameteri(gl.TEXTURE_2D, p, gl.LINEAR);
   gl.uniform1i(U.img, 0);
+  const lightTex = gl.createTexture()!;
+  gl.activeTexture(gl.TEXTURE1);
+  gl.bindTexture(gl.TEXTURE_2D, lightTex);
+  for (const p of [gl.TEXTURE_WRAP_S, gl.TEXTURE_WRAP_T]) gl.texParameteri(gl.TEXTURE_2D, p, gl.CLAMP_TO_EDGE);
+  for (const p of [gl.TEXTURE_MIN_FILTER, gl.TEXTURE_MAG_FILTER]) gl.texParameteri(gl.TEXTURE_2D, p, gl.LINEAR);
+  gl.activeTexture(gl.TEXTURE0);
+  gl.uniform1i(U.light, 1);
+  let lightK = 0; // 1 / mean brightness of the light map; 0 until one is set
+  const lightRect = { x: -LIGHT_MARGIN, y: -LIGHT_MARGIN, w: BOOK_W + 2 * LIGHT_MARGIN, h: BOOK_H + 2 * LIGHT_MARGIN };
   gl.enable(gl.BLEND);
   gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
 
@@ -308,6 +351,7 @@ export function createBook3D(canvas: HTMLCanvasElement, persp: number): Book3D |
   // built once: the vertices carry the distance from the spine and the shader turns it into a height, so
   // changing the arch mid-pinch costs nothing at all
   fill(slots.cover, buildCover());
+  fill(slots.rim, buildRim());
   fill(slots.pages, buildPages());
   fill(slots.edges, buildEdges());
 
@@ -317,6 +361,33 @@ export function createBook3D(canvas: HTMLCanvasElement, persp: number): Book3D |
       gl.bindTexture(gl.TEXTURE_2D, tex);
       gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, 1);
       gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, src);
+    },
+    setLight(img, bg) {
+      // the footprint (and a margin) of the photo, shrunk in two steps to a handful of texels: an average, not a sample
+      const sx = img.naturalWidth / bg.w, sy = img.naturalHeight / bg.h;
+      const px = (lightRect.x - bg.x) * sx, py = (lightRect.y - bg.y) * sy, pw = lightRect.w * sx, ph = lightRect.h * sy;
+      const res = LIGHT_RES, resY = Math.round((res * lightRect.h) / lightRect.w);
+      let cur: CanvasImageSource = img, cw = res * 16, ch = resY * 16;
+      let mid = document.createElement("canvas"); mid.width = cw; mid.height = ch;
+      mid.getContext("2d")!.drawImage(img, px, py, pw, ph, 0, 0, cw, ch);
+      cur = mid;
+      while (cw > res) { // halve step by step: one big jump would sample a few pixels, not average them all
+        cw /= 2; ch /= 2;
+        const next = document.createElement("canvas"); next.width = cw; next.height = ch;
+        next.getContext("2d")!.drawImage(cur, 0, 0, cw, ch);
+        cur = next;
+      }
+      const small = cur as HTMLCanvasElement;
+      const c = small.getContext("2d")!;
+      const d = c.getImageData(0, 0, res, resY).data;
+      let sum = 0;
+      for (let i = 0; i < d.length; i += 4) sum += 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
+      lightK = sum ? (255 * d.length) / (4 * sum) : 0;
+      gl.activeTexture(gl.TEXTURE1);
+      gl.bindTexture(gl.TEXTURE_2D, lightTex);
+      gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, 0);
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGB, gl.RGB, gl.UNSIGNED_BYTE, small);
+      gl.activeTexture(gl.TEXTURE0);
     },
     draw({ w, h, view, origin, tilt, arch, flat }) {
       if (canvas.width !== w || canvas.height !== h) { canvas.width = w; canvas.height = h; }
@@ -339,6 +410,8 @@ export function createBook3D(canvas: HTMLCanvasElement, persp: number): Book3D |
       gl.uniform3f(U.bow, BOW, BOW2, WAVE);
       gl.uniform2f(U.dip, DIP * (arch / ARCH), DIP_FROM);   // fades out with the curve, like everything else
       gl.uniform1f(U.fold, FOLD_DARK);
+      gl.uniform4f(U.lightRect, lightRect.x, lightRect.y, lightRect.w, lightRect.h);
+      gl.uniform2f(U.lightAmt, lightK ? LIGHT_STRENGTH * flat : 0, lightK);
       // Two lines must stay SHEET_SCREEN px apart, or they turn into a moire pattern. The stack stands up from
       // the board, so the tilt foreshortens it: what matters is the spacing AFTER that.
       const fore = Math.max(Math.cos(tilt), 0.35);
@@ -353,6 +426,8 @@ export function createBook3D(canvas: HTMLCanvasElement, persp: number): Book3D |
         // so drawn later it would paint right over it
         gl.uniform4f(U.flat, 0, 0, 0, 0);
         bind(slots.cover); gl.drawElements(gl.TRIANGLES, slots.cover.n, gl.UNSIGNED_SHORT, 0);
+        gl.uniform4f(U.flat, 0.13, 0.12, 0.11, 1);
+        bind(slots.rim); gl.drawElements(gl.TRIANGLES, slots.rim.n, gl.UNSIGNED_SHORT, 0);
         gl.uniform4f(U.flat, 0.95, 0.92, 0.83, 1);
         bind(slots.edges); gl.drawElements(gl.TRIANGLES, slots.edges.n, gl.UNSIGNED_SHORT, 0);
         gl.uniform4f(U.flat, 0, 0, 0, 0);
@@ -376,8 +451,9 @@ export function createBook3D(canvas: HTMLCanvasElement, persp: number): Book3D |
       drawAll();
     },
     dispose() {
-      for (const sl of [slots.cover, slots.pages, slots.edges]) for (const b of [sl.pos, sl.meta, sl.idx]) gl.deleteBuffer(b);
+      for (const sl of [slots.cover, slots.rim, slots.pages, slots.edges]) for (const b of [sl.pos, sl.meta, sl.idx]) gl.deleteBuffer(b);
       gl.deleteTexture(tex);
+      gl.deleteTexture(lightTex);
       gl.deleteProgram(prog);
     },
   };

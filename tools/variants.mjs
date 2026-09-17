@@ -6,8 +6,8 @@ await withServer(async () => {
   const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 3, hasTouch: true, isMobile: true });
   for (const v of vals) {
     const page = await ctx.newPage();
-    await page.goto(URL + "?sh=" + v); await page.waitForSelector(".viewport"); await page.waitForTimeout(2500);
-    await page.screenshot({ path: `screenshots/sh-${v}.png`, clip: { x: 20, y: 360, width: 350, height: 200 } });
+    await page.goto(URL + "?" + v); await page.waitForSelector(".viewport"); await page.waitForTimeout(2500);
+    await page.screenshot({ path: `screenshots/v-${v}.png`, clip: { x: 20, y: 360, width: 350, height: 200 } });
     await page.close();
   }
   await browser.close();

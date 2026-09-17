@@ -158,6 +158,10 @@ export const BookCanvas = forwardRef<BookCanvasHandle, {
     if (!book3d.current && glCanvas.current) {
       book3d.current = createBook3D(glCanvas.current, PERSPECTIVE * (window.devicePixelRatio || 1));
       if (!book3d.current) console.error("WebGL kunne ikke startes");
+      // the room's light over the book comes from the photo itself (the evening one: the scene is locked to it in Backdrop.tsx)
+      const photo = new Image();
+      photo.onload = () => { book3d.current?.setLight(photo, BG); if (t.current.s) paint(); };
+      photo.src = `${import.meta.env.BASE_URL}baggrund/aften.jpg`;
     }
     fit();
     const ro = new ResizeObserver(fit); // also catches the first real layout (in dev the CSS can land after mount)
