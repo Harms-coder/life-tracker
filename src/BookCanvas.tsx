@@ -1,5 +1,5 @@
 import { forwardRef, useImperativeHandle, useLayoutEffect, useRef, type ReactNode } from "react";
-import { BG, BOOK_H, BOOK_T, BOOK_W, TABLE } from "./layout";
+import { BG, BOOK_H, BOOK_T, BOOK_W, TABLE, TABLE_PAD } from "./layout";
 import type { Plane, View } from "./draw";
 
 const MAX_OVER_FIT = 7; // how far past "whole spread visible" you can zoom in
@@ -36,6 +36,7 @@ export const BookCanvas = forwardRef<BookCanvasHandle, {
   const world3d = useRef<HTMLDivElement>(null);
   const worldFlat = useRef<HTMLDivElement>(null); // things lying on the table plane (the shadow)
   const scene2d = useRef<HTMLDivElement>(null); // the room: pans and zooms with the world, never tilts
+  const tableTop = useRef<HTMLDivElement>(null); // the sharp top-down table, fading in as the camera goes overhead
   const bookCanvas = useRef<HTMLCanvasElement>(null);
   const t = useRef<View>({ x: 0, y: 0, s: 0 }); // live transform; s=0 => snapped to fit on first layout
   const committed = useRef<View>({ x: 0, y: 0, s: 1 }); // what the book bitmap was drawn with
@@ -83,6 +84,7 @@ export const BookCanvas = forwardRef<BookCanvasHandle, {
     world3d.current!.style.transform = `translate(${x}px, ${y}px) scale3d(${s}, ${s}, ${lift})`;
     world3d.current!.style.opacity = `${Math.min(1, a / 0.3)}`; // the page block flattens away as the camera goes overhead
     world3d.current!.style.visibility = lift > 0 ? "" : "hidden";
+    tableTop.current!.style.opacity = `${Math.min(1, (1 - a) * 1.6)}`; // in a little ahead of the book flattening, so the photo's far table edge is gone before the book reaches it
     // The book tips over its own centre, so it stays where it lies on the photo's table at every zoom level (tipping
     // over the screen centre pushed it down the screen as the tilt went away). Perspective inside the transform itself:
     // as a property on the parent Chrome and WebKit apply it differently.
@@ -239,7 +241,20 @@ export const BookCanvas = forwardRef<BookCanvasHandle, {
 
   return (
     <div ref={view} className="viewport" onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerCancel={onPointerUp} onWheel={onWheel}>
-      <div ref={scene2d} className="scene2d">{backdrop}</div>
+      <div ref={scene2d} className="scene2d">
+        {backdrop}
+        {/* looking straight down it is this crisp top-down photo of the same table you see, not the room photo's
+            blurred, foreshortened one – and it has no far edge, so the unfolding book never grows past the table.
+            The box behind it is the table's own colour, so the picture's soft edges have wood to fade into
+            wherever the screen reaches beyond it. */}
+        <div ref={tableTop} className="table-top"
+             style={{ left: TABLE.x - TABLE_PAD, top: TABLE.y - TABLE_PAD, width: TABLE.w + 2 * TABLE_PAD, height: TABLE.h + 2 * TABLE_PAD }}>
+          {/* decoded at start-up: left to the first pinch, unpacking it cost a ~200 ms stall there */}
+          <img src={`${import.meta.env.BASE_URL}baggrund/bord.webp`} alt="" draggable={false} decoding="async"
+               ref={(el) => { el?.decode?.().catch(() => {}); }}
+               style={{ left: TABLE_PAD, top: TABLE_PAD, width: TABLE.w, height: TABLE.h }} />
+        </div>
+      </div>
       <div ref={tilt} className="tilt">
         {/* the book's shadow, lying on the table: long and soft towards the viewer (the light is the window behind), tight underneath */}
         <div ref={worldFlat} className="worldflat">
