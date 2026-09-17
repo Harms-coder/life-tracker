@@ -220,6 +220,16 @@ Rækker = dage 1–31 (antal efter måneden). Kolonner = brugerens egne trackere
   andet bånd væk, måles det med ratio-metoden (L delt med en meget sløret L) og føjes til listen.
   FALDGRUBE: første forsøg satte båndet for bredt (0,115), så korrektionen blev tværet ud og skyggen blev kun
   svækket. Mål bredden, gæt den ikke. Målt i båndet: 0,74–0,83 før, 0,85–1,04 efter.
+- TRYK RAMTE FELTET VED SIDEN AF (5cb91cf). Årsag: siden var ikke HELT flad zoomet ind. Buen (ARCH) døde ud med
+  vippet, men sidestakken (STACK = 40 verdens-px fra ryggen ud til forkanten) og brættet blev stående, så siden
+  var en rampe. Perspektivet skubber en hævet flade UDAD fra bogens centrum, og ude ved kanten var det mere end
+  en hel kolonne. REGEL: alt i `pageZ` skal ganges med `flat` (= tiltAmount), så z er præcis 0 når
+  `tiltFor(s) === 0`. Så er projektionen identisk med den flade transform, og hit-testen i layout.ts passer per
+  konstruktion. Rører du højderne i bog3d.ts, så tjek den kobling først.
+  Test: `Q="?bog3d" node tools/tapnoej.mjs screenshots` trykker seks steder og tegner en rød ring hvert sted.
+- SKRIFTENS TYKKELSE: glyfferne er sporet fra et ark udfyldt med en fin pen, så de stod tyndere end X'erne (som
+  tegnes store i en celle). `BOLD` i glyf.ts (0,009 af boksens højde) lægger en streg langs hver kontur. Skru på
+  den, hvis Lukas vil have den tykkere eller tyndere – ikke på glyfferne.
 - Kør: `node tools/fit3d.mjs screenshots/b3d.png "?bog3d"` (ét startbillede), `Q="?bog3d" node tools/steps.mjs
   screenshots` (seks zoom-trin), `Q="?bog3d" npm run bench|tapcheck`. Uden Q tester de den gamle bog.
 
