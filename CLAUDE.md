@@ -166,11 +166,17 @@ Rækker = dage 1–31 (antal efter måneden). Kolonner = brugerens egne trackere
 - Test-scripts ligger i sessionens scratchpad (`pw/shots.mjs` skærmbilleder, `pw/bench.mjs` frame-tider i WebKit,
   `pw/tapcheck.mjs` tryk). Dev-server: `npm run dev`. I dev sætter BookCanvas `window.__view` (x, y, s) til scripts.
 
-## Status 2026-09-17 kl. 21.45 – HER ER VI
+## Status 2026-09-17 kl. 23.00 – HER ER VI
 
-**Live:** https://harms-coder.github.io/life-tracker/ — tre realisme-runder oven på den godkendte bog (alt pushet, 01b959e).
-Galleri: https://claude.ai/artifact/S914mdZ2Tq4gAuqWUrxLYb. Lukas har set runde 1 (skyggen, valgte 2,5) – runde 2+3 er IKKE
-set af ham endnu. Første skridt: hans dom på telefonen.
+**Live:** https://harms-coder.github.io/life-tracker/ — alt pushet (c1f3ac1). Galleri: https://claude.ai/artifact/S914mdZ2Tq4gAuqWUrxLYb.
+Lukas' dom på det hele, sidst på aftenen: **"det virker helt perfekt nu"** – farver, skygge, lys, omslagskant er godkendt,
+nedbruddet på iPhone er væk (bordpladen i WebGL var løsningen), og glatheden er "bedre, ikke perfekt" (værst ~93 ms ved slip
+zoomet ind).
+
+**NÆSTE SESSION STARTER MED ROADMAP 1b** (Lukas' beslutning): fuldstændig glat zoom – flyt 2D-tegningen (draw.ts) til en
+Worker med OffscreenCanvas, så hovedtråden kun gør gestus + WebGL. Detaljer under "PLAN" nedenfor. Mål først på telefonen
+med `?maal` før og efter. Test på iPhone tidligt (OffscreenCanvas 2D kræver iOS ≥ 16.4; Caveat-fallback via FontFace i
+workeren skal verificeres).
 
 ### Lavet 17/9 aften (alt i `src/bog3d.ts`, knapperne står øverst i filen)
 - **Skyggen** tegnes af bogen selv: samme mesh lagt ned på bordet langs `SHADOW_DIR` (-0,3, 1 = solen bagfra, lidt til
@@ -229,11 +235,11 @@ set af ham endnu. Første skridt: hans dom på telefonen.
   skal have SAMME præcision (fragment er mediump) – ellers linker programmet ikke, og bogen forsvinder tavst
   ("WebGL kunne ikke startes"). `tools/tablecheck.mjs`, `Q="?bord=0" node tools/steps.mjs screenshots/nobord`.
 
+  BEKRÆFTET af Lukas (23.00): nedbruddet er væk med bordpladen i WebGL. REGEL for iPhone: ingen store billeder/lag i
+  DOM'en under en skala, der ændrer sig pr. frame – tegn dem i WebGL. Fotolaget (.bg-layer) er det eneste tilbage i DOM.
+
 ### Åbent
-- FØRSTE SKRIDT: går appen stadig ned ved langsomt zoom gennem vippet, nu hvor bordpladen ligger i WebGL? Hvis JA:
-  det er ikke bordpladen; tilbage er fotolaget (.bg-layer, 2752×4892 verdens-px div m. background #000 + img + video)
-  under samme skala-ændring – prøv at fjerne background/overflow eller lægge fotoet i GL også. Ellers: bed om Safari-
-  Web Inspector via kabel til Mac'en (Indstillinger → Safari → Avanceret → Web Inspector) for at se nedbrudstypen. Hvis ja: Lukas' bisect-svar (hvilket link
+- Roadmap 1b (glat zoom, Worker) – NÆSTE SESSION. Bisect-kontakterne `?aa=0 ?bord=0 ?skygge=0 ?lys=0 ?maal` kan blive. Hvis ja: Lukas' bisect-svar (hvilket link
   klarede sig bedst – han sagde noget der lød som "nummer to" = bord=0).
 - PLAN (Lukas: "noget vi skal have klaret, bare ikke lige nu"): "fuldstændig glat" zoom. Værst 93 ms på telefonen =
   den fulde omtegning ved slip zoomet ind (2D-tegning + 24 MB upload på hovedtråden). Rigtig løsning: flyt draw.ts
