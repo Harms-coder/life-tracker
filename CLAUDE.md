@@ -198,9 +198,16 @@ set af ham endnu. Første skridt: hans dom på telefonen.
 - Sort bog på iPhone (løst): lyskortet blev tomt, fordi telefonen tegnede intet af det store foto lige efter onload →
   `decode()` først, tomt kort = lys fra + nyt forsøg. `?lys=0` slår lyset fra til fejlsøgning.
 
+- HUKOMMELSE (17/9 sent): Lukas fik "Der var gentagne problemer" (Safari lukker siden) ved hurtig zoom helt ind/ud.
+  Rettet: PIXEL_BUDGET 9e6 → 6e6, MARGIN 0,35 → 0,2, kilde-canvasset må kun VOKSE (fitCanvas), GL-teksturen
+  opdateres med texSubImage2D når størrelsen er den samme, CACHE_K 1,25. Gennemsigtige texels på en side = papir
+  (u_paper), da canvasset nu er større end det tegnede. Største tilbageværende post: bord.webp 3089×4096 = 51 MB
+  dekodet (+ aften.jpg 15 MB, WebGL-buffer m. MSAA+stencil ~60–70 MB). Næste knapper hvis det stadig går ned:
+  antialias: false i getContext (sparer ~36 MB), bord.webp ned til 2048 bred (sparer ~30 MB, koster skarphed zoomet ind).
+  `?maal`: "værst" tæller først efter 3 s (baggrunds-cachen bygges ~100 ms ved start – det var Lukas' 97 ms).
+
 ### Åbent
-- Lukas' dom på glatheden efter cache-omlægningen (1409a55) – IKKE set af ham endnu. Hvis det stadig hakker: bed om
-  `?maal`-tal; næste knapper er MARGIN (0,35 → 0,2 = 40 % færre pixels pr. omtegning) og LIVE_RATIO.
+- Lukas' dom: går appen stadig ned ved hurtig zoom ind/ud (efter 6e6/grow-only)? Og glatheden (`?maal`-tal)?
 - Lukas' dom på runde 2+3: er skyggestriben på papiret for mørk? Passer farverne? (Han sagde før runde 3: "passer
   ikke i farverne til resten".)
 - Ryggen: Lukas sagde ja til "lys/skygge i folden set fladt oppefra" – den gradient findes allerede (drawSpine +

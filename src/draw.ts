@@ -171,9 +171,9 @@ function drawCover(ctx: Ctx, vis: Rect, assets: Assets) {
 /** Everything on the spread that never changes - cover, paper, its texture, the curvature and wave shading, the
  *  spine - drawn ONCE into a bitmap and copied in from there on every redraw. Drawn afresh at every zoom step it
  *  was the whole cost of a redraw (50-120 ms of pattern and gradient fills); one copy is a few ms. It is all
- *  soft, so CACHE_K = 1.5 px per world px is plenty even zoomed right in. The grid and the ink are drawn live:
+ *  soft, so CACHE_K = 1.25 px per world px is plenty even zoomed right in (and it is 10 MB the iPhone has to hold). The grid and the ink are drawn live:
  *  they have to stay crisp. */
-const CACHE_K = 1.5;
+const CACHE_K = 1.25;
 let cache: { canvas: HTMLCanvasElement; paper?: HTMLImageElement; leather?: HTMLImageElement } | null = null;
 function drawBackground(ctx: Ctx, vis: Rect, assets: Assets) {
   // built once before the textures arrive and once after: each build is ~100 ms, not one per image

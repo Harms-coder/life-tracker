@@ -184,7 +184,11 @@ void main() {
     return;
   }
   vec4 c = texture2D(u_img, v_uv);
-  if (c.a < 0.01) discard;
+  if (c.a < 0.01) { // the board's rounded corners - or, on a page, the undrawn part of the canvas: paper
+    if (u_paper.a <= 0.0) discard;
+    gl_FragColor = vec4(u_paper.rgb * v_shade * light, 1.0);
+    return;
+  }
   gl_FragColor = vec4(c.rgb * v_shade * light, c.a);
 }`;
 
@@ -344,6 +348,7 @@ export function createBook3D(canvas: HTMLCanvasElement, persp: number): Book3D |
   gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
 
   let texRect = { x: 0, y: 0, w: BOOK_W, h: BOOK_H };
+  let texW = 0, texH = 0;
 
 
   const fill = (sl: typeof slots.pages, m: Mesh) => {
@@ -372,7 +377,10 @@ export function createBook3D(canvas: HTMLCanvasElement, persp: number): Book3D |
       texRect = rect;
       gl.bindTexture(gl.TEXTURE_2D, tex);
       gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, 1);
-      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, src);
+      // same size as last time: write into the texture that is there instead of making a new one (a fresh
+      // 20-30 MB texture on every zoom was part of what ran the iPhone out of memory)
+      if (texW === src.width && texH === src.height) gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, gl.RGBA, gl.UNSIGNED_BYTE, src);
+      else { gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, src); texW = src.width; texH = src.height; }
     },
     setLight(img, bg) {
       // the footprint (and a margin) of the photo, shrunk in two steps to a handful of texels: an average, not a sample

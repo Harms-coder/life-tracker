@@ -8,8 +8,8 @@ const TAP_SLOP = 8;
 const TILT_MAX = (window as unknown as { __tiltMax?: number }).__tiltMax ?? 58; // degrees when fully zoomed out: matches the photo's camera
 const PERSPECTIVE = 700; // px, camera distance for the tilt (smaller = stronger convergence)
 const TILT_RANGE = 0.7; // tilt is gone at fit * (1 + TILT_RANGE)
-const MARGIN = 0.35; // canvas overdraw around the viewport, share of its size
-const PIXEL_BUDGET = 9e6; // max canvas pixels (iOS is strict about big canvases)
+const MARGIN = 0.2; // canvas overdraw around the viewport, share of its size
+const PIXEL_BUDGET = 6e6; // max canvas pixels: iOS Safari kills the page ("gentagne problemer") when canvases eat its memory
 const LIVE_BUDGET = 2e6; // budget for the quick redraws in the middle of a pinch
 const LIVE_RATIO = 1.5; // redraw mid-pinch once the page texture is stretched this much
 const LIVE_GAP = 260;   // ms between such redraws
@@ -94,11 +94,13 @@ export const BookCanvas = forwardRef<BookCanvasHandle, {
   };
   const apply = () => { clamp(); if (!frame.current) frame.current = requestAnimationFrame(paint); };
 
-  /** Size a canvas to its plane. Mid-gesture (`reuse`) the existing bitmap is kept whatever its size – no
-   *  reallocation – and the plane's resolution is adapted to it; its unused part stays transparent. */
+  /** Size a canvas to its plane. The bitmap only ever GROWS: shrinking and regrowing it on every zoom in and out
+   *  meant a fresh 20-30 MB buffer each time, and the iPhone's memory did not keep up (Safari gave up on the page).
+   *  Mid-gesture (`reuse`) it is kept whatever its size and the plane's resolution is adapted to it. The part
+   *  beyond the drawn plane is cleared, transparent; the shader shows plain paper there. */
   const fitCanvas = (cv: HTMLCanvasElement, p: Plane, reuse: boolean) => {
     if (reuse && cv.width > 1) p.k = Math.min(p.k, cv.width / p.w, cv.height / p.h);
-    else { const pw = Math.round(p.w * p.k), ph = Math.round(p.h * p.k); if (cv.width !== pw || cv.height !== ph) { cv.width = pw; cv.height = ph; } }
+    else { const pw = Math.round(p.w * p.k), ph = Math.round(p.h * p.k); if (cv.width < pw || cv.height < ph) { cv.width = Math.max(cv.width, pw); cv.height = Math.max(cv.height, ph); } }
     cv.style.width = `${cv.width / p.k}px`; cv.style.height = `${cv.height / p.k}px`; cv.style.left = `${p.x0}px`; cv.style.top = `${p.y0}px`;
   };
 
@@ -130,7 +132,8 @@ export const BookCanvas = forwardRef<BookCanvasHandle, {
     lastRender.current = performance.now();
     paint();
     if (meter.current) {
-      const ms = performance.now() - t0; worst.current = Math.max(worst.current, ms);
+      const ms = performance.now() - t0;
+      if (performance.now() > 3000) worst.current = Math.max(worst.current, ms); // the one-off background build at start-up is not what we are after
       meter.current.textContent = `${live ? "live" : "fuld"} ${Math.round(ms)} ms · værst ${Math.round(worst.current)} ms · ${cv.width}×${cv.height}`;
     }
   };
