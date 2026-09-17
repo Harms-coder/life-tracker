@@ -91,7 +91,7 @@ export default function App() {
   scene.current = { ...scene.current, columns, values, notes };
 
   const redraw = () => book.current?.redraw();
-  useEffect(() => { redraw(); }, [columns, values, notes]);
+  useEffect(() => { book.current?.refresh(); }, [columns, values, notes]);
 
   const write = (key: string, value: string | null) => {
     const next = { ...values };

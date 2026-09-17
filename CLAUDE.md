@@ -205,7 +205,15 @@ først NÅR svaret kommer, så meshet aldrig viser en gammel tekstur i en ny rec
   nede blev der ALDRIG tegnet om (kun i glidet og ved slip), så man kørte ud over det tegnede (skærm + 20 % margen),
   og shaderen kasserede siden. Rettet: `renderIfOff()` kaldes også i onPointerMove (én ad gangen, køen tager resten),
   og uden for teksturen viser en side nu blankt papir (u_paper) i stedet for at blive kasseret – kun omslaget kasseres.
-- FØRSTE SKRIDT NÆSTE GANG: Lukas' dom på telefonen (hurtig panorering zoomet ind: hel bog? glat?).
+- LUKAS (23.50): "føles rigtig godt nu, glat, bogen holder sig hel". Tilbage: ved HURTIGT zoom ud var siden blank
+  (papir-fallbacken) i de ~150 ms, til tegningen var tilbage.
+- OVERSIGTSTEKSTUR (næste commit): workeren tegner hele opslaget groft (OVERVIEW_BUDGET 2,5e6 ≈ 1,3 px/verdens-px,
+  10 MB, eget canvas, `overview: true`, uden halvskrevet X) ved start og ved `refresh()` (App: når values/columns/
+  notes ændrer sig – ikke pr. animationsframe). `setOverview` lægger den op i ét hug på unit 3. Shaderen: uden for
+  u_tex, eller hvor detaljeteksturen er gennemsigtig, samples `u_over` (v_ouv = pos / bogens størrelse) – papir kun
+  hvis heller ikke den har noget. Så er bogen aldrig blank, kun grov et øjeblik. Omslaget uden for u_tex vises nu også.
+- FØRSTE SKRIDT NÆSTE GANG: Lukas' dom på hurtigt zoom ud. Hvis alt er godt: roadmap trin 2 (måneder, sidevending,
+  datamodel). Overvej at fjerne ?maal/?strip/?aa/?bord/?skygge/?lys-knapperne eller lade dem stå.
 
 ## Status 2026-09-17 kl. 23.00 – HER ER VI
 

@@ -111,6 +111,7 @@ uniform vec4 u_lightRect;  // the part of the spread the light map covers: x, y,
 uniform float u_table;     // > 0: the table pass - lies flat in the 2D world like the photo, never tilted
 uniform vec4 u_tableRect;  // where the table picture lies, in world px
 varying vec2 v_uv;
+varying vec2 v_ouv;
 varying vec2 v_luv;
 varying vec2 v_tuv;
 varying float v_shade;
@@ -157,17 +158,21 @@ void main() {
   gl_Position = vec4((sp / u_res) * 2.0 - 1.0, 0.0, 1.0);
   gl_Position.y = -gl_Position.y;
   v_uv = (a_pos.xy - u_tex.xy) / u_tex.zw;
+  v_ouv = a_pos.xy / vec2(${BOOK_W}.0, ${BOOK_H}.0);
   v_luv = (a_pos.xy - u_lightRect.xy) / u_lightRect.zw;
 }`;
 
 const FRAG = `
 precision mediump float;
 varying vec2 v_uv;
+varying vec2 v_ouv;
 varying vec2 v_luv;
 varying vec2 v_tuv;
 varying float v_shade;
 varying float v_layer;
 uniform sampler2D u_img;
+uniform sampler2D u_over;     // the whole spread, coarser: stands in wherever u_img does not reach
+uniform float u_hasOver;
 uniform sampler2D u_tableTex; // the sharp top-down table
 uniform highp float u_table;  // 1: the table's colour (u_flat) 2: its picture; both faded by u_fade (highp: shared with the vertex shader, or it does not link)
 uniform float u_fade;
@@ -185,13 +190,6 @@ void main() {
   if (u_shadowC.a > 0.0) { gl_FragColor = u_shadowC; return; }
   vec3 light = u_tone;
   if (u_lightAmt.x > 0.0) light *= mix(vec3(1.0), texture2D(u_light, v_luv).rgb * u_lightAmt.yzw, u_lightAmt.x);
-  // zoomed in, the texture holds only the visible slice of the spread. A fast pan runs off it before the next
-  // drawing is back (~150 ms on the phone): a page shows plain paper there, not the table underneath.
-  if (u_flat.a <= 0.0 && (v_uv.x < 0.0 || v_uv.x > 1.0 || v_uv.y < 0.0 || v_uv.y > 1.0)) {
-    if (u_paper.a <= 0.0) discard;
-    gl_FragColor = vec4(u_paper.rgb * v_shade * light, 1.0);
-    return;
-  }
   if (u_flat.a > 0.0) {
     // the page stack seen edge on: sheet after sheet lying on each other, never the page's own grid
     float ph = fract(v_layer / u_sheets);
@@ -200,8 +198,13 @@ void main() {
     gl_FragColor = vec4(u_flat.rgb * v_shade * sheet * light, 1.0);
     return;
   }
-  vec4 c = texture2D(u_img, v_uv);
-  if (c.a < 0.01) { // the board's rounded corners - or, on a page, the undrawn part of the canvas: paper
+  // zoomed in, the texture holds only the visible slice of the spread. A fast pan or zoom out runs off it before
+  // the next drawing is back (~150 ms on the phone): there, and wherever that drawing did not reach, the coarser
+  // whole-spread overview stands in, so the book never goes blank.
+  bool outside = v_uv.x < 0.0 || v_uv.x > 1.0 || v_uv.y < 0.0 || v_uv.y > 1.0;
+  vec4 c = outside ? vec4(0.0) : texture2D(u_img, v_uv);
+  if (c.a < 0.01 && u_hasOver > 0.5) c = texture2D(u_over, v_ouv);
+  if (c.a < 0.01) { // the board's rounded corners - or nothing drawn there yet: paper
     if (u_paper.a <= 0.0) discard;
     gl_FragColor = vec4(u_paper.rgb * v_shade * light, 1.0);
     return;
@@ -324,6 +327,9 @@ export type Book3D = {
   setTexture(pixels: Uint8Array, w: number, h: number, rect: { x: number; y: number; w: number; h: number }, done: () => void): void;
   /** True while a texture is on its way up: keep drawing frames, each one carries a slice. */
   pending(): boolean;
+  /** The whole spread at a coarse resolution (raw RGBA): shown wherever the page texture does not reach. Uploaded
+   *  in one go - it only changes at start-up and when something is written, never mid-gesture. */
+  setOverview(pixels: Uint8Array, w: number, h: number): void;
   /** The room photo and where it lies in spread coordinates: the light over the book is taken from it.
    *  False when nothing usable came of it (the light then stays off; try again later). */
   setLight(img: HTMLImageElement, bg: { x: number; y: number; w: number; h: number }): boolean;
@@ -358,7 +364,7 @@ export function createBook3D(canvas: HTMLCanvasElement, persp: number): Book3D |
     persp: loc("u_persp"), res: loc("u_res"), tex: loc("u_tex"), flat: loc("u_flat"), img: loc("u_img"),
     book: loc("u_book"), spine: loc("u_spine"), fold: loc("u_foldDark"), sheets: loc("u_sheets"),
     bow: loc("u_bow"), dip: loc("u_dip"), amp: loc("u_sheetAmp"), shadow: loc("u_shadow"), shadowC: loc("u_shadowC"),
-    light: loc("u_light"), lightAmt: loc("u_lightAmt"), lightRect: loc("u_lightRect"), tone: loc("u_tone"), paper: loc("u_paper"),
+    light: loc("u_light"), lightAmt: loc("u_lightAmt"), over: loc("u_over"), hasOver: loc("u_hasOver"), lightRect: loc("u_lightRect"), tone: loc("u_tone"), paper: loc("u_paper"),
     table: loc("u_table"), tableTex: loc("u_tableTex"), tableRect: loc("u_tableRect"), fade: loc("u_fade"),
   };
   const aPos = gl.getAttribLocation(prog, "a_pos"), aMeta = gl.getAttribLocation(prog, "a_meta");
@@ -391,6 +397,9 @@ export function createBook3D(canvas: HTMLCanvasElement, persp: number): Book3D |
   gl.activeTexture(gl.TEXTURE0);
   gl.uniform1i(U.light, 1);
   gl.uniform1i(U.tableTex, 2);
+  const over = pageTexture(); // its unit is 3; pageTexture binds on whichever unit is active, setOverview rebinds it there
+  gl.uniform1i(U.over, 3);
+  gl.uniform1f(U.hasOver, 0);
   gl.uniform4f(U.tableRect, TABLE.x, TABLE.y, TABLE.w, TABLE.h);
   gl.uniform1f(U.table, 0);
   let lightK: [number, number, number] | null = null; // 1 / mean of the light map, per channel; null until one is set
@@ -427,6 +436,14 @@ export function createBook3D(canvas: HTMLCanvasElement, persp: number): Book3D |
 
   return {
     setTexture(pixels, w, h, rect, done) { upload = { pixels, w, h, rect, row: 0, done }; },
+    setOverview(pixels, w, h) {
+      gl.activeTexture(gl.TEXTURE3);
+      gl.bindTexture(gl.TEXTURE_2D, over.t);
+      gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, 0);
+      if (over.w === w && over.h === h) gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, w, h, gl.RGBA, gl.UNSIGNED_BYTE, pixels);
+      else { gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, w, h, 0, gl.RGBA, gl.UNSIGNED_BYTE, pixels); over.w = w; over.h = h; }
+      gl.uniform1f(U.hasOver, 1);
+    },
     pending() { return !!upload; },
     setTable(img) {
       gl.activeTexture(gl.TEXTURE2);
@@ -566,6 +583,7 @@ export function createBook3D(canvas: HTMLCanvasElement, persp: number): Book3D |
       for (const sl of Object.values(slots)) for (const b of [sl.pos, sl.meta, sl.idx]) gl.deleteBuffer(b);
       gl.deleteTexture(front.t);
       gl.deleteTexture(back.t);
+      gl.deleteTexture(over.t);
       gl.deleteTexture(lightTex);
       gl.deleteTexture(tableTex);
       gl.deleteProgram(prog);

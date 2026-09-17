@@ -8,11 +8,13 @@ import leatherUrl from "./textures/leather.png";
  * the iPhone; raw bytes can go up in slices, see bog3d.ts). The main thread is left with the gestures and the (cheap) 3D pass, so a redraw at the end of a pinch
  * no longer freezes the finger tracking (93 ms worst on the phone before this).
  */
-export type RenderRequest = { id: number; view: View; plane: Plane; live: boolean; scene: Scene; now: number };
-export type RenderReply = { id: number; pixels: ArrayBuffer; w: number; h: number; k: number } | { id: number; error: string };
+/** `overview`: the whole spread at a coarse resolution, drawn on its own canvas, complete (no half-written X). */
+export type RenderRequest = { id: number; view: View; plane: Plane; live: boolean; scene: Scene; now: number; overview?: boolean };
+export type RenderReply = { id: number; pixels: ArrayBuffer; w: number; h: number; k: number; overview?: boolean } | { id: number; error: string };
 
 const canvas = new OffscreenCanvas(1, 1);
 const ctx = canvas.getContext("2d")!;
+const overCanvas = new OffscreenCanvas(1, 1);
 const assets: Assets = {};
 const bitmapOf = (url: string) => fetch(url).then((r) => r.blob()).then((b) => createImageBitmap(b)).catch(() => undefined);
 // the textures are two small local PNGs: wait for them, so the background cache is built once, not once before and once
@@ -25,9 +27,18 @@ const ready = Promise.race([
 const port = self as unknown as { postMessage(m: RenderReply, transfer: Transferable[]): void };
 
 onmessage = async (e: MessageEvent<RenderRequest>) => {
-  const { id, view, plane: p, live, scene, now } = e.data;
+  const { id, view, plane: p, live, scene, now, overview } = e.data;
   await ready;
   try {
+  if (overview) {
+    const w = Math.round(p.w * p.k), h = Math.round(p.h * p.k);
+    if (overCanvas.width !== w || overCanvas.height !== h) { overCanvas.width = w; overCanvas.height = h; }
+    const oc = overCanvas.getContext("2d")!;
+    drawScene(oc, view, p, { ...scene, writing: null }, assets, now);
+    const { data } = oc.getImageData(0, 0, w, h);
+    port.postMessage({ id, pixels: data.buffer, w, h, k: p.k, overview: true }, [data.buffer]);
+    return;
+  }
   // The bitmap only ever GROWS: shrinking and regrowing it on every zoom meant a fresh 20-30 MB buffer each
   // time, and the iPhone's memory did not keep up. Mid-gesture (`live`) it is kept whatever its size and the
   // plane's resolution is adapted to it. The part beyond the drawn plane stays transparent; the shader shows

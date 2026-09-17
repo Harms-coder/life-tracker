@@ -14,8 +14,14 @@ const PIXEL_BUDGET = 6e6; // max canvas pixels: iOS Safari kills the page ("gent
 const LIVE_BUDGET = 2e6; // budget for the quick redraws in the middle of a pinch
 const LIVE_RATIO = 1.5; // redraw mid-pinch once the page texture is stretched this much
 const LIVE_GAP = 260;   // ms between such redraws
+const OVERVIEW_BUDGET = 2.5e6; // pixels for the whole-spread stand-in (~1.3 px per world px, 10 MB)
 
-export type BookCanvasHandle = { redraw: () => void };
+export type BookCanvasHandle = {
+  /** draw the visible part again (the pen-stroke animation calls this every frame) */
+  redraw: () => void;
+  /** something was written: the visible part AND the whole-spread stand-in are drawn again */
+  refresh: () => void;
+};
 
 /**
  * The book is one bitmap, drawn by draw.ts in a Worker (draw.worker.ts) and shown through the WebGL mesh; the
@@ -132,8 +138,9 @@ export const BookCanvas = forwardRef<BookCanvasHandle, {
   /** Whatever happened to the job that was out (drawn, uploaded and shown, or failed), the next one may go. */
   const next = () => { inflight.current = null; if (queued.current !== null) { const b = queued.current; queued.current = null; render(b); } };
   const onReply = (e: MessageEvent<RenderReply>) => {
-    const job = inflight.current;
     if ("error" in e.data) { console.error("draw.worker:", e.data.error); next(); return; }
+    if (e.data.overview) { book3d.current?.setOverview(new Uint8Array(e.data.pixels), e.data.w, e.data.h); if (t.current.s) paint(); return; }
+    const job = inflight.current;
     const { pixels, w, h, k } = e.data;
     if (!job || !book3d.current) { next(); return; }
     const { x, y, s } = job.req.view, bp = job.req.plane;
@@ -176,7 +183,17 @@ export const BookCanvas = forwardRef<BookCanvasHandle, {
     if (tiltFor(t.current.s) === 0 && (Math.abs(offX) > -p.x0 - 20 || Math.abs(offY) > -p.y0 - 20)) render();
   };
 
-  useImperativeHandle(ref, () => ({ redraw: () => { if (t.current.s) render(); } }), []);
+  /** The whole spread, coarse, outside the one-at-a-time queue: it stands in wherever the page texture does not
+   *  reach, so a fast zoom out or pan never shows a blank page while the next drawing is on its way. */
+  const renderOverview = () => {
+    const k = Math.sqrt(OVERVIEW_BUDGET / (BOOK_W * BOOK_H));
+    worker.current?.postMessage({ id: 0, view: { x: 0, y: 0, s: 1 }, plane: { x0: 0, y0: 0, w: BOOK_W, h: BOOK_H, k }, live: false, scene: scene.current, now: performance.now(), overview: true } satisfies RenderRequest);
+  };
+
+  useImperativeHandle(ref, () => ({
+    redraw: () => { if (t.current.s) render(); },
+    refresh: () => { renderOverview(); if (t.current.s) render(); },
+  }), []);
 
   useLayoutEffect(() => {
     const fit = () => {
@@ -196,6 +213,7 @@ export const BookCanvas = forwardRef<BookCanvasHandle, {
       worker.current = new Worker(new URL("./draw.worker.ts", import.meta.url), { type: "module" });
       worker.current.onmessage = onReply;
       worker.current.onerror = (e) => { console.error("draw.worker:", e.message); next(); };
+      renderOverview();
     }
     if (!book3d.current && glCanvas.current) {
       book3d.current = createBook3D(glCanvas.current, PERSPECTIVE * (window.devicePixelRatio || 1));
