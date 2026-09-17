@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import { BookCanvas, type BookCanvasHandle } from "./BookCanvas";
+import { Backdrop } from "./Backdrop";
 import { drawScene, type Assets, type Plane, type Scene, type View } from "./draw";
 import { BOOK_H, BOOK_W, dotX, hitTest, NOTE_LABEL, widthOf, CELL, type ColType, type Column, type NoteField } from "./layout";
 import { seededRandom } from "./random";
@@ -170,7 +171,7 @@ export default function App() {
 
   return (
     <>
-      <BookCanvas ref={book} width={BOOK_W} height={BOOK_H} draw={draw} onTap={onTap} />
+      <BookCanvas ref={book} width={BOOK_W} height={BOOK_H} draw={draw} onTap={onTap} backdrop={<Backdrop />} />
       <span className="build">{__BUILD__}</span>
 
       {prompt?.kind === "value" && (

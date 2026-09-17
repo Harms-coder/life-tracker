@@ -31,14 +31,17 @@ body { font-family: var(--font-hand); -webkit-user-select: none; user-select: no
 .gesture { position: absolute; left: 0; top: 0; transform-origin: 0 0; transform-style: preserve-3d; will-change: transform; }
 .book-canvas { position: absolute; display: block; }
 .world3d { position: absolute; left: 0; top: 0; transform-origin: 0 0; transform-style: preserve-3d; will-change: transform; }
-/* the room: depth layers from scene.json, each an <img> in world units placed per frame (its own compositor layer) */
-.scene2d { position: absolute; left: 0; top: 0; }
-.layer { position: absolute; left: 0; top: 0; transform-origin: 0 0; will-change: transform; display: block; pointer-events: none; } /* canvases, not <img>: see Scene.tsx */
-/* the room canvas: the far part of the table top, its legs, and what stands on or in front of the table – one bitmap
-   before the tilt, moved like the book during a gesture and drawn again when the hands are off */
-.room { position: absolute; left: 0; top: 0; transform-origin: 0 0; will-change: transform; }
-/* ?nobook (dev): the scene alone, to compare with the photo */
-.nobook .world3d { display: none; }
+/* the room: photo + looping video per time of day, in world units inside the 2D scene layer */
+.scene2d { position: absolute; left: 0; top: 0; transform-origin: 0 0; will-change: transform; }
+.bg-layer { position: absolute; overflow: hidden; background: #000; }
+.bg-layer img, .bg-layer video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: block; pointer-events: none; }
+.bg-layer video { transition: opacity 1.2s ease; }
+.bg-layer.fade-in { animation: bg-fade 2.4s ease both; }
+@keyframes bg-fade { from { opacity: 0; } to { opacity: 1; } }
+
+/* things lying on the table plane, in world units */
+.worldflat { position: absolute; left: 0; top: 0; transform-origin: 0 0; will-change: transform; }
+.shadow { position: absolute; pointer-events: none; border-radius: 50%; background: radial-gradient(closest-side, rgba(20,10,5,1), rgba(20,10,5,.55) 55%, rgba(20,10,5,0)); }
 
 /* the book's page block (the closed half): its front face standing up from the table under the lifted spread.
    Local y = 0 (the element's top edge) is the table, so "to bottom" runs from the table up to the rim: cover board at

@@ -12,12 +12,6 @@
   </head>
   <body>
     <div id="root"></div>
-    <!-- shows any error (also a script that fails to load, e.g. a stale cached page after a deploy) on screen, so a
-         phone screenshot tells what went wrong -->
-    <script>
-      addEventListener("error", (e) => { const t = e.target && e.target.src ? "Kunne ikke hente " + e.target.src : (e.message || "Fejl"); const d = document.createElement("pre"); d.style.cssText = "position:fixed;left:8px;right:8px;bottom:40px;z-index:99;margin:0;padding:10px;background:#b3261e;color:#fff;font:13px system-ui;white-space:pre-wrap;border-radius:8px"; d.textContent = t + (e.error && e.error.stack ? "\n" + e.error.stack : ""); document.body.appendChild(d); }, true);
-      addEventListener("unhandledrejection", (e) => dispatchEvent(new ErrorEvent("error", { message: "Promise: " + (e.reason && e.reason.message || e.reason) })));
-    </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

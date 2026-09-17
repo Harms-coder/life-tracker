@@ -1,20 +1,11 @@
-import scene from "./scene.json";
 /** Geometry of the spread in world pixels (1 grid square = 20 px). Shared by drawing and hit-testing. */
 export const CELL = 20, PAGE_W = 704, PAGE_H = 1000, COVER = 24;
 export const BOOK_W = PAGE_W * 2 + COVER * 2, BOOK_H = PAGE_H + COVER * 2;
 export const LEFT_PAGE = { x: COVER, y: COVER }, RIGHT_PAGE = { x: COVER + PAGE_W, y: COVER };
-/** The scene's depth layers (src/scene.json). The photo lies flat in world units relative to the book's top-left corner:
- *  its size sets how big the book is on the table (`book.widthFraction`), the book's centre sits at `book.anchor` of it. */
-export type Layer = { id: string; file: string; depth: number; x: number; y: number; w: number; h: number; pad?: number[]; isTablePlane?: boolean; nearEdge?: number; flat?: (Rect & { file: string })[] };
-export const LAYERS = scene.layers as Layer[];
-const bgW = BOOK_W / scene.book.widthFraction, bgH = (bgW * scene.height) / scene.width;
-export const BG = { x: BOOK_W / 2 - scene.book.anchor.x * bgW, y: BOOK_H / 2 - scene.book.anchor.y * bgH, w: bgW, h: bgH };
-export const PX = bgW / scene.width; // world px per photo px
-/** A layer's rect in world px, including its mirrored margins (`pad`, see tools/scene-assets.py). */
-export const layerRect = (l: Layer): Rect => {
-  const [pt, pr, pb, pl] = l.pad ?? [0, 0, 0, 0];
-  return { x: BG.x + (l.x - pl * l.w) * PX, y: BG.y + (l.y - pt * l.h) * PX, w: l.w * (1 + pl + pr) * PX, h: l.h * (1 + pt + pb) * PX };
-};
+/** The background photo (9:16), in world units relative to the book's top-left corner. Its size sets how big
+ *  the book is on the table, its offset where on the table it lies (the book tips over its own centre, so the centre
+ *  stays put at every zoom; tuned by eye against the photo). */
+export const BG = { x: -522, y: -2320, w: 2500, h: 4444 };
 /** The table top inside the photo (fractions of BG): looking straight down you can pan over this, never up to the
  *  window. Must contain the whole flat book (0..BOOK_H) with some margin, or its ends cannot be reached. */
 export const TABLE = { x: BG.x, y: BG.y + 0.46 * BG.h, w: BG.w, h: 0.32 * BG.h };
