@@ -30,8 +30,11 @@ export const ARCH = 22;
 const WAVE = 0.55;
 const BOW = 0.7;   // s^BOW inside the sines: < 1 moves the movement towards the spine
 const BOW2 = 0.9;
-/** The page tips a little way back down over the last stretch to the fore-edge, rather than lifting into it. */
-const DIP = 9, DIP_FROM = 0.84;
+/** How much of the lift into the fore-edge is taken back. 0 = the full swing up, DIP_MAX = none at all.
+ *  ?dip=N overrides it while the shape is being tuned. */
+const DIP_MAX = 9;
+const DIP = Math.max(0, Math.min(DIP_MAX, Number(new URLSearchParams(location.search).get("dip") ?? 3)));
+const DIP_FROM = 0.84;
 /** The cover sticks out past the pages by this much. It has to clear OVERHANG, or the page stack rolls out over
  *  the board and the thin dark rim around the book disappears. */
 const LIP = 30;
