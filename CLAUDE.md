@@ -166,7 +166,35 @@ Rækker = dage 1–31 (antal efter måneden). Kolonner = brugerens egne trackere
 - Test-scripts ligger i sessionens scratchpad (`pw/shots.mjs` skærmbilleder, `pw/bench.mjs` frame-tider i WebKit,
   `pw/tapcheck.mjs` tryk). Dev-server: `npm run dev`. I dev sætter BookCanvas `window.__view` (x, y, s) til scripts.
 
-## Status 2026-09-17 kl. 23.15 – ROADMAP 1b LAVET (ikke set af Lukas endnu)
+## Status 2026-09-18 kl. 00.05 – ROADMAP 1b FÆRDIG OG GODKENDT
+
+**Live:** https://harms-coder.github.io/life-tracker/ — alt pushet. Lukas' dom: "det fungerer godt, 1b er færdigt, godt arbejde".
+Zoom og panorering er glatte på hans iPhone (frame 1–2 ms på hovedtråden, rundtur ~150 ms i workeren), bogen holder sig
+hel ved hurtig panorering og hurtigt zoom ud, Safari går ikke ned.
+
+**NÆSTE SESSION: roadmap trin 2** – flere måneder, sidevending mellem dem, rigtig datamodel (IndexedDB). Buefunktionen i
+`bog3d.ts` er bygget, så en sidevending kan genbruge den. Bisect-/måleknapperne (`?maal ?strip ?aa ?bord ?skygge ?lys`)
+står stadig i koden; de kan blive.
+
+### Sådan hænger tegningen sammen nu (efter 1b)
+1. `src/draw.worker.ts` (Web Worker) tegner opslaget med `drawScene` (draw.ts) i et OffscreenCanvas og sender rå RGBA
+   tilbage. To slags jobs: detalje (det synlige udsnit + 20 % margen, PIXEL_BUDGET 6e6, grow-only canvas) og oversigt
+   (hele opslaget, 2,5e6, eget canvas, uden halvskrevet X).
+2. `BookCanvas.tsx`: ét detaljejob ad gangen (`inflight`/`queued`); bestilles ved slip, midt i pinch (ratio > 1,5 eller
+   < 1/1,5 eller vippet), og under panorering/glid når man er kørt ud over det tegnede (`renderIfOff`). Oversigten
+   bestilles ved start og ved `refresh()` (App: når data ændrer sig). `committed`/`plane` flyttes først når teksturen er
+   OPPE (done-callback). `?maal` viser "frame X ms (N skiver) · rundtur Y ms · værst" – X er det, der skal være lille.
+3. `bog3d.ts`: `setTexture` lægger pixels op i skiver à STRIP_BYTES (4 MB, `?strip=MB`), én pr. `draw()`, i en bagtekstur
+   og bytter front/back når alt er oppe. `setOverview` lægger oversigten op i ét hug (unit 3). Shaderen: uden for u_tex
+   eller hvor detaljen er gennemsigtig → oversigten → ellers papir (sider) / discard (omslag).
+4. Caveat-fonten er helt ude af tegningen (kun CSS til bundfladerne). Ukendte tegn (fx `&`) bliver mellemrum.
+- Hukommelse på iPhone nu: worker-canvas ~25 MB + oversigts-canvas 10 MB + 2 sideteksturer à 25 MB + oversigt 10 MB
+  + bord.webp 51 MB + aften.jpg 15 MB. Holder (Lukas 17/9–18/9).
+- MÅLING: rigtig Chrome via chrome-devtools-MCP, fanen i FORGRUNDEN (i baggrunden drosles rAF → rundtur ser ud som 1 s).
+  Headless Playwright har ingen GPU: rundtur ~1 s der er normalt og siger intet. `node tools/pinchout.mjs screenshots`
+  = zoom ind → pinch ud → billeder mid/slip.
+
+## Status 2026-09-17 kl. 23.15 – ROADMAP 1b LAVET (historik, detaljer fra dagens runder)
 
 **Tegningen af opslaget kører nu i en Web Worker** (`src/draw.worker.ts`): BookCanvas sender view/plane/scene til
 workeren, som tegner med `drawScene` (draw.ts) i sit eget OffscreenCanvas og sender en ImageBitmap tilbage; den går
@@ -418,7 +446,7 @@ Alt er committet og pushet. Galleriet til Lukas: https://claude.ai/artifact/S914
 
 ## Roadmap
 1. ~~Prototype af ét opslag: bog på bord, ternede sider, pinch-zoom, afkrydsning med håndskrevne X-varianter.~~ ✅ 2026-09-16
-~~1b. Fuldstændig glat zoom på iPhone: 2D-tegningen i en Worker.~~ ✅ 2026-09-17 (afventer Lukas' dom på telefonen)
+~~1b. Fuldstændig glat zoom på iPhone: 2D-tegningen i en Worker, upload i skiver, oversigtstekstur.~~ ✅ 2026-09-18 (godkendt af Lukas)
 2. Sidevending mellem måneder + datamodel (måneder, trackere, værdier) med lokal lagring.
 3. Venstre side (mål/undermål/plan) med tekst i håndskrift.
 4. Lukas' egen håndskrift som glyffer.
