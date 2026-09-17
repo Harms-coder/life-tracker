@@ -194,8 +194,24 @@ Rækker = dage 1–31 (antal efter måneden). Kolonner = brugerens egne trackere
   korrekte hver frame; teksturen handler kun om skarphed.
 - `tint()` i draw.ts er SVÆKKET (opgavens punkt 5): papiret var for mørkt mod referencen. Gælder BEGGE udgaver.
 - Målt: pinch-in 4/129 frames >33 ms (som før), pinch-out 5/131 (1 før). tapcheck OK i begge udgaver.
-- MANGLER mod `bog-maal.jpg` (opgavens trin 4–5, vent på Lukas' dom først): sidestakken forrest er tyndere end i
-  referencen og uden synlige enkeltlag, og folden kunne være dybere.
+- MANGLER mod `bog-maal.jpg` (opgavens trin 4–5): bogens skygge på bordet er stadig de to gamle DOM-ellipser og
+  følger ikke buen, og omslaget kunne have en synlig kant ned til bordet.
+- RUNDE 2 (d53d53b), efter Lukas' fem punkter på runde 1:
+  1) Bogen ca. 6 % mindre: BG = {x:-648, y:-2069, w:2752, h:4892} (samme centrum 0,50/0,53 af fotoet).
+  2) Folden lysere: FOLD_DARK 0,46 → 0,30.
+  3+4) "Man kan se felterne og streger, der løber ned i tykkelsen": det var den GAMLE flade sidestak (`edge()` i
+     drawCover), som stadig blev tegnet i teksturen og lå oven på den nye geometri. Den springes nu over når
+     USE_3D. Sidestakken er ark med FAST tykkelse i verdens-px, båret i `a_meta.z` som afstand ned fra sidens kant.
+     FALDGRUBE: som en 0..1-andel af skørtet gav det moiré, fordi skørtet bliver tyndere mod ryggen. Tykkelsen
+     åbnes op ved udzoom (`3 / view.s`), så to linjer aldrig kommer tættere end ca. 3 skærm-px.
+     Og tegnerækkefølgen SKAL være bræt → stak → sider: brættet er bredere end stakken og malede hen over den.
+  5) "Bogen bliver helt lille" under pinch: midt i en pinch genbruger `fitCanvas` bufferen i en STØRRE størrelse
+     end det tegnede udsnit, men `setTexture` fik kun udsnittets mål. Rektanglet dækker nu hele bufferen.
+     Hakket: buen ligger nu i VERTEX-SHADEREN, så mesh'et bygges ÉN gang – før blev det bygget om ved hvert helt
+     verdens-px af bue, altså ~54 gange pr. pinch. Og `renderLive` springer udzoom over i 3D (den gamle tekstur
+     kan kun være for skarp); den ene undtagelse er flad → buet, hvor mesh'et skal bruge hele opslaget.
+  Målt efter: pinch-ud 2/132 frames >33 ms (9 før), pinch-ind 4/129 = samme som den gamle bog. tapcheck OK i begge.
+  IKKE SET AF LUKAS ENDNU.
 - Kør: `node tools/fit3d.mjs screenshots/b3d.png "?bog3d"` (ét startbillede), `Q="?bog3d" node tools/steps.mjs
   screenshots` (seks zoom-trin), `Q="?bog3d" npm run bench|tapcheck`. Uden Q tester de den gamle bog.
 
