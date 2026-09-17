@@ -166,7 +166,35 @@ Rækker = dage 1–31 (antal efter måneden). Kolonner = brugerens egne trackere
 - Test-scripts ligger i sessionens scratchpad (`pw/shots.mjs` skærmbilleder, `pw/bench.mjs` frame-tider i WebKit,
   `pw/tapcheck.mjs` tryk). Dev-server: `npm run dev`. I dev sætter BookCanvas `window.__view` (x, y, s) til scripts.
 
-## Status 2026-09-17 kl. 21.30 – HER ER VI
+## Status 2026-09-17 kl. 21.45 – HER ER VI
+
+**Live:** https://harms-coder.github.io/life-tracker/ — tre realisme-runder oven på den godkendte bog (alt pushet, 01b959e).
+Galleri: https://claude.ai/artifact/S914mdZ2Tq4gAuqWUrxLYb. Lukas har set runde 1 (skyggen, valgte 2,5) – runde 2+3 er IKKE
+set af ham endnu. Første skridt: hans dom på telefonen.
+
+### Lavet 17/9 aften (alt i `src/bog3d.ts`, knapperne står øverst i filen)
+- **Skyggen** tegnes af bogen selv: samme mesh lagt ned på bordet langs `SHADOW_DIR` (-0,3, 1 = solen bagfra, lidt til
+  højre, målt på sprossernes skygger i fotoet), 5 stencil-pas af voksende længde = blød kant. `SHADOW_LEN` 2,5 (Lukas'
+  valg), `?sh=N` til at prøve andre. Beholder `SHADOW_MIN` = 40 % højde zoomet ind, så der er en stribe under nederste
+  kant. DOM-ellipserne og `.tilt`-laget er slettet. FALDGRUBE: omslagspladen (`buildCover`, LIP=30 bredere end bogen)
+  må IKKE med i skyggepasset – malet mørk blev den en ramme rundt om hele den flade bog.
+- **Omslagskant** (`buildRim`): sort skørt fra omslaget ned til bordet, COVER_T = 12 (3 mm).
+- **Rummets lys over bogen** (`setLight`): fotoets (aften.jpg) pixels over bogens fodaftryk, krympet i halveringstrin
+  til `LIGHT_RES` = 10 texels bredt (= udjævning; finere → træårer på papiret), normeret pr. kanal, ganget på i shaderen.
+  Sprossernes skygger fortsætter hen over papiret. Toner ud med vippet (den flade bordplade har ingen striber).
+- **Farver** (`TONE` = 0,97/0,86/0,74, `?tone=r,g,b`): målt efter fotoets hvide bøger (130,105,85 i skygge) og koppen.
+  Papir i skygge ≈ (181,147,115), i sol ≈ (239,221,178). `tint()` i draw.ts er slettet – al tone ligger i shaderen.
+- Papirstakkens kant: mod vinduet lys (1,1), mod betragteren i skygge (0,9).
+
+### Åbent
+- Lukas' dom på runde 2+3: er skyggestriben på papiret for mørk? Passer farverne? (Han sagde før runde 3: "passer
+  ikke i farverne til resten".)
+- Ryggen: Lukas sagde ja til "lys/skygge i folden set fladt oppefra" – den gradient findes allerede (drawSpine +
+  drawPage i draw.ts); intet ændret. Spørg hvad der konkret ser forkert ud.
+- `&` mangler i håndskriften. Roadmap trin 2 (flere måneder, sidevending, IndexedDB). Andre tidspunkter er låst til
+  aften (`ONLY` i Backdrop.tsx) – lyskortet er også hårdkodet til aften.jpg i BookCanvas.
+
+## Status 2026-09-17 kl. 21.30 (historik)
 
 **Live:** https://harms-coder.github.io/life-tracker/ — den nye bog med rigtig dybde er nu DEN ENESTE.
 Lukas godkendte den, `?bog3d`-flaget og hele den gamle flade CSS-vip-vej er fjernet.
