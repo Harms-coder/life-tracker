@@ -1,4 +1,5 @@
 import { seededRandom } from "./random";
+import { drawInBox, drawText, widthOfText } from "./glyf";
 import {
   CELL, PAGE_W, PAGE_H, COVER, BOOK_W, BOOK_H, LEFT_PAGE, RIGHT_PAGE, HEADER_Y, TABLE_LEFT, DAY_COL_W,
   TITLE_BOX_X, TITLE_BOX_Y, GOALS, goalPos, goalTextBox, widthOf, dotX, columnXs, bottomY, noteBoxes, NOTE_LABEL,
@@ -37,12 +38,9 @@ function text(ctx: Ctx, str: string, x: number, y: number, o: { size: number; se
   ctx.save();
   ctx.translate(x + (r() - 0.5) * 2, y + (r() - 0.5) * 2);
   ctx.rotate(((r() - 0.5) * 5 * (o.tilt ?? 1) * Math.PI) / 180 + (o.rotate ?? 0));
-  ctx.font = `${o.weight ?? 400} ${o.size}px ${FONT}`;
-  ctx.textAlign = o.align ?? "left";
-  ctx.textBaseline = o.baseline ?? "alphabetic";
   ctx.fillStyle = INK;
   if (o.alpha !== undefined) ctx.globalAlpha = o.alpha;
-  ctx.fillText(str, 0, 0);
+  drawText(ctx, str, 0, 0, o.size, o.seed, o.align ?? "left", o.baseline ?? "alphabetic");
   ctx.restore();
 }
 
@@ -63,6 +61,8 @@ function strokeInk(ctx: Ctx, width: number, alpha = 0.85) {
 
 /** A hand-drawn X in a 20x20 box at (x, y). `progress` 0..1 animates the two pen strokes. */
 function handX(ctx: Ctx, x: number, y: number, seed: string, progress = 1) {
+  ctx.fillStyle = INK;
+  if (drawInBox(ctx, "X", x, y, 20, 20, seed, progress)) return; // Lukas' own X
   const rnd = seededRandom(seed);
   const j = (amount: number) => (rnd() - 0.5) * 2 * amount;
   const stroke = (x1: number, y1: number, x2: number, y2: number) => {
@@ -91,15 +91,14 @@ function handX(ctx: Ctx, x: number, y: number, seed: string, progress = 1) {
 }
 
 /** Word-wrap text into lines that fit `width` (canvas units), greedy. */
-function wrap(ctx: Ctx, str: string, width: number, size: number): string[] {
-  ctx.font = `400 ${size}px ${FONT}`;
+function wrap(_ctx: Ctx, str: string, width: number, size: number): string[] {
   const out: string[] = [];
   for (const para of str.split("\n")) {
     if (!para.trim()) continue;
     let line = "";
     for (const word of para.split(" ")) {
       const next = line ? line + " " + word : word;
-      if (ctx.measureText(next).width > width && line) { out.push(line); line = word; } else line = next;
+      if (widthOfText(next, size, "w") > width && line) { out.push(line); line = word; } else line = next;
     }
     out.push(line);
   }
