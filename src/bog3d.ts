@@ -44,6 +44,17 @@ const LIP = 30;
 const OVERHANG = 20;
 const ROLL = 5;
 
+/** The book's shadow on the table. The sun is low in the window behind and a little to the right, so every
+ *  height casts a long shadow towards the viewer and a little left: LEN world px along DIR per world px of height.
+ *  It is the book's own mesh laid down on the table along that direction, so it follows the curve and the page
+ *  stack, and collapses to nothing as the book flattens when zoomed in. PASSES copies of growing length, each
+ *  faint, make the penumbra: dark where they all overlap at the foot, fading out along the far edge.
+ *  ?sh=N overrides LEN while it is being tuned. */
+const SHADOW_DIR = [-0.3, 1] as const;
+const SHADOW_LEN = Number(new URLSearchParams(location.search).get("sh") ?? 2.5);
+const SHADOW_DARK = 0.55;
+const SHADOW_PASSES = 5;
+
 const SEG_X = 56, SEG_Y = 10; // segments per page: across the curve, and along it
 /** How dark the fold goes, and the thinnest a sheet is allowed to look (world px). A book of 150 leaves wants
  *  far finer lines than a handful of thick boards, so this is kept small and only opened up as far as the
@@ -77,6 +88,7 @@ uniform vec4 u_book;       // coverT, stack, arch, pageW: the shape of the open 
 uniform float u_spine;     // x of the fold, in spread coordinates
 uniform vec3 u_bow;        // BOW, BOW2, WAVE: the shape of the page's wave
 uniform vec2 u_dip;        // how far, and from where, the page tips back down at the fore-edge
+uniform vec3 u_shadow;     // z > 0: draw the shadow instead - every point laid on the table, moved xy per unit of height
 varying vec2 v_uv;
 varying float v_shade;
 varying float v_layer;
@@ -108,7 +120,9 @@ void main() {
   // the sheets have a real thickness, so the lines must keep their spacing all the way along the skirt: carry
   // the distance DOWN from the page rim, in world px, not a 0..1 share of a skirt that thins out at the fold
   v_layer = a_meta.z * (pageZ(s) - u_book.x);
-  vec2 flat_px = u_view + a_pos.xy * u_scale;
+  vec2 xy = a_pos.xy;
+  if (u_shadow.z > 0.0) { xy += u_shadow.xy * z; z = 0.0; }
+  vec2 flat_px = u_view + xy * u_scale;
   float h = z * u_scale;
   vec2 d = flat_px - u_origin;
   float ry = d.y * u_trig.x - h * u_trig.y;
@@ -129,7 +143,9 @@ uniform sampler2D u_img;
 uniform vec4 u_flat;       // when a > 0: ignore the texture and use this colour (the page stack)
 uniform float u_sheets;    // one sheet every this many world px, widened when zoomed out so the lines never alias
 uniform float u_sheetAmp;  // fades the lines out when they get too close to resolve, leaving an even tone
+uniform vec4 u_shadowC;    // when a > 0: paint this (premultiplied) and nothing else - the shadow pass
 void main() {
+  if (u_shadowC.a > 0.0) { gl_FragColor = u_shadowC; return; }
   // zoomed in, the texture holds only the visible slice of the spread; the rest of the mesh is off screen anyway
   if (u_flat.a <= 0.0 && (v_uv.x < 0.0 || v_uv.x > 1.0 || v_uv.y < 0.0 || v_uv.y > 1.0)) discard;
   if (u_flat.a > 0.0) {
@@ -257,7 +273,7 @@ export function createBook3D(canvas: HTMLCanvasElement, persp: number): Book3D |
     view: loc("u_view"), scale: loc("u_scale"), origin: loc("u_origin"), trig: loc("u_trig"),
     persp: loc("u_persp"), res: loc("u_res"), tex: loc("u_tex"), flat: loc("u_flat"), img: loc("u_img"),
     book: loc("u_book"), spine: loc("u_spine"), fold: loc("u_foldDark"), sheets: loc("u_sheets"),
-    bow: loc("u_bow"), dip: loc("u_dip"), amp: loc("u_sheetAmp"),
+    bow: loc("u_bow"), dip: loc("u_dip"), amp: loc("u_sheetAmp"), shadow: loc("u_shadow"), shadowC: loc("u_shadowC"),
   };
   const aPos = gl.getAttribLocation(prog, "a_pos"), aMeta = gl.getAttribLocation(prog, "a_meta");
   /** One set of buffers per mesh, so a frame that changes nothing only binds them. Re-uploading both meshes
@@ -306,7 +322,7 @@ export function createBook3D(canvas: HTMLCanvasElement, persp: number): Book3D |
       if (canvas.width !== w || canvas.height !== h) { canvas.width = w; canvas.height = h; }
       gl.viewport(0, 0, w, h);
       gl.clearColor(0, 0, 0, 0);
-      gl.clear(gl.COLOR_BUFFER_BIT);
+      gl.clear(gl.COLOR_BUFFER_BIT | gl.STENCIL_BUFFER_BIT);
       gl.useProgram(prog);
       gl.uniform2f(U.view, view.x, view.y);
       gl.uniform1f(U.scale, view.s);
@@ -332,14 +348,32 @@ export function createBook3D(canvas: HTMLCanvasElement, persp: number): Book3D |
       gl.uniform1f(U.amp, Math.max(0, Math.min(1, (sheet * view.s * fore - 1.5) / 1.6)));
       gl.activeTexture(gl.TEXTURE0);
       gl.bindTexture(gl.TEXTURE_2D, tex);
-      // board, then the page stack standing on it, then the pages on top: the board is wider than the stack,
-      // so drawn later it would paint right over it
-      gl.uniform4f(U.flat, 0, 0, 0, 0);
-      bind(slots.cover); gl.drawElements(gl.TRIANGLES, slots.cover.n, gl.UNSIGNED_SHORT, 0);
-      gl.uniform4f(U.flat, 0.95, 0.92, 0.83, 1);
-      bind(slots.edges); gl.drawElements(gl.TRIANGLES, slots.edges.n, gl.UNSIGNED_SHORT, 0);
-      gl.uniform4f(U.flat, 0, 0, 0, 0);
-      bind(slots.pages); gl.drawElements(gl.TRIANGLES, slots.pages.n, gl.UNSIGNED_SHORT, 0);
+      const drawAll = () => {
+        // board, then the page stack standing on it, then the pages on top: the board is wider than the stack,
+        // so drawn later it would paint right over it
+        gl.uniform4f(U.flat, 0, 0, 0, 0);
+        bind(slots.cover); gl.drawElements(gl.TRIANGLES, slots.cover.n, gl.UNSIGNED_SHORT, 0);
+        gl.uniform4f(U.flat, 0.95, 0.92, 0.83, 1);
+        bind(slots.edges); gl.drawElements(gl.TRIANGLES, slots.edges.n, gl.UNSIGNED_SHORT, 0);
+        gl.uniform4f(U.flat, 0, 0, 0, 0);
+        bind(slots.pages); gl.drawElements(gl.TRIANGLES, slots.pages.n, gl.UNSIGNED_SHORT, 0);
+      };
+      // the shadow first, under the book. The mesh overlaps itself once laid flat, so each pass is stencilled to
+      // touch a pixel only once - otherwise the page stack's shadow doubled up on the page's.
+      const a = 1 - Math.pow(1 - SHADOW_DARK, 1 / SHADOW_PASSES);
+      gl.uniform4f(U.shadowC, 0.08 * a, 0.04 * a, 0.02 * a, a);
+      gl.enable(gl.STENCIL_TEST);
+      gl.stencilOp(gl.KEEP, gl.KEEP, gl.REPLACE);
+      for (let k = 0; k < SHADOW_PASSES; k++) {
+        const len = SHADOW_LEN * (0.7 + (0.6 * k) / (SHADOW_PASSES - 1));
+        gl.uniform3f(U.shadow, SHADOW_DIR[0] * len, SHADOW_DIR[1] * len, 1);
+        gl.stencilFunc(gl.NOTEQUAL, k + 1, 0xff);
+        drawAll();
+      }
+      gl.disable(gl.STENCIL_TEST);
+      gl.uniform4f(U.shadowC, 0, 0, 0, 0);
+      gl.uniform3f(U.shadow, 0, 0, 0);
+      drawAll();
     },
     dispose() {
       for (const sl of [slots.cover, slots.pages, slots.edges]) for (const b of [sl.pos, sl.meta, sl.idx]) gl.deleteBuffer(b);

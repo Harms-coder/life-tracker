@@ -27,7 +27,6 @@ body { font-family: var(--font-hand); -webkit-user-select: none; user-select: no
   cursor: grab;
 }
 .viewport:active { cursor: grabbing; }
-.tilt { position: absolute; inset: 0; will-change: transform; } /* carries the shadow on the table; origin = the book's centre, set per frame */
 /* the flat spread that feeds the book its page texture: never shown, only read from */
 .book-source { position: absolute; visibility: hidden; pointer-events: none; }
 /* the room: photo + looping video per time of day, in world units inside the 2D scene layer */
@@ -42,10 +41,6 @@ body { font-family: var(--font-hand); -webkit-user-select: none; user-select: no
 .table-top { position: absolute; pointer-events: none; background: #b47f51; }
 .table-top img { position: absolute; display: block; }
 @keyframes bg-fade { from { opacity: 0; } to { opacity: 1; } }
-
-/* things lying on the table plane, in world units */
-.worldflat { position: absolute; left: 0; top: 0; transform-origin: 0 0; will-change: transform; }
-.shadow { position: absolute; pointer-events: none; border-radius: 50%; background: radial-gradient(closest-side, rgba(20,10,5,1), rgba(20,10,5,.55) 55%, rgba(20,10,5,0)); }
 
 /* --- number input sheet ----------------------------------------------- */
 .sheet-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,.25); display: flex; align-items: flex-end; }

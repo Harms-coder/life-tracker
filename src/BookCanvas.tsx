@@ -31,8 +31,6 @@ export const BookCanvas = forwardRef<BookCanvasHandle, {
   backdrop?: ReactNode;
 }>(function BookCanvas({ width, height, draw, onTap, backdrop }, ref) {
   const view = useRef<HTMLDivElement>(null);
-  const tilt = useRef<HTMLDivElement>(null);
-  const worldFlat = useRef<HTMLDivElement>(null); // things lying on the table plane (the shadow)
   const scene2d = useRef<HTMLDivElement>(null); // the room: pans and zooms with the world, never tilts
   const tableTop = useRef<HTMLDivElement>(null); // the sharp top-down table, fading in as the camera goes overhead
   const bookCanvas = useRef<HTMLCanvasElement>(null);
@@ -77,12 +75,8 @@ export const BookCanvas = forwardRef<BookCanvasHandle, {
     const { x, y, s } = t.current;
     if (import.meta.env.DEV) (window as unknown as { __view: View }).__view = t.current; // for the test scripts
     const a = tiltAmount(s);
-    scene2d.current!.style.transform = worldFlat.current!.style.transform = `translate(${x}px, ${y}px) scale(${s})`;
+    scene2d.current!.style.transform = `translate(${x}px, ${y}px) scale(${s})`;
     tableTop.current!.style.opacity = `${Math.min(1, (1 - a) * 1.6)}`; // in a little ahead of the book flattening, so the photo's far table edge is gone before the book reaches it
-    // The shadow lies on the table, so it tips with it, about the book's own centre – the same origin the book
-    // itself turns about, which is what keeps the book in its place on the photo at every zoom level.
-    tilt.current!.style.transformOrigin = `${x + (BOOK_W / 2) * s}px ${y + (BOOK_H / 2) * s}px`;
-    tilt.current!.style.transform = `perspective(${PERSPECTIVE}px) rotateX(${tiltFor(s)}deg)`;
     // The book is redrawn in full every frame: the mesh is a few thousand vertices and the page texture only
     // changes when render() runs, so the tilt and the curve stay exact all the way through a pinch.
     const v = view.current!, dpr = window.devicePixelRatio || 1;
@@ -273,14 +267,7 @@ export const BookCanvas = forwardRef<BookCanvasHandle, {
                style={{ left: TABLE_PAD, top: TABLE_PAD, width: TABLE.w, height: TABLE.h }} />
         </div>
       </div>
-      {/* the book's shadow, lying on the table: long and soft towards the viewer (the light is the window behind), tight underneath */}
-      <div ref={tilt} className="tilt">
-        <div ref={worldFlat} className="worldflat">
-          <div className="shadow" style={{ left: BOOK_W / 2 + 10 - BOOK_W * 0.66, top: BOOK_H / 2 + 230 - BOOK_H * 0.72, width: BOOK_W * 1.32, height: BOOK_H * 1.44, opacity: 0.55 }} />
-          <div className="shadow" style={{ left: BOOK_W / 2 - BOOK_W * 0.56, top: BOOK_H / 2 + 60 - BOOK_H * 0.6, width: BOOK_W * 1.12, height: BOOK_H * 1.2, opacity: 0.7 }} />
-        </div>
-      </div>
-      {/* the book itself, drawn over that shadow */}
+      {/* the book, and its shadow on the table, drawn as one */}
       <canvas ref={glCanvas} className="book-gl" />
       {/* the flat spread, drawn by draw.ts and handed to the book as its page texture; never shown on its own */}
       <canvas ref={bookCanvas} className="book-source" />
