@@ -186,7 +186,21 @@ set af ham endnu. Første skridt: hans dom på telefonen.
   Papir i skygge ≈ (181,147,115), i sol ≈ (239,221,178). `tint()` i draw.ts er slettet – al tone ligger i shaderen.
 - Papirstakkens kant: mod vinduet lys (1,1), mod betragteren i skygge (0,9).
 
+### Ydelse (17/9 sent) – SÅDAN MÅLES DET
+- Playwright-Chromium (headless) og WebKit har INTET grafikkort: deres tal for canvas-tegning/upload lyver. Mål i rigtig
+  Chrome via chrome-devtools-MCP'en (emulate 390x844x3, rullehjul på .viewport, TIMING-log i render) – samme
+  Apple-GPU-arkitektur som iPhonen. `tools/timing.mjs` er headless-udgaven (kun til relative sammenligninger).
+- Fundet: "upload"-tiden i texImage2D var i virkeligheden 2D-canvassets udsatte rasterisering af papir/omslag
+  (mønster + 5 gradienter pr. side = 50–120 ms pr. omtegning). Løst med `drawBackground` i draw.ts: alt dødt tegnes én
+  gang i en cache (CACHE_K 1,5) og blittes; gitter (multiply, så foldens skygge stadig virker) og blæk tegnes live.
+  Fuld omtegning zoomet ind: 123 → 6 ms. Cachen bygges to gange (før/efter teksturerne er hentet), ~100 ms hver.
+- `?maal` bag adressen viser tegnetider i hjørnet på telefonen – bed Lukas læse "værst"-tallet op.
+- Sort bog på iPhone (løst): lyskortet blev tomt, fordi telefonen tegnede intet af det store foto lige efter onload →
+  `decode()` først, tomt kort = lys fra + nyt forsøg. `?lys=0` slår lyset fra til fejlsøgning.
+
 ### Åbent
+- Lukas' dom på glatheden efter cache-omlægningen (1409a55) – IKKE set af ham endnu. Hvis det stadig hakker: bed om
+  `?maal`-tal; næste knapper er MARGIN (0,35 → 0,2 = 40 % færre pixels pr. omtegning) og LIVE_RATIO.
 - Lukas' dom på runde 2+3: er skyggestriben på papiret for mørk? Passer farverne? (Han sagde før runde 3: "passer
   ikke i farverne til resten".)
 - Ryggen: Lukas sagde ja til "lys/skygge i folden set fladt oppefra" – den gradient findes allerede (drawSpine +
