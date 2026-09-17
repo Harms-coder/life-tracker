@@ -246,6 +246,13 @@ Rækker = dage 1–31 (antal efter måneden). Kolonner = brugerens egne trackere
   BOW2 0,9, ARCH 22, STACK 46. Højderne i verdens-px: 7 – 47 – 53 – 48 – 41 – 47 – 53.
   VIGTIGT: `pageZ` findes BÅDE i shaderen og i JS (skørtet bruger den). Rettes kun den ene, passer stakken ikke
   til siden. BOW/BOW2/WAVE ligger som uniformen `u_bow`, så formen tunes ét sted.
+- ENDEN NED, ARKENE FINE (4e70379). Lukas: yderkanten svingede for højt op, og stakken lignede ti brædder.
+  Profilen har nu et DIP-led (9 px fra s = 0,84, smoothstep) og STACK 42. Højder: 7 – 41 – 51 – 48 – 41 – 39 –
+  39 – 40 – 40. DIP fader ud med buen ligesom resten, så siden stadig er præcis flad zoomet ind (tryk!).
+  Arkene: linjen var en sinus = brede bånd. Nu en smal mørk fure med bredt lyst mellemrum (cos opløftet i 7.).
+  FALDGRUBE, kostede en runde med moiré: linjeafstanden skal måles EFTER tiltens forkortning. Stakken står op fra
+  brættet, så en lodret afstand ses kun som cos(tilt) af sig selv – uden den faktor kom linjerne dobbelt så tæt
+  som beregnet. Og når de alligevel ikke kan opløses, fader `u_sheetAmp` dem ud til en jævn tone.
 - Kør: `node tools/fit3d.mjs screenshots/b3d.png "?bog3d"` (ét startbillede), `Q="?bog3d" node tools/steps.mjs
   screenshots` (seks zoom-trin), `Q="?bog3d" npm run bench|tapcheck`. Uden Q tester de den gamle bog.
 
