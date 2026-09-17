@@ -63,7 +63,7 @@ const SHADOW_MIN = 0.4;
  *  over the book's footprint (blurred, so the wood grain stays out of it, and normalised to its mean) is laid
  *  over the page. This is what makes the window frame's long shadows run on across the paper instead of
  *  stopping at the cover. Fades out with the tilt, like the top-down table it then lies on has no such stripes. */
-const LIGHT_STRENGTH = 1.0;
+const LIGHT_STRENGTH = new URLSearchParams(location.search).get("lys") === "0" ? 0 : 1.0; // ?lys=0: off, to tell it apart from other trouble
 /** The room's colour on the book. White things in the photo (the books on the left, the mug) are nowhere near
  *  white: the golden-hour light makes them warm grey-brown. The page canvas is drawn in plain paper colour and
  *  everything the book shows is multiplied by this - measured so the page in the sun and in the window frame's
@@ -164,6 +164,7 @@ uniform sampler2D u_img;
 uniform sampler2D u_light;  // the room's light over the book's footprint, see LIGHT_STRENGTH
 uniform vec4 u_lightAmt;    // x: how much of it to apply (0 = none), yzw: 1 / its mean, per channel
 uniform vec3 u_tone;        // the room's colour, see TONE
+uniform vec4 u_paper;       // a > 0: what a page shows where the texture does not reach (mid-pinch it holds a slice)
 uniform vec4 u_flat;       // when a > 0: ignore the texture and use this colour (the page stack)
 uniform float u_sheets;    // one sheet every this many world px, widened when zoomed out so the lines never alias
 uniform float u_sheetAmp;  // fades the lines out when they get too close to resolve, leaving an even tone
@@ -317,7 +318,7 @@ export function createBook3D(canvas: HTMLCanvasElement, persp: number): Book3D |
     persp: loc("u_persp"), res: loc("u_res"), tex: loc("u_tex"), flat: loc("u_flat"), img: loc("u_img"),
     book: loc("u_book"), spine: loc("u_spine"), fold: loc("u_foldDark"), sheets: loc("u_sheets"),
     bow: loc("u_bow"), dip: loc("u_dip"), amp: loc("u_sheetAmp"), shadow: loc("u_shadow"), shadowC: loc("u_shadowC"),
-    light: loc("u_light"), lightAmt: loc("u_lightAmt"), lightRect: loc("u_lightRect"), tone: loc("u_tone"),
+    light: loc("u_light"), lightAmt: loc("u_lightAmt"), lightRect: loc("u_lightRect"), tone: loc("u_tone"), paper: loc("u_paper"),
   };
   const aPos = gl.getAttribLocation(prog, "a_pos"), aMeta = gl.getAttribLocation(prog, "a_meta");
   /** One set of buffers per mesh, so a frame that changes nothing only binds them. Re-uploading both meshes
@@ -392,12 +393,18 @@ export function createBook3D(canvas: HTMLCanvasElement, persp: number): Book3D |
       const d = c.getImageData(0, 0, res, resY).data;
       const sum = [0, 0, 0];
       for (let i = 0; i < d.length; i += 4) { sum[0] += d[i]; sum[1] += d[i + 1]; sum[2] += d[i + 2]; }
-      lightK = sum.map((v) => (v ? (255 * d.length) / (4 * v) : 1)) as [number, number, number];
+      // raw bytes, not the canvas itself: the plainest upload there is. And the light is only switched on once
+      // the upload went through - a texture that failed to land samples as black, and that turned the whole
+      // book black on the phone as soon as it tipped
       gl.activeTexture(gl.TEXTURE1);
       gl.bindTexture(gl.TEXTURE_2D, lightTex);
       gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, 0);
-      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGB, gl.RGB, gl.UNSIGNED_BYTE, small);
+      gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, 0);
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, res, resY, 0, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array(d.buffer));
+      const ok = gl.getError() === gl.NO_ERROR;
       gl.activeTexture(gl.TEXTURE0);
+      lightK = ok ? (sum.map((v) => (v ? (255 * d.length) / (4 * v) : 1)) as [number, number, number]) : null;
+      if (!ok) console.error("lyskortet kunne ikke lægges ind");
     },
     draw({ w, h, view, origin, tilt, arch, flat }) {
       if (canvas.width !== w || canvas.height !== h) { canvas.width = w; canvas.height = h; }
@@ -439,12 +446,14 @@ export function createBook3D(canvas: HTMLCanvasElement, persp: number): Book3D |
         // so drawn later it would paint right over it. The board mesh is LIP wider than the book (its texture
         // ends there anyway), so it stays out of the shadow: painted dark it was a frame all round the flat book.
         gl.uniform4f(U.flat, 0, 0, 0, 0);
+        gl.uniform4f(U.paper, 0, 0, 0, 0);
         if (!shadow) { bind(slots.cover); gl.drawElements(gl.TRIANGLES, slots.cover.n, gl.UNSIGNED_SHORT, 0); }
         gl.uniform4f(U.flat, 0.13, 0.12, 0.11, 1);
         bind(slots.rim); gl.drawElements(gl.TRIANGLES, slots.rim.n, gl.UNSIGNED_SHORT, 0);
         gl.uniform4f(U.flat, 0.95, 0.92, 0.83, 1);
         bind(slots.edges); gl.drawElements(gl.TRIANGLES, slots.edges.n, gl.UNSIGNED_SHORT, 0);
         gl.uniform4f(U.flat, 0, 0, 0, 0);
+        gl.uniform4f(U.paper, 0.94, 0.91, 0.83, 1); // draw.ts' PAPER
         bind(slots.pages); gl.drawElements(gl.TRIANGLES, slots.pages.n, gl.UNSIGNED_SHORT, 0);
       };
       // the shadow first, under the book. The mesh overlaps itself once laid flat, so each pass is stencilled to
