@@ -200,7 +200,12 @@ først NÅR svaret kommer, så meshet aldrig viser en gammel tekstur i en ny rec
   frigiver `inflight`. BookCanvas holder rAF kørende, mens `pending()` er sand. `?maal` viser nu "frame X ms (N skiver)"
   = dyreste frame under uploaden – det er DET tal, der skal være lille (< 16). Chrome/Mac: 1 ms. OBS: i en
   baggrundsfane drosles rAF, så rundturen ser ud som 1000 ms – mål altid med fanen i forgrunden.
-- FØRSTE SKRIDT NÆSTE GANG: Lukas' dom på telefonen (hurtig panorering zoomet ind, pinch) + "frame"-tallet fra `?maal`.
+- LUKAS' MÅLING efter skiverne (23.39): "fuld frame 1 ms (7 skiver) · rundtur 150 ms · værst 2/216 ms · 1998×3295",
+  Safari går ikke ned. Hovedtråden er altså fri. Men bogen "forsvandt" stadig ved hurtig panorering: med fingeren
+  nede blev der ALDRIG tegnet om (kun i glidet og ved slip), så man kørte ud over det tegnede (skærm + 20 % margen),
+  og shaderen kasserede siden. Rettet: `renderIfOff()` kaldes også i onPointerMove (én ad gangen, køen tager resten),
+  og uden for teksturen viser en side nu blankt papir (u_paper) i stedet for at blive kasseret – kun omslaget kasseres.
+- FØRSTE SKRIDT NÆSTE GANG: Lukas' dom på telefonen (hurtig panorering zoomet ind: hel bog? glat?).
 
 ## Status 2026-09-17 kl. 23.00 – HER ER VI
 

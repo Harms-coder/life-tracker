@@ -168,6 +168,14 @@ export const BookCanvas = forwardRef<BookCanvasHandle, {
     if ((ratio > LIVE_RATIO || ratio < 1 / LIVE_RATIO || tipped) && performance.now() - lastRender.current > LIVE_GAP) render(LIVE_BUDGET);
   };
 
+  /** A long pan or fling runs off the drawn bitmap: draw again, from where we are now. While one is out this
+   *  only queues the next, so a fast pan gets a fresh drawing about as often as the worker can make one. */
+  const renderIfOff = () => {
+    const c = committed.current, p = plane.current;
+    const offX = t.current.x - c.x, offY = t.current.y - c.y;
+    if (tiltFor(t.current.s) === 0 && (Math.abs(offX) > -p.x0 - 20 || Math.abs(offY) > -p.y0 - 20)) render();
+  };
+
   useImperativeHandle(ref, () => ({ redraw: () => { if (t.current.s) render(); } }), []);
 
   useLayoutEffect(() => {
@@ -231,10 +239,7 @@ export const BookCanvas = forwardRef<BookCanvasHandle, {
       const decay = Math.pow(0.994, dt);
       vx *= decay; vy *= decay;
       apply();
-      // a long fling runs off the drawn bitmap: draw again in the middle of it
-      const c = committed.current, p = plane.current;
-      const offX = t.current.x - c.x, offY = t.current.y - c.y;
-      if (tiltFor(t.current.s) === 0 && (Math.abs(offX) > -p.x0 - 20 || Math.abs(offY) > -p.y0 - 20)) render();
+      renderIfOff();
       if (Math.hypot(vx, vy) > 0.02) glide.current = requestAnimationFrame(step);
       else { glide.current = 0; commit(); }
     };
@@ -278,6 +283,7 @@ export const BookCanvas = forwardRef<BookCanvasHandle, {
       t.current.x += dx;
       t.current.y += dy;
       apply();
+      renderIfOff();
     }
   };
 

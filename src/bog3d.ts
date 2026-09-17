@@ -185,8 +185,13 @@ void main() {
   if (u_shadowC.a > 0.0) { gl_FragColor = u_shadowC; return; }
   vec3 light = u_tone;
   if (u_lightAmt.x > 0.0) light *= mix(vec3(1.0), texture2D(u_light, v_luv).rgb * u_lightAmt.yzw, u_lightAmt.x);
-  // zoomed in, the texture holds only the visible slice of the spread; the rest of the mesh is off screen anyway
-  if (u_flat.a <= 0.0 && (v_uv.x < 0.0 || v_uv.x > 1.0 || v_uv.y < 0.0 || v_uv.y > 1.0)) discard;
+  // zoomed in, the texture holds only the visible slice of the spread. A fast pan runs off it before the next
+  // drawing is back (~150 ms on the phone): a page shows plain paper there, not the table underneath.
+  if (u_flat.a <= 0.0 && (v_uv.x < 0.0 || v_uv.x > 1.0 || v_uv.y < 0.0 || v_uv.y > 1.0)) {
+    if (u_paper.a <= 0.0) discard;
+    gl_FragColor = vec4(u_paper.rgb * v_shade * light, 1.0);
+    return;
+  }
   if (u_flat.a > 0.0) {
     // the page stack seen edge on: sheet after sheet lying on each other, never the page's own grid
     float ph = fract(v_layer / u_sheets);
