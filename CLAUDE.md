@@ -166,23 +166,36 @@ Rækker = dage 1–31 (antal efter måneden). Kolonner = brugerens egne trackere
 - Test-scripts ligger i sessionens scratchpad (`pw/shots.mjs` skærmbilleder, `pw/bench.mjs` frame-tider i WebKit,
   `pw/tapcheck.mjs` tryk). Dev-server: `npm run dev`. I dev sætter BookCanvas `window.__view` (x, y, s) til scripts.
 
-## Status 2026-09-17 kl. 17.35 (sådan fortsætter man)
-- DYBDELAGENE ER SLETTET (commit ea5402d). Lukas' dom på gårsdagens lag-udgave: "ser ikke godt ud – hakker, planten er gennemsigtig,
-  bunden forkert". Vi er tilbage ved runde 5-koden (ét fladt foto, bogen tegnet ovenpå) – den arkitektur er den rigtige.
-  DYBDELAG-afsnittet under Beslutninger er historik; byg det IKKE igen.
-- NYT AFTENFOTO (commit 2cd021d): lavet herfra med Higgsfield-connectoren (gpt_image_2_5, gammelt foto som image_references,
-  "same scene, empty table, soft golden-hour light") + upscale_image 4k → 2294×4096 → `baggrund-kilder/aften.png` →
-  `npm run baggrund` → public/baggrund/aften.jpg. Lukas' reference: hans billede af bogen på bordet i gyldent (ikke orange) lys.
-  De tre fravalgte varianter ligger i screenshots/bord-v2..4.jpg. Gamle orange filer: baggrund-kilder/gamle/ (ikke i git).
-  Aften-VIDEOEN er taget af (orange lys passer ikke); ny video kan laves fra det nye foto med generate_video (image-to-video),
-  hvis Lukas vil have skyerne til at drive igen.
-- Bogen på det nye bord: BG = {x:-372, y:-1549, w:2200, h:3911} (bogens centrum 0,53 af fotoets højde, bogen = 66 % af fotoets
-  bredde ≈ 80 % af skærmen), TABLE 0,36–0,76. Tunet efter Lukas' referencebillede. `node tools/fit.mjs screenshots/fit.png` =
-  ét Chrome-billede af startvisningen (hurtigste runde). zoomcheck OK.
-- IKKE SET AF LUKAS ENDNU. Første skridt: bed om hans dom på telefonen (start, pinch, panorering) + skærmbillede.
-- Higgsfield: CLI installeret og logget ind (`higgsfield`), 8 skills i ~/.claude/skills, connectoren virker herfra
-  (media_import_url med den live jpg-adresse er vejen til at give et eksisterende foto som reference – widget-upload virker
-  ikke i Claude Code).
+## Status 2026-09-17 kl. 18.10 (sådan fortsætter man)
+- DYBDELAGENE ER SLETTET (commit ea5402d). Lukas' dom: "ser ikke godt ud – hakker, planten er gennemsigtig". Vi er tilbage
+  ved runde 5-arkitekturen: ét fladt foto i scene2d + bogen som ét canvas i vippet. DYBDELAG-afsnittet under Beslutninger
+  er historik; byg det IKKE igen.
+- NYT AFTENFOTO (2cd021d): lavet herfra med Higgsfield-connectoren. Opskrift: `media_import_url` på den LIVE jpg-adresse
+  (widget-upload virker ikke i Claude Code) -> `generate_image_batch` med gpt_image_2_5, rolle `image_references`
+  ("same scene, empty table, soft golden-hour light") -> `upscale_image` 4k -> baggrund-kilder/aften.png ->
+  `npm run baggrund`. Fravalgte varianter: screenshots/bord-v2..4.jpg. Aften-VIDEOEN er taget af (orange lys).
+- BOGENS STØRRELSE/PLACERING (d8c9f22): BG = {x:-570, y:-1922, w:2596, h:4615}; bogen fylder 68 % af skærmbredden.
+  Lukas ved 81 %: "for stor i forhold til planten og kaffen". Knappen er BG.w/BG.h (større foto = mindre bog);
+  BG.x/BG.y holder bogens centrum på 0,50/0,53 af fotoet.
+- BORD SET LIGE OPPEFRA (d8c9f22) – løser to klager på én gang:
+  Lukas: "når man zoomer ind bliver bogen løftet op og kommer op over toppen af bordet" (fotoets bord er set skråt og har
+  en bagkant; når vippet forsvinder folder bogen sig ud og vokser op over den, så vinduet dukkede op bag bogen) og
+  "bordpladen er sløret zoomet helt ind".
+  Løsning: `public/baggrund/bord.webp` = SAMME bord genereret top-down i Higgsfield (reference = aftenfotoet), opskaleret
+  til 4k, farvekorrigeret mod fotoets bord og med blød alpha-kant hele vejen rundt (`tools/bordplade.py`, kør den efter
+  en ny plade i baggrund-kilder/bordplade.png). Ligger som <img> i `.table-top` i scene2d – FØR vippet, altså den
+  elementtype der er sikker på iPhone. opacity = min(1, (1-tiltAmount)*1.6), sat i paint(). Bag billedet en flade i
+  bordets farve (#b47f51, TABLE_PAD = 700), så en høj skærm aldrig ser forbi træet.
+  TABLE (= billedets rektangel, også panoreringsgrænsen zoomet ind) = {x:-222, y:-742, w:1900, h:2533}, 3:4, centreret
+  om bogen og høj nok til at dække skærmen når bogen ligger fladt.
+  GRÆNSE, sagt ærligt til Lukas: 4k over 1900 verdens-px = ca. 1,6 px pr. verdens-px. Fuld skarphed ved max zoom (7x)
+  ville kræve ~13000 px. Det er ~3x skarpere end før, ikke perfekt. Knap hvis det ikke rækker: MAX_OVER_FIT (nu 7).
+  Billedet dekodes ved mount (ref med .decode()); uden det kostede første pinch ~200 ms.
+- Målt efter ændringen: bench pinch 4/132 frames >33 ms (før 2), max 68 ms. tapcheck OK. Prisen for det ekstra store lag.
+- IKKE SET AF LUKAS ENDNU (18.10). Første skridt: hans dom på telefonen + skærmbillede.
+- `node tools/fit.mjs screenshots/fit.png` = ét Chrome-billede af startvisningen. `node tools/steps.mjs screenshots`
+  = seks zoom-trin (bruges til at bedømme overgangen mellem foto og bordplade).
+- Higgsfield: CLI installeret og logget ind, 8 skills i ~/.claude/skills, connectoren virker herfra.
 
 ## Status 2026-09-16 kl. 23.00 (FORÆLDET – dybdelagene er slettet 17/9)
 - Dybdelag + fælles bordplan (TASK_scene_depth.md trin 1–3) VIRKER på Lukas' iPhone (bekræftet 22.50 med build 22.47).
