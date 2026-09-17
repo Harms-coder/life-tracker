@@ -22,12 +22,14 @@ import { BOOK_H, BOOK_W, COVER, PAGE_H, PAGE_W } from "./layout";
 
 /** Thickness of the cover board and of the page stack under one open half, in world px (1 cell = 20 px = 5 mm). */
 export const COVER_T = 7;
-export const STACK = 54;
-/** How high the page arches above the straight line from fold to fore-edge, and where that arch peaks.
- *  Tuned against referencer/bog-maal.jpg: a low arch that peaks early and then barely falls, so the page is
- *  nearly level from the middle out and its outer edge sits high, rather than a tall hump sloping back down. */
-export const ARCH = 24;
-const BOW = 0.62; // s^BOW inside the sine: < 1 moves the top of the arch towards the spine
+export const STACK = 46;
+/** The page does not rise in one hump. In referencer/bog-maal.jpg it waves: up out of the fold, back down
+ *  through the middle, on down, and lifting again at the fore-edge. That second movement is WAVE, a full period
+ *  laid over the single arch; without it the page reads as one bland slope. */
+export const ARCH = 22;
+const WAVE = 0.55;
+const BOW = 0.7;   // s^BOW inside the sines: < 1 moves the movement towards the spine
+const BOW2 = 0.9;
 /** The cover sticks out past the pages by this much. It has to clear OVERHANG, or the page stack rolls out over
  *  the board and the thin dark rim around the book disappears. */
 const LIP = 30;
@@ -43,8 +45,10 @@ const FOLD_DARK = 0.3;
 const SHEET_MIN = 1.8;
 
 /** Height of the page surface above the table, at distance `s` (0 at the spine, 1 at the fore-edge). */
-export const pageZ = (s: number, arch: number) =>
-  COVER_T + STACK * s + arch * Math.sin(Math.PI * Math.pow(Math.max(0, Math.min(1, s)), BOW));
+export const pageZ = (s: number, arch: number) => {
+  const t = Math.max(0.0005, Math.min(1, s));
+  return COVER_T + STACK * t + arch * (Math.sin(Math.PI * Math.pow(t, BOW)) + WAVE * Math.sin(2 * Math.PI * Math.pow(t, BOW2)));
+};
 
 const VERT = `
 attribute vec3 a_pos;      // x, y in spread coordinates; z = s, the distance from the spine (0..1)
@@ -61,6 +65,7 @@ uniform float u_foldDark;  // how deep the shadow in the fold goes
 uniform vec4 u_tex;        // the part of the spread the texture covers: x, y, w, h in spread coordinates
 uniform vec4 u_book;       // coverT, stack, arch, pageW: the shape of the open page
 uniform float u_spine;     // x of the fold, in spread coordinates
+uniform vec3 u_bow;        // BOW, BOW2, WAVE: the shape of the page's wave
 varying vec2 v_uv;
 varying float v_shade;
 varying float v_layer;
@@ -71,7 +76,9 @@ varying float v_layer;
  *  by the perspective, and a tap lands in the neighbouring column. */
 float pageZ(float s) {
   s = clamp(s, 0.0, 1.0);
-  return u_book.x + u_book.y * s + u_book.z * sin(3.14159265 * pow(max(s, 0.0005), 0.7));
+  float a = pow(max(s, 0.0005), u_bow.x);
+  float b = pow(max(s, 0.0005), u_bow.y);
+  return u_book.x + u_book.y * s + u_book.z * (sin(3.14159265 * a) + u_bow.z * sin(6.2831853 * b));
 }
 
 void main() {
@@ -235,6 +242,7 @@ export function createBook3D(canvas: HTMLCanvasElement, persp: number): Book3D |
     view: loc("u_view"), scale: loc("u_scale"), origin: loc("u_origin"), trig: loc("u_trig"),
     persp: loc("u_persp"), res: loc("u_res"), tex: loc("u_tex"), flat: loc("u_flat"), img: loc("u_img"),
     book: loc("u_book"), spine: loc("u_spine"), fold: loc("u_foldDark"), sheets: loc("u_sheets"),
+    bow: loc("u_bow"),
   };
   const aPos = gl.getAttribLocation(prog, "a_pos"), aMeta = gl.getAttribLocation(prog, "a_meta");
   /** One set of buffers per mesh, so a frame that changes nothing only binds them. Re-uploading both meshes
@@ -297,6 +305,7 @@ export function createBook3D(canvas: HTMLCanvasElement, persp: number): Book3D |
       // the far side of the page outwards by more than a column.
       gl.uniform4f(U.book, COVER_T * flat, STACK * flat, arch, PAGE_W);
       gl.uniform1f(U.spine, BOOK_W / 2);
+      gl.uniform3f(U.bow, BOW, BOW2, WAVE);
       gl.uniform1f(U.fold, FOLD_DARK);
       // a sheet must stay at least ~3 screen px apart, or the lines turn into a moire pattern
       gl.uniform1f(U.sheets, Math.max(SHEET_MIN, 3 / Math.max(view.s, 0.001)));
