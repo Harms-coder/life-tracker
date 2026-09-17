@@ -1,5 +1,5 @@
 import { forwardRef, useImperativeHandle, useLayoutEffect, useRef, type ReactNode } from "react";
-import { BG, BOOK_H, BOOK_T, BOOK_W, TABLE, TABLE_PAD } from "./layout";
+import { BG, BOOK_H, BOOK_T, BOOK_W, TABLE, TABLE_PAD, USE_3D } from "./layout";
 import { ARCH, createBook3D, type Book3D } from "./bog3d";
 import type { Plane, View } from "./draw";
 
@@ -13,8 +13,6 @@ const PIXEL_BUDGET = 9e6; // max canvas pixels (iOS is strict about big canvases
 const LIVE_BUDGET = 2e6; // budget for the quick redraws in the middle of a pinch
 const LIVE_RATIO = 1.15; // redraw mid-pinch once the bitmap is stretched this much
 const LIVE_GAP = 120; // ms between such redraws
-/** ?bog3d: the book as real curved geometry in WebGL instead of the flat CSS-tilted plate. */
-const USE_3D = new URLSearchParams(location.search).has("bog3d");
 
 export type BookCanvasHandle = { redraw: () => void };
 
@@ -89,6 +87,7 @@ export const BookCanvas = forwardRef<BookCanvasHandle, {
       // the book is redrawn in full every frame: the mesh is a few thousand vertices and the page texture only
       // changes when render() runs, so the tilt and the curve stay exact all the way through a pinch.
       const v = view.current!, dpr = window.devicePixelRatio || 1;
+      if (!v.clientWidth || !v.clientHeight) return; // mid-layout: drawing into a zero-sized canvas blanked the book
       book3d.current?.draw({
         w: Math.round(v.clientWidth * dpr), h: Math.round(v.clientHeight * dpr),
         view: { x: x * dpr, y: y * dpr, s: s * dpr },
@@ -139,8 +138,13 @@ export const BookCanvas = forwardRef<BookCanvasHandle, {
     const bp = { x0: bx0, y0: by0, w: Math.max(1, bx1 - bx0), h: Math.max(1, by1 - by0), k: p.k };
     fitCanvas(bookCanvas.current!, bp, live);
     drawRef.current(bookCanvas.current!.getContext("2d")!, committed.current, bp);
-    if (USE_3D) book3d.current?.setTexture(bookCanvas.current!,
-      { x: (bp.x0 - x) / s, y: (bp.y0 - y) / s, w: bp.w / s, h: bp.h / s });
+    // The texture is the WHOLE canvas buffer, which mid-pinch is deliberately larger than the part just drawn
+    // (fitCanvas reuses it rather than reallocating). Telling the mesh it only covers bp squeezed the spread into
+    // a fraction of its size for a frame - the book "went small" while pinching.
+    if (USE_3D) {
+      const cv = bookCanvas.current!;
+      book3d.current?.setTexture(cv, { x: (bp.x0 - x) / s, y: (bp.y0 - y) / s, w: cv.width / bp.k / s, h: cv.height / bp.k / s });
+    }
     lastRender.current = performance.now();
     paint();
   };
@@ -152,8 +156,11 @@ export const BookCanvas = forwardRef<BookCanvasHandle, {
     // in 3D the shader re-projects and re-curves every frame on its own; the texture is only about sharpness,
     // so it can be refreshed at a calmer pace. Flat, the bitmap IS the picture, so it keeps the old cadence.
     const gap = USE_3D ? 260 : LIVE_GAP, grow = USE_3D ? 1.5 : LIVE_RATIO;
-    const tipped = !USE_3D && (tiltFor(s) > 0) !== (tiltFor(cs) > 0);
-    if ((ratio > grow || ratio < 1 / grow || tipped) && performance.now() - lastRender.current > gap) render(LIVE_BUDGET);
+    // Zooming OUT in 3D the old texture is only ever too sharp, so it can stay; the one case that must be caught
+    // is going from flat to curved, where the texture holds a slice and the mesh needs the whole spread.
+    const tipped = USE_3D ? tiltFor(s) > 0 && tiltFor(cs) === 0 : (tiltFor(s) > 0) !== (tiltFor(cs) > 0);
+    const stale = USE_3D ? ratio > grow : ratio > grow || ratio < 1 / grow;
+    if ((stale || tipped) && performance.now() - lastRender.current > gap) render(LIVE_BUDGET);
   };
 
   useImperativeHandle(ref, () => ({ redraw: () => { if (t.current.s) render(); } }), []);

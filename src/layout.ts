@@ -1,3 +1,7 @@
+/** ?bog3d: the book as real curved geometry instead of the flat CSS-tilted plate. Read here so both the
+ *  drawing and the canvas component see the same answer. */
+export const USE_3D = new URLSearchParams(location.search).has("bog3d");
+
 /** Geometry of the spread in world pixels (1 grid square = 20 px). Shared by drawing and hit-testing. */
 export const CELL = 20, PAGE_W = 704, PAGE_H = 1000, COVER = 24;
 export const BOOK_W = PAGE_W * 2 + COVER * 2, BOOK_H = PAGE_H + COVER * 2;
@@ -5,7 +9,7 @@ export const LEFT_PAGE = { x: COVER, y: COVER }, RIGHT_PAGE = { x: COVER + PAGE_
 /** The background photo (9:16), in world units relative to the book's top-left corner. Its size sets how big
  *  the book is on the table, its offset where on the table it lies (the book tips over its own centre, so the centre
  *  stays put at every zoom; tuned by eye against the photo). */
-export const BG = { x: -570, y: -1922, w: 2596, h: 4615 };
+export const BG = { x: -648, y: -2069, w: 2752, h: 4892 };
 /** The sharp top-down table top (public/baggrund/bord.webp, 3:4): centred on the book and big enough to fill the screen once the book lies flat, in world units. It fades in
  *  as the camera goes overhead, so looking straight down you see the table from above – crisp, and with no far edge for
  *  the book to grow past as it unfolds. Its edges are faded in the file itself, so it blends into the photo. */

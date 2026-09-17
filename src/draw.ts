@@ -3,7 +3,7 @@ import { drawInBox, drawText, widthOfText } from "./glyf";
 import {
   CELL, PAGE_W, PAGE_H, COVER, BOOK_W, BOOK_H, LEFT_PAGE, RIGHT_PAGE, HEADER_Y, TABLE_LEFT, DAY_COL_W,
   TITLE_BOX_X, TITLE_BOX_Y, GOALS, goalPos, goalTextBox, widthOf, dotX, columnXs, bottomY, noteBoxes, NOTE_LABEL,
-  type Column, type NoteField, type Rect,
+  USE_3D, type Column, type NoteField, type Rect,
 } from "./layout";
 
 /**
@@ -190,10 +190,14 @@ function drawCover(ctx: Ctx, vis: Rect, assets: Assets) {
     for (let i = 1; i < n; i++) { if (horizontal) { ctx.moveTo(x, y + i * 2.5); ctx.lineTo(x + w, y + i * 2.5); } else { ctx.moveTo(x + i * 2.5, y); ctx.lineTo(x + i * 2.5, y + h); } }
     ctx.stroke();
   };
-  // a narrow band of page edges just outside the pages; the rest of COVER stays black board
-  edge(COVER - 8, COVER + 2, 8, PAGE_H + 2, false);
-  edge(BOOK_W - COVER, COVER + 2, 8, PAGE_H + 2, false);
-  edge(COVER, BOOK_H - COVER, BOOK_W - 2 * COVER, 8, true);
+  // A narrow band of page edges just outside the pages; the rest of COVER stays black board. In 3D the stack is
+  // real geometry, and this flat version would sit on top of it – Lukas saw the page grid and its lines running
+  // down over the book's thickness.
+  if (!USE_3D) {
+    edge(COVER - 8, COVER + 2, 8, PAGE_H + 2, false);
+    edge(BOOK_W - COVER, COVER + 2, 8, PAGE_H + 2, false);
+    edge(COVER, BOOK_H - COVER, BOOK_W - 2 * COVER, 8, true);
+  }
   // elastic loop
   ctx.fillStyle = "#101010"; roundRect(ctx, BOOK_W - 50, BOOK_H * 0.54, 44, 60, 3); ctx.fill();
 }
