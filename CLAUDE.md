@@ -192,7 +192,15 @@ først NÅR svaret kommer, så meshet aldrig viser en gammel tekstur i en ny rec
 - FEJL RETTET (dbf62dc): efter zoom ind og pinch UD dækkede teksturen kun det gamle udsnit; shaderen kasserer pages
   uden for u_tex, så bordet sås gennem venstresiden (Lukas' skærmbillede). Nu tegnes der også om midt i pinchen,
   når ratio < 1/LIVE_RATIO. Worker-fejl svares tilbage som `{error}` (ellers låste `inflight` al omtegning).
-- FØRSTE SKRIDT NÆSTE GANG: Lukas' dom på telefonen efter dbf62dc + upload-tallet med og uden `?pm=0`.
+- `?pm=0` HJALP IKKE (Lukas). Og: zoomet ind hakker det meget ved HURTIG panorering, ikke ved langsom – det er glidets
+  omtegninger (hver 47 ms upload) når fingeren løber ud over det tegnede.
+- UPLOAD I SKIVER (næste commit): workeren sender rå RGBA (`getImageData`, transferable) i stedet for ImageBitmap;
+  `setTexture` i bog3d.ts lægger dem op i skiver à `STRIP_BYTES` (4 MB, `?strip=MB`) – én skive pr. `draw()` – i en
+  BAGTEKSTUR (front/back, +25 MB) og bytter først, når alt er oppe; `done`-callback flytter committed/plane og
+  frigiver `inflight`. BookCanvas holder rAF kørende, mens `pending()` er sand. `?maal` viser nu "frame X ms (N skiver)"
+  = dyreste frame under uploaden – det er DET tal, der skal være lille (< 16). Chrome/Mac: 1 ms. OBS: i en
+  baggrundsfane drosles rAF, så rundturen ser ud som 1000 ms – mål altid med fanen i forgrunden.
+- FØRSTE SKRIDT NÆSTE GANG: Lukas' dom på telefonen (hurtig panorering zoomet ind, pinch) + "frame"-tallet fra `?maal`.
 
 ## Status 2026-09-17 kl. 23.00 – HER ER VI
 

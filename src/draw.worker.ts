@@ -4,12 +4,12 @@ import leatherUrl from "./textures/leather.png";
 
 /**
  * The flat spread is drawn OFF the main thread. BookCanvas sends what to draw and where; this worker draws it
- * into its own OffscreenCanvas and hands the pixels back as an ImageBitmap, which goes straight into the WebGL
- * texture. The main thread is left with the gestures and the (cheap) 3D pass, so a redraw at the end of a pinch
+ * into its own OffscreenCanvas and hands the raw pixels back (an ImageBitmap cost the same 47 ms to upload on
+ * the iPhone; raw bytes can go up in slices, see bog3d.ts). The main thread is left with the gestures and the (cheap) 3D pass, so a redraw at the end of a pinch
  * no longer freezes the finger tracking (93 ms worst on the phone before this).
  */
 export type RenderRequest = { id: number; view: View; plane: Plane; live: boolean; scene: Scene; now: number };
-export type RenderReply = { id: number; bitmap: ImageBitmap; k: number } | { id: number; error: string };
+export type RenderReply = { id: number; pixels: ArrayBuffer; w: number; h: number; k: number } | { id: number; error: string };
 
 const canvas = new OffscreenCanvas(1, 1);
 const ctx = canvas.getContext("2d")!;
@@ -38,7 +38,7 @@ onmessage = async (e: MessageEvent<RenderRequest>) => {
     if (canvas.width < pw || canvas.height < ph) { canvas.width = Math.max(canvas.width, pw); canvas.height = Math.max(canvas.height, ph); }
   }
   drawScene(ctx, view, p, scene, assets, now);
-  const bitmap = canvas.transferToImageBitmap();
-  port.postMessage({ id, bitmap, k: p.k }, [bitmap]);
+  const { data } = ctx.getImageData(0, 0, canvas.width, canvas.height);
+  port.postMessage({ id, pixels: data.buffer, w: canvas.width, h: canvas.height, k: p.k }, [data.buffer]);
   } catch (err) { port.postMessage({ id, error: String(err) }, []); } // the main thread must hear back either way, or it waits for ever
 };

@@ -55,6 +55,7 @@ export const BookCanvas = forwardRef<BookCanvasHandle, {
   const lastRender = useRef(0);
   const meter = useRef<HTMLDivElement>(null); // ?maal: redraw times in the corner, for reading off the phone
   const worst = useRef({ main: 0, trip: 0 });
+  const uploadFrame = useRef({ max: 0, n: 0 }); // ?maal: the slowest frame while a texture went up, and how many it took
 
   /** 0 (looking straight down) .. 1 (fully tipped back) */
   const tiltAmount = (s: number) => { const out = Math.min(1, Math.max(0, (fitScale.current * (1 + TILT_RANGE) - s) / (fitScale.current * TILT_RANGE))); return out * out; };
@@ -84,7 +85,9 @@ export const BookCanvas = forwardRef<BookCanvasHandle, {
     // The book is redrawn in full every frame: the mesh is a few thousand vertices and the page texture only
     // changes when render() runs, so the tilt and the curve stay exact all the way through a pinch.
     const v = view.current!, dpr = window.devicePixelRatio || 1;
-    if (!v.clientWidth || !v.clientHeight) return; // mid-layout: drawing into a zero-sized canvas blanked the book
+    const uploading = !!book3d.current?.pending();
+    if (!v.clientWidth || !v.clientHeight) { if (uploading) frame.current = requestAnimationFrame(paint); return; } // mid-layout: drawing into a zero-sized canvas blanked the book
+    const t0 = performance.now();
     book3d.current?.draw({
       w: Math.round(v.clientWidth * dpr), h: Math.round(v.clientHeight * dpr),
       view: { x: x * dpr, y: y * dpr, s: s * dpr },
@@ -96,6 +99,10 @@ export const BookCanvas = forwardRef<BookCanvasHandle, {
       // gone before the unfolding book reaches it
       fade: Math.min(1, (1 - a) * 1.6),
     });
+    if (uploading) {
+      uploadFrame.current = { max: Math.max(uploadFrame.current.max, performance.now() - t0), n: uploadFrame.current.n + 1 };
+      if (book3d.current?.pending()) frame.current = requestAnimationFrame(paint); // the next slice
+    }
   };
   const apply = () => { clamp(); if (!frame.current) frame.current = requestAnimationFrame(paint); };
 
@@ -122,30 +129,30 @@ export const BookCanvas = forwardRef<BookCanvasHandle, {
     lastRender.current = performance.now();
     worker.current.postMessage(req);
   };
-  /** Whatever happened to the job that was out, the next one may go. */
+  /** Whatever happened to the job that was out (drawn, uploaded and shown, or failed), the next one may go. */
   const next = () => { inflight.current = null; if (queued.current !== null) { const b = queued.current; queued.current = null; render(b); } };
   const onReply = (e: MessageEvent<RenderReply>) => {
     const job = inflight.current;
     if ("error" in e.data) { console.error("draw.worker:", e.data.error); next(); return; }
-    const { bitmap, k } = e.data;
-    if (!job || !book3d.current) { bitmap.close(); next(); return; }
-    const t0 = performance.now();
+    const { pixels, w, h, k } = e.data;
+    if (!job || !book3d.current) { next(); return; }
     const { x, y, s } = job.req.view, bp = job.req.plane;
-    committed.current = job.req.view;
-    plane.current = job.plane;
     // The bitmap is the WHOLE worker canvas, which mid-pinch is deliberately larger than the part just drawn (it
     // is kept rather than reallocated). Telling the mesh it only covers bp squeezed the spread into a fraction
     // of its size for a frame - the book "went small" while pinching.
-    book3d.current.setTexture(bitmap, { x: (bp.x0 - x) / s, y: (bp.y0 - y) / s, w: bitmap.width / k / s, h: bitmap.height / k / s });
-    const t1 = performance.now();
-    paint();
-    if (meter.current) {
-      const main = performance.now() - t0, trip = performance.now() - job.at;
-      if (performance.now() > 3000) worst.current = { main: Math.max(worst.current.main, main), trip: Math.max(worst.current.trip, trip) }; // the one-off background build at start-up is not what we are after
-      meter.current.textContent = `${job.req.live ? "live" : "fuld"} tråd ${Math.round(main)} ms (upload ${Math.round(t1 - t0)} + gl ${Math.round(performance.now() - t1)}) · rundtur ${Math.round(trip)} ms · værst ${Math.round(worst.current.main)}/${Math.round(worst.current.trip)} ms · ${bitmap.width}×${bitmap.height}`;
-    }
-    bitmap.close();
-    next();
+    uploadFrame.current = { max: 0, n: 0 };
+    book3d.current.setTexture(new Uint8Array(pixels), w, h, { x: (bp.x0 - x) / s, y: (bp.y0 - y) / s, w: w / k / s, h: h / k / s }, () => {
+      // the new texture is on screen from this frame: only now do the view it was drawn for and its plane count
+      committed.current = job.req.view;
+      plane.current = job.plane;
+      if (meter.current) {
+        const { max, n } = uploadFrame.current, trip = performance.now() - job.at; // n counts the frames before this one
+        if (performance.now() > 3000) worst.current = { main: Math.max(worst.current.main, max), trip: Math.max(worst.current.trip, trip) }; // the one-off background build at start-up is not what we are after
+        meter.current.textContent = `${job.req.live ? "live" : "fuld"} frame ${Math.round(max)} ms (${n + 1} skiver) · rundtur ${Math.round(trip)} ms · værst ${Math.round(worst.current.main)}/${Math.round(worst.current.trip)} ms · ${w}×${h}`;
+      }
+      next();
+    });
+    if (!frame.current) frame.current = requestAnimationFrame(paint); // the first slice goes up with the next frame
   };
   const commit = () => { if (!pointers.current.size && !glide.current) render(); };
   const commitSoon = () => { clearTimeout(commitTimer.current); commitTimer.current = window.setTimeout(commit, 100); };

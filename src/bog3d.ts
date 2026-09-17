@@ -313,8 +313,12 @@ function buildEdges(): Mesh {
 }
 
 export type Book3D = {
-  /** Upload the flat spread (drawn in draw.worker.ts) as the page texture. `rect` is the part of the spread it covers. */
-  setTexture(src: ImageBitmap, rect: { x: number; y: number; w: number; h: number }): void;
+  /** Queue the flat spread (raw RGBA from draw.worker.ts) as the next page texture; `rect` is the part of the spread
+   *  it covers. It goes up in slices, one per draw(), into a second texture; when the last slice is in, the two
+   *  swap and `done` runs. Until then the old texture stays, whole. */
+  setTexture(pixels: Uint8Array, w: number, h: number, rect: { x: number; y: number; w: number; h: number }, done: () => void): void;
+  /** True while a texture is on its way up: keep drawing frames, each one carries a slice. */
+  pending(): boolean;
   /** The room photo and where it lies in spread coordinates: the light over the book is taken from it.
    *  False when nothing usable came of it (the light then stays off; try again later). */
   setLight(img: HTMLImageElement, bg: { x: number; y: number; w: number; h: number }): boolean;
@@ -325,7 +329,9 @@ export type Book3D = {
   dispose(): void;
 };
 
-const PREMULTIPLY = new URLSearchParams(location.search).get("pm") !== "0";
+/** The page texture goes up in slices of at most this many bytes per frame (`?strip=MB`). One upload of the whole
+ *  25 MB bitmap cost 47 ms on the iPhone - the one hitch left once the drawing had moved off the main thread. */
+const STRIP_BYTES = Number(new URLSearchParams(location.search).get("strip") ?? 4) * 1e6;
 
 export function createBook3D(canvas: HTMLCanvasElement, persp: number): Book3D | null {
   // ?aa=0: no multisampling (a 3 MP buffer at 4 samples is ~50 MB on the phone - a suspect when Safari gives up on the page)
@@ -355,10 +361,16 @@ export function createBook3D(canvas: HTMLCanvasElement, persp: number): Book3D |
    *  every frame cost ~45 ms on roughly every ninth frame of a pinch. */
   const slot = () => ({ pos: gl.createBuffer()!, meta: gl.createBuffer()!, idx: gl.createBuffer()!, n: 0 });
   const slots = { cover: slot(), rim: slot(), pages: slot(), edges: slot(), tableFill: slot(), tableImg: slot() };
-  const tex = gl.createTexture()!;
-  gl.bindTexture(gl.TEXTURE_2D, tex);
-  for (const p of [gl.TEXTURE_WRAP_S, gl.TEXTURE_WRAP_T]) gl.texParameteri(gl.TEXTURE_2D, p, gl.CLAMP_TO_EDGE);
-  for (const p of [gl.TEXTURE_MIN_FILTER, gl.TEXTURE_MAG_FILTER]) gl.texParameteri(gl.TEXTURE_2D, p, gl.LINEAR);
+  const pageTexture = () => {
+    const t = gl.createTexture()!;
+    gl.bindTexture(gl.TEXTURE_2D, t);
+    for (const p of [gl.TEXTURE_WRAP_S, gl.TEXTURE_WRAP_T]) gl.texParameteri(gl.TEXTURE_2D, p, gl.CLAMP_TO_EDGE);
+    for (const p of [gl.TEXTURE_MIN_FILTER, gl.TEXTURE_MAG_FILTER]) gl.texParameteri(gl.TEXTURE_2D, p, gl.LINEAR);
+    return { t, w: 0, h: 0 };
+  };
+  // front = what is drawn, back = what is being uploaded; they swap when the upload is complete
+  let front = pageTexture(), back = pageTexture();
+  let upload: { pixels: Uint8Array; w: number; h: number; rect: { x: number; y: number; w: number; h: number }; row: number; done: () => void } | null = null;
   gl.uniform1i(U.img, 0);
   const lightTex = gl.createTexture()!;
   gl.activeTexture(gl.TEXTURE1);
@@ -383,7 +395,6 @@ export function createBook3D(canvas: HTMLCanvasElement, persp: number): Book3D |
 
 
   let texRect = { x: 0, y: 0, w: BOOK_W, h: BOOK_H };
-  let texW = 0, texH = 0;
 
 
   const fill = (sl: typeof slots.pages, m: Mesh) => {
@@ -410,15 +421,8 @@ export function createBook3D(canvas: HTMLCanvasElement, persp: number): Book3D |
   fill(slots.tableImg, buildQuad(TABLE.x, TABLE.y, TABLE.w, TABLE.h));
 
   return {
-    setTexture(src, rect) {
-      texRect = rect;
-      gl.bindTexture(gl.TEXTURE_2D, tex);
-      gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, PREMULTIPLY ? 1 : 0); // ?pm=0: is the upload cheaper on the phone without the conversion?
-      // same size as last time: write into the texture that is there instead of making a new one (a fresh
-      // 20-30 MB texture on every zoom was part of what ran the iPhone out of memory)
-      if (texW === src.width && texH === src.height) gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, gl.RGBA, gl.UNSIGNED_BYTE, src);
-      else { gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, src); texW = src.width; texH = src.height; }
-    },
+    setTexture(pixels, w, h, rect, done) { upload = { pixels, w, h, rect, row: 0, done }; },
+    pending() { return !!upload; },
     setTable(img) {
       gl.activeTexture(gl.TEXTURE2);
       gl.bindTexture(gl.TEXTURE_2D, tableTex);
@@ -464,6 +468,19 @@ export function createBook3D(canvas: HTMLCanvasElement, persp: number): Book3D |
       return ok;
     },
     draw({ w, h, view, origin, tilt, arch, flat, fade }) {
+      if (upload) { // one slice of the next page texture, into the back texture
+        const u = upload;
+        gl.activeTexture(gl.TEXTURE0);
+        gl.bindTexture(gl.TEXTURE_2D, back.t);
+        gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, 0); // getImageData is straight RGBA; converting it would cost the time we are saving
+        // same size as last time: write into the texture that is there instead of making a new one (a fresh
+        // 20-30 MB texture on every zoom was part of what ran the iPhone out of memory)
+        if (u.row === 0 && (back.w !== u.w || back.h !== u.h)) { gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, u.w, u.h, 0, gl.RGBA, gl.UNSIGNED_BYTE, null); back.w = u.w; back.h = u.h; }
+        const rows = Math.min(u.h - u.row, Math.max(1, Math.floor(STRIP_BYTES / (u.w * 4))));
+        gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, u.row, u.w, rows, gl.RGBA, gl.UNSIGNED_BYTE, u.pixels.subarray(u.row * u.w * 4, (u.row + rows) * u.w * 4));
+        u.row += rows;
+        if (u.row >= u.h) { [front, back] = [back, front]; texRect = u.rect; upload = null; u.done(); }
+      }
       if (canvas.width !== w || canvas.height !== h) { canvas.width = w; canvas.height = h; }
       gl.viewport(0, 0, w, h);
       gl.clearColor(0, 0, 0, 0);
@@ -497,7 +514,7 @@ export function createBook3D(canvas: HTMLCanvasElement, persp: number): Book3D |
       // and if even that is too tight to resolve, fade the lines into an even tone rather than let them alias
       gl.uniform1f(U.amp, Math.max(0, Math.min(1, (sheet * view.s * fore - 1.5) / 1.6)));
       gl.activeTexture(gl.TEXTURE0);
-      gl.bindTexture(gl.TEXTURE_2D, tex);
+      gl.bindTexture(gl.TEXTURE_2D, front.t);
       const drawAll = (shadow: boolean) => {
         // board, then the page stack standing on it, then the pages on top: the board is wider than the stack,
         // so drawn later it would paint right over it. The board mesh is LIP wider than the book (its texture
@@ -542,7 +559,8 @@ export function createBook3D(canvas: HTMLCanvasElement, persp: number): Book3D |
     },
     dispose() {
       for (const sl of Object.values(slots)) for (const b of [sl.pos, sl.meta, sl.idx]) gl.deleteBuffer(b);
-      gl.deleteTexture(tex);
+      gl.deleteTexture(front.t);
+      gl.deleteTexture(back.t);
       gl.deleteTexture(lightTex);
       gl.deleteTexture(tableTex);
       gl.deleteProgram(prog);
