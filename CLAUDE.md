@@ -166,7 +166,40 @@ Rækker = dage 1–31 (antal efter måneden). Kolonner = brugerens egne trackere
 - Test-scripts ligger i sessionens scratchpad (`pw/shots.mjs` skærmbilleder, `pw/bench.mjs` frame-tider i WebKit,
   `pw/tapcheck.mjs` tryk). Dev-server: `npm run dev`. I dev sætter BookCanvas `window.__view` (x, y, s) til scripts.
 
-## Status 2026-09-17 kl. 18.10 (sådan fortsætter man)
+## Status 2026-09-17 kl. 19.40 (sådan fortsætter man)
+- BOGEN MED RIGTIG DYBDE ligger på `?bog3d` (commit ea2687e). Opgaven var `TASK_bog_3d.md`. IKKE SET AF LUKAS ENDNU.
+  FØRSTE SKRIDT: https://harms-coder.github.io/life-tracker/?bog3d på hans telefon. Spørg om tre ting: virker den
+  overhovedet (WebGL på hans iPhone), hakker den, og ligner den `referencer/bog-maal.jpg`.
+  Uden `?bog3d` er alt præcis som før – den gamle flade bog er urørt og skal blive det, til han har godkendt den nye.
+- VALG: WebGL skrevet direkte, IKKE three.js som opgaven foreslog. Vi bruger ét mesh og én tekstur (~200 linjer);
+  three.js ville lægge ~600 kB og en ny slags lag på en side hvor Safari er gået ned fem gange. Opgaven bad selv om
+  at vælge det med mindst risiko på telefonen. Hvis WebGL viser sig at crashe på hans iPhone, er plan B at tegne
+  buen stribe for stribe i 2D-canvas (samme teknik som `projectImage` brugte til bordpladen) – dårligere, men sikkert.
+- SÅDAN VIRKER DEN (`src/bog3d.ts`): siderne er to underopdelte flader med
+  z = COVER_T + STACK*s + ARCH*sin(pi*s^BOW), s = afstanden fra ryggen (0) til forkanten (1). Tallene der er tunet
+  efter referencen: COVER_T 7, STACK 40, ARCH 54, BOW 0,7 (mindre end 1 flytter buens top mod ryggen).
+  Sidestakken er et skørt fra hver sides kant ned til omslaget; omslaget er et tyndt bræt der ligger fladt og stikker
+  LIP=10 ud. Lyset er en funktion af hældningen (`lightAt`), så folden er mørk.
+  Kameraet gentager CSS' `perspective(700) rotateX(tilt)` om bogens 2D-centrum PIXEL FOR PIXEL – derfor ligger bogen
+  stadig præcis samme sted på bordfotoet, og BG/TABLE skulle ikke røres.
+  Buen skaleres med `tiltAmount`, samme tal som vippet: zoomet ind er siden helt flad, og den flade hit-test i
+  `layout.ts` er dermed uændret. Rør ikke den kobling – det er den, der holder tryk korrekt.
+- DOM (vigtigt for iPhone): WebGL-canvasset ligger i `.viewport` UDEN egen transform, EFTER `.tilt` (så det tegnes
+  over skyggen) og uden for CSS-3D-kæden. FALDGRUBE der kostede en runde: lå det FØR `.tilt`, blev bogen tegnet
+  under skyggens to mørke ellipser, og papiret så gråbrunt ud i stedet for cremet.
+- Teksturen er det samme flade opslag `draw.ts` altid har tegnet, uploadet ved hver `render()`. Fragment-shaderen
+  discarder uden for teksturens udsnit, så zoomet ind (hvor kun det synlige stykke tegnes) er resten bare væk.
+  Mesh'et uploades kun når buen ændrer sig, og buen kvantiseres til hele verdens-px – ellers kostede det ~45 ms
+  på hver niende frame. `renderLive` kører roligere i 3D (260 ms, 1,5x) fordi shaderen selv holder vip og bue
+  korrekte hver frame; teksturen handler kun om skarphed.
+- `tint()` i draw.ts er SVÆKKET (opgavens punkt 5): papiret var for mørkt mod referencen. Gælder BEGGE udgaver.
+- Målt: pinch-in 4/129 frames >33 ms (som før), pinch-out 5/131 (1 før). tapcheck OK i begge udgaver.
+- MANGLER mod `bog-maal.jpg` (opgavens trin 4–5, vent på Lukas' dom først): sidestakken forrest er tyndere end i
+  referencen og uden synlige enkeltlag, og folden kunne være dybere.
+- Kør: `node tools/fit3d.mjs screenshots/b3d.png "?bog3d"` (ét startbillede), `Q="?bog3d" node tools/steps.mjs
+  screenshots` (seks zoom-trin), `Q="?bog3d" npm run bench|tapcheck`. Uden Q tester de den gamle bog.
+
+## Status 2026-09-17 kl. 18.10 (ældre)
 - DYBDELAGENE ER SLETTET (commit ea5402d). Lukas' dom: "ser ikke godt ud – hakker, planten er gennemsigtig". Vi er tilbage
   ved runde 5-arkitekturen: ét fladt foto i scene2d + bogen som ét canvas i vippet. DYBDELAG-afsnittet under Beslutninger
   er historik; byg det IKKE igen.
