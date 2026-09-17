@@ -19,17 +19,17 @@ export type Scene = {
   /** an X being written right now: key + start time, drawn with a pen-stroke animation */
   writing: { key: string; start: number } | null;
 };
-export type Assets = { paper?: HTMLImageElement; leather?: HTMLImageElement };
+export type Assets = { paper?: ImageBitmap; leather?: ImageBitmap };
 /** world -> plane: plane = world * s + (x, y) */
 export type View = { x: number; y: number; s: number };
 /** the part of the plane the canvas covers, and its resolution (device px per plane px) */
 export type Plane = { x0: number; y0: number; w: number; h: number; k: number };
 
 const INK = "#1e2233", PAPER = "#efe9d4", GRID = "rgba(120,150,130,.42)";
-const FONT = "Caveat, 'Bradley Hand', 'Segoe Print', cursive";
 export const WEEKDAY = "SMTOTFL"; // indexed by Date.getDay()
 
-type Ctx = CanvasRenderingContext2D;
+/** Runs in draw.worker.ts, off the main thread: an OffscreenCanvas, no DOM, no fonts (all text is Lukas' glyphs). */
+type Ctx = OffscreenCanvasRenderingContext2D;
 const overlaps = (a: Rect, b: Rect) => a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
 
 /** Handwritten text with a small, stable wobble (seeded), so it looks the same every time. */
@@ -123,8 +123,7 @@ function noteText(ctx: Ctx, str: string, box: Rect, seed: string, o: { bullets?:
 
 function labelled(ctx: Ctx, label: string, x: number, y: number, seed: string) {
   text(ctx, label, x, y, { size: 19, weight: 500, seed });
-  ctx.font = `500 19px ${FONT}`;
-  const w = ctx.measureText(label).width;
+  const w = widthOfText(label, 19, seed); // same seed as the text above => the same glyph picks => the same width
   ctx.beginPath(); wobbly(ctx, x, y + 5, x + w, y + 5, seed + "u"); strokeInk(ctx, 1.4);
 }
 
@@ -171,29 +170,25 @@ function drawCover(ctx: Ctx, vis: Rect, assets: Assets) {
 /** Everything on the spread that never changes - cover, paper, its texture, the curvature and wave shading, the
  *  spine - drawn ONCE into a bitmap and copied in from there on every redraw. Drawn afresh at every zoom step it
  *  was the whole cost of a redraw (50-120 ms of pattern and gradient fills); one copy is a few ms. It is all
- *  soft, so CACHE_K = 1.25 px per world px is plenty even zoomed right in (and it is 10 MB the iPhone has to hold). The grid and the ink are drawn live:
- *  they have to stay crisp. */
+ *  soft, so CACHE_K = 1.25 px per world px is plenty even zoomed right in (and it is 10 MB the iPhone has to hold).
+ *  The grid and the ink are drawn live: they have to stay crisp. */
 const CACHE_K = 1.25;
-let cache: { canvas: HTMLCanvasElement; paper?: HTMLImageElement; leather?: HTMLImageElement } | null = null;
+let cache: OffscreenCanvas | null = null;
 function drawBackground(ctx: Ctx, vis: Rect, assets: Assets) {
-  // built once before the textures arrive and once after: each build is ~100 ms, not one per image
-  const complete = !!(assets.paper && assets.leather);
-  if (!cache || (complete && (cache.paper !== assets.paper || cache.leather !== assets.leather))) {
-    const canvas = cache?.canvas ?? document.createElement("canvas");
-    canvas.width = Math.round(BOOK_W * CACHE_K); canvas.height = Math.round(BOOK_H * CACHE_K);
-    const c = canvas.getContext("2d")!;
+  if (!cache) { // the worker waits for the textures before its first draw, so this is built once (~100 ms)
+    cache = new OffscreenCanvas(Math.round(BOOK_W * CACHE_K), Math.round(BOOK_H * CACHE_K));
+    const c = cache.getContext("2d")!;
     c.setTransform(CACHE_K, 0, 0, CACHE_K, 0, 0);
     const all: Rect = { x: 0, y: 0, w: BOOK_W, h: BOOK_H };
     drawCover(c, all, assets);
     drawPaper(c, all, assets, LEFT_PAGE, "left");
     drawPaper(c, all, assets, RIGHT_PAGE, "right");
     drawSpine(c);
-    cache = { canvas, paper: assets.paper, leather: assets.leather };
   }
   // only the visible part: the source is clipped, so a deep zoom does not ask for a blit the size of the world
   const x0 = Math.max(0, vis.x), y0 = Math.max(0, vis.y), x1 = Math.min(BOOK_W, vis.x + vis.w), y1 = Math.min(BOOK_H, vis.y + vis.h);
   if (x1 <= x0 || y1 <= y0) return;
-  ctx.drawImage(cache.canvas, x0 * CACHE_K, y0 * CACHE_K, (x1 - x0) * CACHE_K, (y1 - y0) * CACHE_K, x0, y0, x1 - x0, y1 - y0);
+  ctx.drawImage(cache, x0 * CACHE_K, y0 * CACHE_K, (x1 - x0) * CACHE_K, (y1 - y0) * CACHE_K, x0, y0, x1 - x0, y1 - y0);
 }
 
 /** The squared grid, live and crisp. Multiplied onto the paper so the fold's shadow still darkens it. */

@@ -1,7 +1,8 @@
 import { forwardRef, useImperativeHandle, useLayoutEffect, useRef, type ReactNode } from "react";
 import { BG, BOOK_H, BOOK_W, TABLE } from "./layout";
 import { ARCH, createBook3D, type Book3D } from "./bog3d";
-import type { Plane, View } from "./draw";
+import type { Plane, Scene, View } from "./draw";
+import type { RenderReply, RenderRequest } from "./draw.worker";
 
 const MAX_OVER_FIT = 7; // how far past "whole spread visible" you can zoom in
 const TAP_SLOP = 8;
@@ -17,22 +18,25 @@ const LIVE_GAP = 260;   // ms between such redraws
 export type BookCanvasHandle = { redraw: () => void };
 
 /**
- * The book is one canvas bitmap; the room (and the table it lies on) is a photo/video layer in the same world
- * coordinates, panned and zoomed in 2D. While a finger is down (or the glide runs) everything is only
- * transformed – cheap. When the hands are off, the visible part is drawn again, crisp, once; in the middle
- * of a pinch a quick, coarser redraw keeps the writing readable.
+ * The book is one bitmap, drawn by draw.ts in a Worker (draw.worker.ts) and shown through the WebGL mesh; the
+ * room (and the table it lies on) is a photo layer in the same world coordinates, panned and zoomed in 2D.
+ * While a finger is down (or the glide runs) only the cheap 3D pass runs here. When the hands are off, the
+ * visible part is drawn again, crisp, once; in the middle of a pinch a quick, coarser redraw keeps the writing
+ * readable. Neither blocks the finger tracking: the drawing happens on the worker's thread.
  * Zoomed out, the book tips back to lie on the photo's table, lifted a little with its page block standing
  * under it; zoomed in, you look straight down and everything is flat.
  */
 export const BookCanvas = forwardRef<BookCanvasHandle, {
   width: number; height: number;
-  draw: (ctx: CanvasRenderingContext2D, view: View, plane: Plane) => void;
+  scene: { readonly current: Scene };
   onTap: (wx: number, wy: number) => void;
   backdrop?: ReactNode;
-}>(function BookCanvas({ width, height, draw, onTap, backdrop }, ref) {
+}>(function BookCanvas({ width, height, scene, onTap, backdrop }, ref) {
   const view = useRef<HTMLDivElement>(null);
   const scene2d = useRef<HTMLDivElement>(null); // the room: pans and zooms with the world, never tilts
-  const bookCanvas = useRef<HTMLCanvasElement>(null);
+  const worker = useRef<Worker | null>(null); // draws the flat spread (draw.ts) off the main thread
+  const inflight = useRef<{ req: RenderRequest; plane: Plane; at: number } | null>(null);
+  const queued = useRef<number | null>(null); // budget of a render asked for while one was in flight
   const glCanvas = useRef<HTMLCanvasElement>(null);
   const book3d = useRef<Book3D | null>(null);
   const t = useRef<View>({ x: 0, y: 0, s: 0 }); // live transform; s=0 => snapped to fit on first layout
@@ -49,9 +53,8 @@ export const BookCanvas = forwardRef<BookCanvasHandle, {
   const frame = useRef(0);
   const commitTimer = useRef(0);
   const lastRender = useRef(0);
-  const drawRef = useRef(draw); drawRef.current = draw;
   const meter = useRef<HTMLDivElement>(null); // ?maal: redraw times in the corner, for reading off the phone
-  const worst = useRef(0);
+  const worst = useRef({ main: 0, trip: 0 });
 
   /** 0 (looking straight down) .. 1 (fully tipped back) */
   const tiltAmount = (s: number) => { const out = Math.min(1, Math.max(0, (fitScale.current * (1 + TILT_RANGE) - s) / (fitScale.current * TILT_RANGE))); return out * out; };
@@ -96,18 +99,12 @@ export const BookCanvas = forwardRef<BookCanvasHandle, {
   };
   const apply = () => { clamp(); if (!frame.current) frame.current = requestAnimationFrame(paint); };
 
-  /** Size a canvas to its plane. The bitmap only ever GROWS: shrinking and regrowing it on every zoom in and out
-   *  meant a fresh 20-30 MB buffer each time, and the iPhone's memory did not keep up (Safari gave up on the page).
-   *  Mid-gesture (`reuse`) it is kept whatever its size and the plane's resolution is adapted to it. The part
-   *  beyond the drawn plane is cleared, transparent; the shader shows plain paper there. */
-  const fitCanvas = (cv: HTMLCanvasElement, p: Plane, reuse: boolean) => {
-    if (reuse && cv.width > 1) p.k = Math.min(p.k, cv.width / p.w, cv.height / p.h);
-    else { const pw = Math.round(p.w * p.k), ph = Math.round(p.h * p.k); if (cv.width < pw || cv.height < ph) { cv.width = Math.max(cv.width, pw); cv.height = Math.max(cv.height, ph); } }
-    cv.style.width = `${cv.width / p.k}px`; cv.style.height = `${cv.height / p.k}px`; cv.style.left = `${p.x0}px`; cv.style.top = `${p.y0}px`;
-  };
-
-  /** Draw the bitmaps for the current transform. The expensive step; done when the hands are off. */
+  /** Ask the worker for the bitmaps for the current transform. One request at a time: a second one asked for
+   *  while it is out is drawn once it comes back (with the transform of that moment). The reply lands in
+   *  `onReply`, and only THEN do `committed`/`plane` move, so the mesh never shows an old texture at a new rect. */
   const render = (budget = PIXEL_BUDGET) => {
+    if (!worker.current) return;
+    if (inflight.current) { queued.current = budget; return; }
     const v = view.current!;
     const { x, y, s } = t.current;
     const dpr = window.devicePixelRatio || 1;
@@ -117,27 +114,35 @@ export const BookCanvas = forwardRef<BookCanvasHandle, {
     const p: Plane = tiltFor(s) > 0 ? { x0: x, y0: y, w: BOOK_W * s, h: BOOK_H * s, k: 1 } : { ...vp };
     if (tiltFor(s) > 0) { p.x0 -= 4 * s; p.y0 -= 4 * s; p.w += 8 * s; p.h += 8 * s; } // a hair of margin: the mesh samples right up to the edge
     p.k = Math.min(dpr, Math.sqrt(budget / (p.w * p.h)));
-    plane.current = p;
-    committed.current = { x, y, s };
-    const live = budget < PIXEL_BUDGET;
     // the book: only the part of the plane it covers
     const bx0 = Math.max(p.x0, x), by0 = Math.max(p.y0, y), bx1 = Math.min(p.x0 + p.w, x + BOOK_W * s), by1 = Math.min(p.y0 + p.h, y + BOOK_H * s);
-    const bp = { x0: bx0, y0: by0, w: Math.max(1, bx1 - bx0), h: Math.max(1, by1 - by0), k: p.k };
-    fitCanvas(bookCanvas.current!, bp, live);
-    const t0 = performance.now();
-    drawRef.current(bookCanvas.current!.getContext("2d")!, committed.current, bp);
-    // The texture is the WHOLE canvas buffer, which mid-pinch is deliberately larger than the part just drawn
-    // (fitCanvas reuses it rather than reallocating). Telling the mesh it only covers bp squeezed the spread into
-    // a fraction of its size for a frame - the book "went small" while pinching.
-    const cv = bookCanvas.current!;
-    book3d.current?.setTexture(cv, { x: (bp.x0 - x) / s, y: (bp.y0 - y) / s, w: cv.width / bp.k / s, h: cv.height / bp.k / s });
+    const bp: Plane = { x0: bx0, y0: by0, w: Math.max(1, bx1 - bx0), h: Math.max(1, by1 - by0), k: p.k };
+    const req: RenderRequest = { id: 0, view: { x, y, s }, plane: bp, live: budget < PIXEL_BUDGET, scene: scene.current, now: performance.now() };
+    inflight.current = { req, plane: p, at: performance.now() };
     lastRender.current = performance.now();
+    worker.current.postMessage(req);
+  };
+  const onReply = (e: MessageEvent<RenderReply>) => {
+    const job = inflight.current;
+    inflight.current = null;
+    const { bitmap, k } = e.data;
+    if (!job || !book3d.current) { bitmap.close(); return; }
+    const t0 = performance.now();
+    const { x, y, s } = job.req.view, bp = job.req.plane;
+    committed.current = job.req.view;
+    plane.current = job.plane;
+    // The bitmap is the WHOLE worker canvas, which mid-pinch is deliberately larger than the part just drawn (it
+    // is kept rather than reallocated). Telling the mesh it only covers bp squeezed the spread into a fraction
+    // of its size for a frame - the book "went small" while pinching.
+    book3d.current.setTexture(bitmap, { x: (bp.x0 - x) / s, y: (bp.y0 - y) / s, w: bitmap.width / k / s, h: bitmap.height / k / s });
     paint();
     if (meter.current) {
-      const ms = performance.now() - t0;
-      if (performance.now() > 3000) worst.current = Math.max(worst.current, ms); // the one-off background build at start-up is not what we are after
-      meter.current.textContent = `${live ? "live" : "fuld"} ${Math.round(ms)} ms · værst ${Math.round(worst.current)} ms · ${cv.width}×${cv.height}`;
+      const main = performance.now() - t0, trip = performance.now() - job.at;
+      if (performance.now() > 3000) worst.current = { main: Math.max(worst.current.main, main), trip: Math.max(worst.current.trip, trip) }; // the one-off background build at start-up is not what we are after
+      meter.current.textContent = `${job.req.live ? "live" : "fuld"} tråd ${Math.round(main)} ms · rundtur ${Math.round(trip)} ms · værst ${Math.round(worst.current.main)}/${Math.round(worst.current.trip)} ms · ${bitmap.width}×${bitmap.height}`;
     }
+    bitmap.close();
+    if (queued.current !== null) { const b = queued.current; queued.current = null; render(b); }
   };
   const commit = () => { if (!pointers.current.size && !glide.current) render(); };
   const commitSoon = () => { clearTimeout(commitTimer.current); commitTimer.current = window.setTimeout(commit, 100); };
@@ -167,6 +172,10 @@ export const BookCanvas = forwardRef<BookCanvasHandle, {
       clamp();
       render();
     };
+    if (!worker.current) {
+      worker.current = new Worker(new URL("./draw.worker.ts", import.meta.url), { type: "module" });
+      worker.current.onmessage = onReply;
+    }
     if (!book3d.current && glCanvas.current) {
       book3d.current = createBook3D(glCanvas.current, PERSPECTIVE * (window.devicePixelRatio || 1));
       if (!book3d.current) console.error("WebGL kunne ikke startes");
@@ -191,7 +200,10 @@ export const BookCanvas = forwardRef<BookCanvasHandle, {
     fit();
     const ro = new ResizeObserver(fit); // also catches the first real layout (in dev the CSS can land after mount)
     ro.observe(view.current!);
-    return () => { book3d.current?.dispose(); book3d.current = null; ro.disconnect(); cancelAnimationFrame(glide.current); cancelAnimationFrame(frame.current); clearTimeout(commitTimer.current); };
+    return () => {
+      worker.current?.terminate(); worker.current = null; inflight.current = null; queued.current = null;
+      book3d.current?.dispose(); book3d.current = null; ro.disconnect(); cancelAnimationFrame(glide.current); cancelAnimationFrame(frame.current); clearTimeout(commitTimer.current);
+    };
   }, [width, height]);
 
   const stopGlide = () => { cancelAnimationFrame(glide.current); glide.current = 0; };
@@ -288,8 +300,6 @@ export const BookCanvas = forwardRef<BookCanvasHandle, {
       {/* the book, and its shadow on the table, drawn as one */}
       <canvas ref={glCanvas} className="book-gl" />
       {new URLSearchParams(location.search).has("maal") && <div ref={meter} className="meter" />}
-      {/* the flat spread, drawn by draw.ts and handed to the book as its page texture; never shown on its own */}
-      <canvas ref={bookCanvas} className="book-source" />
     </div>
   );
 });

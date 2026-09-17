@@ -313,8 +313,8 @@ function buildEdges(): Mesh {
 }
 
 export type Book3D = {
-  /** Upload the flat spread canvas as the page texture. `rect` is the part of the spread it covers. */
-  setTexture(src: HTMLCanvasElement, rect: { x: number; y: number; w: number; h: number }): void;
+  /** Upload the flat spread (drawn in draw.worker.ts) as the page texture. `rect` is the part of the spread it covers. */
+  setTexture(src: ImageBitmap, rect: { x: number; y: number; w: number; h: number }): void;
   /** The room photo and where it lies in spread coordinates: the light over the book is taken from it.
    *  False when nothing usable came of it (the light then stays off; try again later). */
   setLight(img: HTMLImageElement, bg: { x: number; y: number; w: number; h: number }): boolean;

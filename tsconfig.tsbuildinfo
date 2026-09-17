@@ -1,1 +1,1 @@
-{"root":["./src/app.tsx","./src/backdrop.tsx","./src/bookcanvas.tsx","./src/bog3d.ts","./src/draw.ts","./src/glyf.ts","./src/layout.ts","./src/main.tsx","./src/random.ts","./src/vite-env.d.ts"],"version":"5.9.3"}
+{"root":["./src/app.tsx","./src/backdrop.tsx","./src/bookcanvas.tsx","./src/bog3d.ts","./src/draw.ts","./src/draw.worker.ts","./src/glyf.ts","./src/layout.ts","./src/main.tsx","./src/random.ts","./src/vite-env.d.ts"],"version":"5.9.3"}

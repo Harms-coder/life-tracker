@@ -1,11 +1,9 @@
-import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { BookCanvas, type BookCanvasHandle } from "./BookCanvas";
 import { Backdrop } from "./Backdrop";
-import { drawScene, type Assets, type Plane, type Scene, type View } from "./draw";
+import type { Scene } from "./draw";
 import { BOOK_H, BOOK_W, dotX, hitTest, NOTE_LABEL, widthOf, CELL, type ColType, type Column, type NoteField } from "./layout";
 import { seededRandom } from "./random";
-import paperUrl from "./textures/paper.png";
-import leatherUrl from "./textures/leather.png";
 
 declare const __BUILD__: string; // set in vite.config.ts
 
@@ -83,15 +81,6 @@ type ColumnPrompt = { kind: "column"; index: number; column: Column }; // index 
 type NotePrompt = { kind: "note"; field: NoteField; label: string; value: string };
 type Prompt = ValuePrompt | ColumnPrompt | NotePrompt;
 
-const assets: Assets = {};
-function loadAssets(onLoad: () => void) {
-  for (const [name, url] of [["paper", paperUrl], ["leather", leatherUrl]] as const) {
-    const img = new Image();
-    img.onload = () => { assets[name] = img; onLoad(); };
-    img.src = url;
-  }
-}
-
 export default function App() {
   const [columns, setColumns] = useState<Column[]>(() => load(COLUMNS_KEY, DEFAULT_COLUMNS));
   const [values, setValues] = useState<Values>(() => seedOnce("demo-seeded-2", VALUES_KEY, () => demoValues(load(COLUMNS_KEY, DEFAULT_COLUMNS)), {}));
@@ -101,13 +90,8 @@ export default function App() {
   const scene = useRef<Scene>({ ...MONTH, monthLabel: MONTH.label, days: DAYS, columns, values, notes, writing: null });
   scene.current = { ...scene.current, columns, values, notes };
 
-  const draw = useCallback((ctx: CanvasRenderingContext2D, view: View, plane: Plane) => drawScene(ctx, view, plane, scene.current, assets, performance.now()), []);
   const redraw = () => book.current?.redraw();
   useEffect(() => { redraw(); }, [columns, values, notes]);
-  useEffect(() => {
-    loadAssets(redraw);
-    document.fonts?.load("500 20px Caveat").then(redraw).catch(() => {});
-  }, []);
 
   const write = (key: string, value: string | null) => {
     const next = { ...values };
@@ -171,7 +155,7 @@ export default function App() {
 
   return (
     <>
-      <BookCanvas ref={book} width={BOOK_W} height={BOOK_H} draw={draw} onTap={onTap} backdrop={<Backdrop />} />
+      <BookCanvas ref={book} width={BOOK_W} height={BOOK_H} scene={scene} onTap={onTap} backdrop={<Backdrop />} />
       <span className="build">{__BUILD__}</span>
 
       {prompt?.kind === "value" && (

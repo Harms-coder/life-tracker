@@ -166,6 +166,26 @@ Rækker = dage 1–31 (antal efter måneden). Kolonner = brugerens egne trackere
 - Test-scripts ligger i sessionens scratchpad (`pw/shots.mjs` skærmbilleder, `pw/bench.mjs` frame-tider i WebKit,
   `pw/tapcheck.mjs` tryk). Dev-server: `npm run dev`. I dev sætter BookCanvas `window.__view` (x, y, s) til scripts.
 
+## Status 2026-09-17 kl. 23.15 – ROADMAP 1b LAVET (ikke set af Lukas endnu)
+
+**Tegningen af opslaget kører nu i en Web Worker** (`src/draw.worker.ts`): BookCanvas sender view/plane/scene til
+workeren, som tegner med `drawScene` (draw.ts) i sit eget OffscreenCanvas og sender en ImageBitmap tilbage; den går
+direkte i WebGL-teksturen (`setTexture(ImageBitmap)`). Hovedtråden gør kun gestus + 3D-passet. Ét job ad gangen: bedes
+der om en omtegning, mens én er ude, tegnes den én gang mere når svaret kommer (`queued`). `committed`/`plane` flyttes
+først NÅR svaret kommer, så meshet aldrig viser en gammel tekstur i en ny rect.
+- Caveat-fonten er HELT ude af tegningen (den blev kun brugt til ét `measureText` til understregningen; nu måles med
+  glyf-bredden `widthOfText`, samme seed = samme bredde). Tegn, der mangler i glyfferne (fx `&`), bliver et mellemrum –
+  det gjorde de også før (drawText springer ukendte tegn over; "Caveat-fallback" i ældre noter var forkert).
+- Papir/læder-teksturerne hentes af workeren selv (fetch → ImageBitmap); den venter på dem før første tegning, så
+  baggrunds-cachen bygges én gang.
+- `?maal` viser nu: `tråd` = ms på hovedtråden pr. omtegning (upload + paint), `rundtur` = fra bestilling til svar.
+  Chrome på Mac: tråd 0 ms, rundtur 5–12 ms. Bed Lukas læse "værst a/b" op: a = tråd (skal være lille), b = rundtur.
+- Krav: OffscreenCanvas 2D i worker = iOS ≥ 16.4. Ingen fallback til hovedtråden (bevidst; laves kun hvis telefonen
+  fejler). `.book-source`-canvasset er væk fra DOM'en.
+- Hukommelse: `transferToImageBitmap` giver workeren et frisk buffer pr. omtegning (24 MB zoomet ind) + bitmap i
+  transit (lukkes med `close()` straks efter upload). Går iPhone ned igen: PIXEL_BUDGET ned (6e6 → 4e6).
+- FØRSTE SKRIDT NÆSTE GANG: Lukas' dom på telefonen (glat?) + "værst"-tallene fra `?maal`.
+
 ## Status 2026-09-17 kl. 23.00 – HER ER VI
 
 **Live:** https://harms-coder.github.io/life-tracker/ — alt pushet (c1f3ac1). Galleri: https://claude.ai/artifact/S914mdZ2Tq4gAuqWUrxLYb.
@@ -369,7 +389,7 @@ Alt er committet og pushet. Galleriet til Lukas: https://claude.ai/artifact/S914
 
 ## Roadmap
 1. ~~Prototype af ét opslag: bog på bord, ternede sider, pinch-zoom, afkrydsning med håndskrevne X-varianter.~~ ✅ 2026-09-16
-1b. Fuldstændig glat zoom på iPhone: 2D-tegningen i en Worker (se "PLAN" under Status 17/9). Ikke nu (Lukas 17/9).
+~~1b. Fuldstændig glat zoom på iPhone: 2D-tegningen i en Worker.~~ ✅ 2026-09-17 (afventer Lukas' dom på telefonen)
 2. Sidevending mellem måneder + datamodel (måneder, trackere, værdier) med lokal lagring.
 3. Venstre side (mål/undermål/plan) med tekst i håndskrift.
 4. Lukas' egen håndskrift som glyffer.

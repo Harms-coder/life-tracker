@@ -40,7 +40,7 @@ export function widthOfText(str: string, size: number, seed: string) {
 }
 
 /** Draw `str` with its baseline at y (or centred/topped, matching the canvas baseline names). */
-export function drawText(ctx: CanvasRenderingContext2D, str: string, x: number, y: number,
+export function drawText(ctx: OffscreenCanvasRenderingContext2D, str: string, x: number, y: number,
                          size: number, seed: string, align: CanvasTextAlign = "left", baseline: CanvasTextBaseline = "alphabetic") {
   const em = size * EM;
   const total = widthOfText(str, size, seed);
@@ -75,7 +75,7 @@ export function drawText(ctx: CanvasRenderingContext2D, str: string, x: number, 
  * One character drawn to fill a cell (used for the X's in the table). `progress` 0..1 reveals it left to
  * right, which is what gives the written-just-now stroke when a box is ticked.
  */
-export function drawInBox(ctx: CanvasRenderingContext2D, ch: string, x: number, y: number,
+export function drawInBox(ctx: OffscreenCanvasRenderingContext2D, ch: string, x: number, y: number,
                           w: number, h: number, seed: string, progress = 1) {
   const v = pick(ch, seededRandom(seed));
   if (!v || progress <= 0) return false;
