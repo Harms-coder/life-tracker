@@ -158,10 +158,17 @@ export const BookCanvas = forwardRef<BookCanvasHandle, {
     if (!book3d.current && glCanvas.current) {
       book3d.current = createBook3D(glCanvas.current, PERSPECTIVE * (window.devicePixelRatio || 1));
       if (!book3d.current) console.error("WebGL kunne ikke startes");
-      // the room's light over the book comes from the photo itself (the evening one: the scene is locked to it in Backdrop.tsx)
+      // the room's light over the book comes from the photo itself (the evening one: the scene is locked to it in
+      // Backdrop.tsx). Unpacked in full first: on the iPhone, drawing from a big image straight after `onload`
+      // gave an empty map, and the book went black wherever it tipped. If it still comes out empty, try again.
       const photo = new Image();
-      photo.onload = () => { book3d.current?.setLight(photo, BG); if (t.current.s) paint(); };
       photo.src = `${import.meta.env.BASE_URL}baggrund/aften.jpg`;
+      const light = (tries: number) => photo.decode().catch(() => {}).then(() => {
+        if (!book3d.current) return;
+        if (book3d.current.setLight(photo, BG)) { if (t.current.s) paint(); }
+        else if (tries > 0) setTimeout(() => light(tries - 1), 1500);
+      });
+      light(3);
     }
     fit();
     const ro = new ResizeObserver(fit); // also catches the first real layout (in dev the CSS can land after mount)

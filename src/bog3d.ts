@@ -293,8 +293,9 @@ function buildEdges(): Mesh {
 export type Book3D = {
   /** Upload the flat spread canvas as the page texture. `rect` is the part of the spread it covers. */
   setTexture(src: HTMLCanvasElement, rect: { x: number; y: number; w: number; h: number }): void;
-  /** The room photo and where it lies in spread coordinates: the light over the book is taken from it. */
-  setLight(img: HTMLImageElement, bg: { x: number; y: number; w: number; h: number }): void;
+  /** The room photo and where it lies in spread coordinates: the light over the book is taken from it.
+   *  False when nothing usable came of it (the light then stays off; try again later). */
+  setLight(img: HTMLImageElement, bg: { x: number; y: number; w: number; h: number }): boolean;
   /** Draw one frame. `arch` 0 = flat. */
   draw(o: { w: number; h: number; view: { x: number; y: number; s: number }; origin: [number, number]; tilt: number; arch: number; flat: number }): void;
   dispose(): void;
@@ -401,10 +402,13 @@ export function createBook3D(canvas: HTMLCanvasElement, persp: number): Book3D |
       gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, 0);
       gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, 0);
       gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, res, resY, 0, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array(d.buffer));
-      const ok = gl.getError() === gl.NO_ERROR;
+      // An EMPTY map is the other way to a black book: the phone drew nothing of the photo (it does that with a
+      // big image it has not unpacked yet), every texel is 0, and the page is multiplied by it.
+      const ok = gl.getError() === gl.NO_ERROR && sum[0] + sum[1] + sum[2] > d.length;
       gl.activeTexture(gl.TEXTURE0);
-      lightK = ok ? (sum.map((v) => (v ? (255 * d.length) / (4 * v) : 1)) as [number, number, number]) : null;
-      if (!ok) console.error("lyskortet kunne ikke lægges ind");
+      lightK = ok ? (sum.map((v) => (255 * d.length) / (4 * v)) as [number, number, number]) : null;
+      if (!ok) console.error("lyskortet kunne ikke lægges ind – lyset er slået fra");
+      return ok;
     },
     draw({ w, h, view, origin, tilt, arch, flat }) {
       if (canvas.width !== w || canvas.height !== h) { canvas.width = w; canvas.height = h; }
