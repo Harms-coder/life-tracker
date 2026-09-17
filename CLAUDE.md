@@ -206,8 +206,17 @@ set af ham endnu. Første skridt: hans dom på telefonen.
   antialias: false i getContext (sparer ~36 MB), bord.webp ned til 2048 bred (sparer ~30 MB, koster skarphed zoomet ind).
   `?maal`: "værst" tæller først efter 3 s (baggrunds-cachen bygges ~100 ms ved start – det var Lukas' 97 ms).
 
+- NEDBRUD FORTSAT efter 6e6/grow-only (Lukas: "går stadig ned", værst 93 ms). OBS: `stencil: true` blev ALDRIG sat (den
+  replace fejlede stille), så stencil-bufferen var ikke synderen; skyggen bruger nu EXT_blend_minmax (MAX) i stedet for
+  stencil – ingen stencil-kode tilbage. `.book-source` er display:none (ingen ekstra kompositlag). Bisect-kontakter til
+  Lukas' telefon: `?aa=0` (ingen MSAA, ~36–48 MB), `?bord=0` (ingen bord.webp, 51 MB), `?skygge=0` (ingen skyggepas),
+  `?lys=0` (intet lyskort). Nyt siden den godkendte bog 16/9 aften: 6 tegnepas/frame, lyskort + ekstra dekodet aften.jpg
+  (15 MB), baggrunds-cache (10 MB), grow-only canvas (24 MB permanent + 24 MB tekstur i stedet for at skrumpe zoomet ud).
+
 ### Åbent
-- Lukas' dom: går appen stadig ned ved hurtig zoom ind/ud (efter 6e6/grow-only)? Og glatheden (`?maal`-tal)?
+- FØRSTE SKRIDT: Lukas' svar på de tre bisect-links (aa=0 / bord=0 / skygge=0): hvilke går IKKE ned? Ret derefter
+  standarden. Glatheden: værst 93 ms på telefonen = den fulde omtegning zoomet ind (tegning + 24 MB upload); næste
+  skridt for "fuldstændig glat" er at flytte 2D-tegningen til en Worker/OffscreenCanvas (iOS ≥16.4) eller sænke budget.
 - Lukas' dom på runde 2+3: er skyggestriben på papiret for mørk? Passer farverne? (Han sagde før runde 3: "passer
   ikke i farverne til resten".)
 - Ryggen: Lukas sagde ja til "lys/skygge i folden set fladt oppefra" – den gradient findes allerede (drawSpine +

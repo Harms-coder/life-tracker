@@ -28,7 +28,9 @@ body { font-family: var(--font-hand); -webkit-user-select: none; user-select: no
 }
 .viewport:active { cursor: grabbing; }
 /* the flat spread that feeds the book its page texture: never shown, only read from */
-.book-source { position: absolute; visibility: hidden; pointer-events: none; }
+/* display:none, not visibility:hidden: a hidden canvas in the layout still gets its own compositing surface on iOS
+   (another copy of a 24 MB bitmap); one that is not laid out does not, and drawing into it works all the same */
+.book-source { display: none; }
 /* the room: photo + looping video per time of day, in world units inside the 2D scene layer */
 .scene2d { position: absolute; left: 0; top: 0; transform-origin: 0 0; will-change: transform; }
 .bg-layer { position: absolute; overflow: hidden; background: #000; }

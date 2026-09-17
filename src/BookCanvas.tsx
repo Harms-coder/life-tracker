@@ -283,9 +283,10 @@ export const BookCanvas = forwardRef<BookCanvasHandle, {
         <div ref={tableTop} className="table-top"
              style={{ left: TABLE.x - TABLE_PAD, top: TABLE.y - TABLE_PAD, width: TABLE.w + 2 * TABLE_PAD, height: TABLE.h + 2 * TABLE_PAD }}>
           {/* decoded at start-up: left to the first pinch, unpacking it cost a ~200 ms stall there */}
-          <img src={`${import.meta.env.BASE_URL}baggrund/bord.webp`} alt="" draggable={false} decoding="async"
+          {/* ?bord=0 leaves the 51 MB (decoded) table picture out, to test whether the phone's memory is what gives */}
+          {!new URLSearchParams(location.search).has("bord") && <img src={`${import.meta.env.BASE_URL}baggrund/bord.webp`} alt="" draggable={false} decoding="async"
                ref={(el) => { el?.decode?.().catch(() => {}); }}
-               style={{ left: TABLE_PAD, top: TABLE_PAD, width: TABLE.w, height: TABLE.h }} />
+               style={{ left: TABLE_PAD, top: TABLE_PAD, width: TABLE.w, height: TABLE.h }} />}
         </div>
       </div>
       {/* the book, and its shadow on the table, drawn as one */}

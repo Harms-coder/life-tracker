@@ -54,6 +54,7 @@ const SHADOW_DIR = [-0.3, 1] as const;
 const SHADOW_LEN = Number(new URLSearchParams(location.search).get("sh") ?? 2.5);
 const SHADOW_DARK = 0.55;
 const SHADOW_PASSES = 5;
+const SHADOW_ON = new URLSearchParams(location.search).get("skygge") !== "0";
 /** Looking straight down the page is drawn perfectly flat (for the hit-test), but the book still has its
  *  thickness on the table: the shadow keeps at least this share of the full height, so a band stays under the
  *  book's near edge when zoomed in. */
@@ -306,8 +307,10 @@ export type Book3D = {
 };
 
 export function createBook3D(canvas: HTMLCanvasElement, persp: number): Book3D | null {
-  const gl = (canvas.getContext("webgl", { alpha: true, antialias: true, premultipliedAlpha: true }) ??
-              canvas.getContext("experimental-webgl", { alpha: true, antialias: true })) as WebGLRenderingContext | null;
+  // ?aa=0: no multisampling (a 3 MP buffer at 4 samples is ~50 MB on the phone - a suspect when Safari gives up on the page)
+  const antialias = new URLSearchParams(location.search).get("aa") !== "0";
+  const gl = (canvas.getContext("webgl", { alpha: true, antialias, premultipliedAlpha: true }) ??
+              canvas.getContext("experimental-webgl", { alpha: true, antialias })) as WebGLRenderingContext | null;
   if (!gl) return null;
 
   const prog = gl.createProgram()!;
@@ -346,6 +349,10 @@ export function createBook3D(canvas: HTMLCanvasElement, persp: number): Book3D |
   const lightRect = { x: -LIGHT_MARGIN, y: -LIGHT_MARGIN, w: BOOK_W + 2 * LIGHT_MARGIN, h: BOOK_H + 2 * LIGHT_MARGIN };
   gl.enable(gl.BLEND);
   gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
+  // The shadow passes use MAX blending: where the laid-down mesh overlaps itself (the page stack's shadow on the
+  // page's) the pixel keeps the darkest value instead of darkening twice, and the passes stack into a penumbra.
+  // Without the extension the passes just add up - a bit too dark, never wrong.
+  const minmax = gl.getExtension("EXT_blend_minmax");
 
   let texRect = { x: 0, y: 0, w: BOOK_W, h: BOOK_H };
   let texW = 0, texH = 0;
@@ -422,7 +429,7 @@ export function createBook3D(canvas: HTMLCanvasElement, persp: number): Book3D |
       if (canvas.width !== w || canvas.height !== h) { canvas.width = w; canvas.height = h; }
       gl.viewport(0, 0, w, h);
       gl.clearColor(0, 0, 0, 0);
-      gl.clear(gl.COLOR_BUFFER_BIT | gl.STENCIL_BUFFER_BIT);
+      gl.clear(gl.COLOR_BUFFER_BIT);
       gl.useProgram(prog);
       gl.uniform2f(U.view, view.x, view.y);
       gl.uniform1f(U.scale, view.s);
@@ -468,21 +475,21 @@ export function createBook3D(canvas: HTMLCanvasElement, persp: number): Book3D |
         gl.uniform4f(U.paper, 0.94, 0.91, 0.83, 1); // draw.ts' PAPER
         bind(slots.pages); gl.drawElements(gl.TRIANGLES, slots.pages.n, gl.UNSIGNED_SHORT, 0);
       };
-      // the shadow first, under the book. The mesh overlaps itself once laid flat, so each pass is stencilled to
-      // touch a pixel only once - otherwise the page stack's shadow doubled up on the page's.
-      const a = 1 - Math.pow(1 - SHADOW_DARK, 1 / SHADOW_PASSES);
-      gl.uniform4f(U.shadowC, 0.08 * a, 0.04 * a, 0.02 * a, a);
-      gl.enable(gl.STENCIL_TEST);
-      gl.stencilOp(gl.KEEP, gl.KEEP, gl.REPLACE);
+      // the shadow first, under the book: the longest, faintest pass first, the shortest and darkest last, so with
+      // MAX blending a pixel ends up as dark as the darkest pass that reaches it - dark at the foot, fading outwards.
+      // ?skygge=0 skips it (to tell its GPU work apart from other trouble on the phone)
       const sf = Math.max(flat, SHADOW_MIN);
       shape(sf, ARCH * sf);
-      for (let k = 0; k < SHADOW_PASSES; k++) {
+      if (minmax) gl.blendEquation(minmax.MAX_EXT);
+      for (let k = SHADOW_PASSES - 1; k >= 0 && SHADOW_ON; k--) {
         const len = SHADOW_LEN * (0.7 + (0.6 * k) / (SHADOW_PASSES - 1));
+        // with MAX the passes do not add up, so each carries the darkness the stack would have reached at its foot
+        const a = minmax ? SHADOW_DARK * (1 - k / SHADOW_PASSES) : 1 - Math.pow(1 - SHADOW_DARK, 1 / SHADOW_PASSES);
+        gl.uniform4f(U.shadowC, 0.08 * a, 0.04 * a, 0.02 * a, a);
         gl.uniform3f(U.shadow, SHADOW_DIR[0] * len, SHADOW_DIR[1] * len, 1);
-        gl.stencilFunc(gl.NOTEQUAL, k + 1, 0xff);
         drawAll(true);
       }
-      gl.disable(gl.STENCIL_TEST);
+      if (minmax) gl.blendEquation(gl.FUNC_ADD);
       gl.uniform4f(U.shadowC, 0, 0, 0, 0);
       gl.uniform3f(U.shadow, 0, 0, 0);
       shape(flat, arch);
