@@ -33,7 +33,7 @@ const BOW2 = 0.9;
 /** How much of the lift into the fore-edge is taken back. 0 = the full swing up, DIP_MAX = none at all.
  *  ?dip=N overrides it while the shape is being tuned. */
 const DIP_MAX = 9;
-const DIP = Math.max(0, Math.min(DIP_MAX, Number(new URLSearchParams(location.search).get("dip") ?? 3)));
+const DIP = Math.max(0, Math.min(DIP_MAX, Number(new URLSearchParams(location.search).get("dip") ?? 5)));
 const DIP_FROM = 0.84;
 /** The cover sticks out past the pages by this much. It has to clear OVERHANG, or the page stack rolls out over
  *  the board and the thin dark rim around the book disappears. */
