@@ -22,7 +22,7 @@ import { BOOK_H, BOOK_W, COVER, PAGE_H, PAGE_W } from "./layout";
 
 /** Thickness of the cover board and of the page stack under one open half, in world px (1 cell = 20 px = 5 mm). */
 export const COVER_T = 7;
-export const STACK = 46;
+export const STACK = 42;
 /** The page does not rise in one hump. In referencer/bog-maal.jpg it waves: up out of the fold, back down
  *  through the middle, on down, and lifting again at the fore-edge. That second movement is WAVE, a full period
  *  laid over the single arch; without it the page reads as one bland slope. */
@@ -30,6 +30,8 @@ export const ARCH = 22;
 const WAVE = 0.55;
 const BOW = 0.7;   // s^BOW inside the sines: < 1 moves the movement towards the spine
 const BOW2 = 0.9;
+/** The page tips a little way back down over the last stretch to the fore-edge, rather than lifting into it. */
+const DIP = 9, DIP_FROM = 0.84;
 /** The cover sticks out past the pages by this much. It has to clear OVERHANG, or the page stack rolls out over
  *  the board and the thin dark rim around the book disappears. */
 const LIP = 30;
@@ -40,14 +42,19 @@ const OVERHANG = 20;
 const ROLL = 5;
 
 const SEG_X = 56, SEG_Y = 10; // segments per page: across the curve, and along it
-/** How dark the fold goes, and the thinnest a sheet is allowed to look (world px). */
+/** How dark the fold goes, and the thinnest a sheet is allowed to look (world px). A book of 150 leaves wants
+ *  far finer lines than a handful of thick boards, so this is kept small and only opened up as far as the
+ *  screen can still tell two of them apart. */
 const FOLD_DARK = 0.3;
-const SHEET_MIN = 1.8;
+const SHEET_MIN = 0.85;
+const SHEET_SCREEN = 2.7; // never let two lines come closer than this on screen
 
 /** Height of the page surface above the table, at distance `s` (0 at the spine, 1 at the fore-edge). */
+const smoothstep = (a: number, b: number, x: number) => { const t = Math.max(0, Math.min(1, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
 export const pageZ = (s: number, arch: number) => {
   const t = Math.max(0.0005, Math.min(1, s));
-  return COVER_T + STACK * t + arch * (Math.sin(Math.PI * Math.pow(t, BOW)) + WAVE * Math.sin(2 * Math.PI * Math.pow(t, BOW2)));
+  const wave = COVER_T + STACK * t + arch * (Math.sin(Math.PI * Math.pow(t, BOW)) + WAVE * Math.sin(2 * Math.PI * Math.pow(t, BOW2)));
+  return wave - DIP * (arch / ARCH) * smoothstep(DIP_FROM, 1, t);
 };
 
 const VERT = `
@@ -66,6 +73,7 @@ uniform vec4 u_tex;        // the part of the spread the texture covers: x, y, w
 uniform vec4 u_book;       // coverT, stack, arch, pageW: the shape of the open page
 uniform float u_spine;     // x of the fold, in spread coordinates
 uniform vec3 u_bow;        // BOW, BOW2, WAVE: the shape of the page's wave
+uniform vec2 u_dip;        // how far, and from where, the page tips back down at the fore-edge
 varying vec2 v_uv;
 varying float v_shade;
 varying float v_layer;
@@ -78,7 +86,8 @@ float pageZ(float s) {
   s = clamp(s, 0.0, 1.0);
   float a = pow(max(s, 0.0005), u_bow.x);
   float b = pow(max(s, 0.0005), u_bow.y);
-  return u_book.x + u_book.y * s + u_book.z * (sin(3.14159265 * a) + u_bow.z * sin(6.2831853 * b));
+  float wave = u_book.x + u_book.y * s + u_book.z * (sin(3.14159265 * a) + u_bow.z * sin(6.2831853 * b));
+  return wave - u_dip.x * smoothstep(u_dip.y, 1.0, s);
 }
 
 void main() {
@@ -116,12 +125,15 @@ varying float v_layer;
 uniform sampler2D u_img;
 uniform vec4 u_flat;       // when a > 0: ignore the texture and use this colour (the page stack)
 uniform float u_sheets;    // one sheet every this many world px, widened when zoomed out so the lines never alias
+uniform float u_sheetAmp;  // fades the lines out when they get too close to resolve, leaving an even tone
 void main() {
   // zoomed in, the texture holds only the visible slice of the spread; the rest of the mesh is off screen anyway
   if (u_flat.a <= 0.0 && (v_uv.x < 0.0 || v_uv.x > 1.0 || v_uv.y < 0.0 || v_uv.y > 1.0)) discard;
   if (u_flat.a > 0.0) {
     // the page stack seen edge on: sheet after sheet lying on each other, never the page's own grid
-    float sheet = 0.86 + 0.14 * sin(v_layer / u_sheets * 6.2831853);
+    float ph = fract(v_layer / u_sheets);
+    float line = pow(0.5 + 0.5 * cos(ph * 6.2831853), 7.0);
+    float sheet = 1.0 - 0.34 * u_sheetAmp * line;
     gl_FragColor = vec4(u_flat.rgb * v_shade * sheet, 1.0);
     return;
   }
@@ -242,7 +254,7 @@ export function createBook3D(canvas: HTMLCanvasElement, persp: number): Book3D |
     view: loc("u_view"), scale: loc("u_scale"), origin: loc("u_origin"), trig: loc("u_trig"),
     persp: loc("u_persp"), res: loc("u_res"), tex: loc("u_tex"), flat: loc("u_flat"), img: loc("u_img"),
     book: loc("u_book"), spine: loc("u_spine"), fold: loc("u_foldDark"), sheets: loc("u_sheets"),
-    bow: loc("u_bow"),
+    bow: loc("u_bow"), dip: loc("u_dip"), amp: loc("u_sheetAmp"),
   };
   const aPos = gl.getAttribLocation(prog, "a_pos"), aMeta = gl.getAttribLocation(prog, "a_meta");
   /** One set of buffers per mesh, so a frame that changes nothing only binds them. Re-uploading both meshes
@@ -306,9 +318,15 @@ export function createBook3D(canvas: HTMLCanvasElement, persp: number): Book3D |
       gl.uniform4f(U.book, COVER_T * flat, STACK * flat, arch, PAGE_W);
       gl.uniform1f(U.spine, BOOK_W / 2);
       gl.uniform3f(U.bow, BOW, BOW2, WAVE);
+      gl.uniform2f(U.dip, DIP * (arch / ARCH), DIP_FROM);   // fades out with the curve, like everything else
       gl.uniform1f(U.fold, FOLD_DARK);
-      // a sheet must stay at least ~3 screen px apart, or the lines turn into a moire pattern
-      gl.uniform1f(U.sheets, Math.max(SHEET_MIN, 3 / Math.max(view.s, 0.001)));
+      // Two lines must stay SHEET_SCREEN px apart, or they turn into a moire pattern. The stack stands up from
+      // the board, so the tilt foreshortens it: what matters is the spacing AFTER that.
+      const fore = Math.max(Math.cos(tilt), 0.35);
+      const sheet = Math.max(SHEET_MIN, SHEET_SCREEN / Math.max(view.s * fore, 0.001));
+      gl.uniform1f(U.sheets, sheet);
+      // and if even that is too tight to resolve, fade the lines into an even tone rather than let them alias
+      gl.uniform1f(U.amp, Math.max(0, Math.min(1, (sheet * view.s * fore - 1.5) / 1.6)));
       gl.activeTexture(gl.TEXTURE0);
       gl.bindTexture(gl.TEXTURE_2D, tex);
       // board, then the page stack standing on it, then the pages on top: the board is wider than the stack,
