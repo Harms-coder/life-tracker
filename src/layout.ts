@@ -5,10 +5,10 @@ export const LEFT_PAGE = { x: COVER, y: COVER }, RIGHT_PAGE = { x: COVER + PAGE_
 /** The background photo (9:16), in world units relative to the book's top-left corner. Its size sets how big
  *  the book is on the table, its offset where on the table it lies (the book tips over its own centre, so the centre
  *  stays put at every zoom; tuned by eye against the photo). */
-export const BG = { x: -522, y: -2320, w: 2500, h: 4444 };
+export const BG = { x: -372, y: -1549, w: 2200, h: 3911 };
 /** The table top inside the photo (fractions of BG): looking straight down you can pan over this, never up to the
  *  window. Must contain the whole flat book (0..BOOK_H) with some margin, or its ends cannot be reached. */
-export const TABLE = { x: BG.x, y: BG.y + 0.46 * BG.h, w: BG.w, h: 0.32 * BG.h };
+export const TABLE = { x: BG.x, y: BG.y + 0.36 * BG.h, w: BG.w, h: 0.4 * BG.h };
 /** Thickness of the closed half of the book (the page block), in world px (1 cell = 5 mm): 2 cm, as in the reference. */
 export const BOOK_T = 80;
 
