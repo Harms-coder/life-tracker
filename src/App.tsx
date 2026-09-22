@@ -120,17 +120,25 @@ export default function App() {
     setPrompt(null);
   };
 
+  /** How near the dot the finger has to land before it can slide it, in world px (a cell is 20). */
+  const DOT_REACH = 12;
+
   /** Where in a dots column the finger is, as a whole 0..10 (Lukas: no halves). `x` is measured from its left edge. */
   const dotValue = (x: number) => Math.min(10, Math.max(0, Math.round(((x - dotX(0)) / (dotX(10) - dotX(0))) * 10)));
 
-  /** A finger on a dot in the sleep graph slides it, rather than panning the book. The day is fixed when the
-   *  finger goes down, so a drag that wanders up or down still moves the dot it started on. */
+  /** A finger ON THE DOT in the sleep graph slides it, rather than panning the book. Anywhere else in the cell
+   *  is not enough: a finger sweeping across the page would drag the dots it passed (Lukas). The day is fixed
+   *  when the finger goes down, so a drag that wanders up or down still moves the dot it started on.
+   *  BookCanvas decides the rest: it only hands the drag over if the finger then moves slowly and sideways. */
   const grab = (wx: number, wy: number) => {
     const hit = hitTest(wx, wy, columns, DAYS);
     if (!hit || hit.kind !== "cell" || hit.col.type !== "dots") return null;
     const key = `${hit.day}:${hit.col.id}`;
+    const v0 = values[key];
+    if (v0 === undefined) return null; // no dot yet: a tap puts one down, there is nothing to slide
     const left = RIGHT_PAGE.x + columnXs(columns)[columns.indexOf(hit.col) + 1];
-    let last = values[key];
+    if (Math.abs(wx - (left + dotX(Number(v0)))) > DOT_REACH) return null;
+    let last = v0;
     return (mx: number) => {
       const v = String(dotValue(mx - left));
       if (v === last) return; // one redraw per step, not one per frame

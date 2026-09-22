@@ -289,24 +289,21 @@ function drawRightPage(ctx: Ctx, scene: Scene, vis: Rect, now: number) {
   wobbly(ctx, TABLE_LEFT, HEADER_Y + days * CELL, right, HEADER_Y + days * CELL, "h2");
   strokeInk(ctx, 1.7);
 
-  // headers: where they have always been, only lifted clear of the line they sit on (Lukas: the underside of
-  // the word must not be written down on it). LIFT is the whole change - do not move them about instead.
+  // headers
   if (overlaps(vis, { x: 0, y: 0, w: PAGE_W, h: HEADER_Y })) {
-    const LIFT = 10;
-    const hy = HEADER_Y - LIFT;
     columns.forEach((c, i) => {
-      const left = xs[i + 1], w = widthOf(c.type) * CELL, seed = "h" + c.id;
+      const left = xs[i + 1], w = widthOf(c.type) * CELL;
       if (c.type === "dots") {
-        text(ctx, c.name, left + w / 2, hy - 30, { size: 16.5, seed, align: "center" });
-        for (const n of [0, 2, 4, 6, 8, 10]) text(ctx, String(n), left + dotX(n), hy - 5, { size: 12, seed: "s" + n, align: "center" });
+        text(ctx, c.name, left + w / 2, HEADER_Y - 30, { size: 16.5, seed: "h" + c.id, align: "center" });
+        for (const n of [0, 2, 4, 6, 8, 10]) text(ctx, String(n), left + dotX(n), HEADER_Y - 5, { size: 12, seed: "s" + n, align: "center" });
       } else if (c.type === "number") {
-        text(ctx, c.name, left + w / 2, hy - 7, { size: c.name.length > 5 ? 11 : 14, seed, align: "center", tilt: 0 });
+        text(ctx, c.name, left + w / 2, HEADER_Y - 7, { size: c.name.length > 5 ? 11 : 14, seed: "h" + c.id, align: "center", tilt: 0 });
       } else {
         // reads bottom→top, letter bottoms facing right ("A")
-        text(ctx, c.name, left + w / 2 + 5, hy - 8, { size: 16.5, seed, rotate: -Math.PI / 2, baseline: "middle" });
+        text(ctx, c.name, left + w / 2 + 5, HEADER_Y - 8, { size: 16.5, seed: "h" + c.id, rotate: -Math.PI / 2, baseline: "middle" });
       }
     });
-    text(ctx, "+", right + CELL / 2, hy - 6, { size: 20, seed: "plus", align: "center", alpha: 0.35 });
+    text(ctx, "+", right + CELL / 2, HEADER_Y - 6, { size: 20, seed: "plus", align: "center", alpha: 0.35 });
   }
 
   // day rows (only the visible ones)

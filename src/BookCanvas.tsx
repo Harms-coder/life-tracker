@@ -6,6 +6,11 @@ import type { RenderReply, RenderRequest } from "./draw.worker";
 
 const MAX_OVER_FIT = 7; // how far past "whole spread visible" you can zoom in
 const TAP_SLOP = 8;
+/** Before a finger that landed on something draggable is allowed to drag it, it has to show that is what it
+ *  means: move at least this far, sideways rather than up and down, and SLOWLY. A finger sweeping across the
+ *  page to pan crosses that distance in a few ms and takes the dots it passes with it (Lukas). */
+const SCRUB_SLOP = 10;
+const SCRUB_SPEED = 0.35; // px per ms, averaged from the moment the finger went down
 const TILT_MAX = (window as unknown as { __tiltMax?: number }).__tiltMax ?? 58; // degrees when fully zoomed out: matches the photo's camera
 const PERSPECTIVE = 700; // px, camera distance for the tilt (smaller = stronger convergence)
 const TILT_RANGE = 0.7; // tilt is gone at fit * (1 + TILT_RANGE)
@@ -55,13 +60,15 @@ export const BookCanvas = forwardRef<BookCanvasHandle, {
   const minScale = useRef(1); // photo just covers the screen: as far out as you can go
   const pointers = useRef(new Map<number, { x: number; y: number }>());
   const pinch = useRef<{ dist: number; s: number; wx: number; wy: number } | null>(null);
-  const down = useRef({ x: 0, y: 0 });
+  const down = useRef({ x: 0, y: 0, at: 0 });
   const dragged = useRef(false);
   const scrub = useRef<((wx: number, wy: number) => void) | null>(null); // set while a finger is dragging something on the page
+  const pending = useRef<((wx: number, wy: number) => void) | null>(null); // it landed on something; waiting to see if it drags or pans
   const velocity = useRef({ x: 0, y: 0, at: 0 });
   const glide = useRef(0);
   const frame = useRef(0);
   const commitTimer = useRef(0);
+  const overTimer = useRef(0);
   const lastRender = useRef(0);
   const meter = useRef<HTMLDivElement>(null); // ?maal: redraw times in the corner, for reading off the phone
   const worst = useRef({ main: 0, trip: 0 });
@@ -200,7 +207,13 @@ export const BookCanvas = forwardRef<BookCanvasHandle, {
 
   useImperativeHandle(ref, () => ({
     redraw: () => { if (t.current.s) render(); },
-    refresh: () => { renderOverview(); if (t.current.s) render(); },
+    // The visible part is redrawn at once; the whole-spread stand-in follows once the writing stops. Dragging a
+    // dot writes ten times in a second, and redrawing all of it each time is what that would cost.
+    refresh: () => {
+      if (t.current.s) render();
+      clearTimeout(overTimer.current);
+      overTimer.current = window.setTimeout(renderOverview, 250);
+    },
   }), []);
 
   useLayoutEffect(() => {
@@ -249,7 +262,7 @@ export const BookCanvas = forwardRef<BookCanvasHandle, {
     ro.observe(view.current!);
     return () => {
       worker.current?.terminate(); worker.current = null; inflight.current = null; queued.current = null;
-      book3d.current?.dispose(); book3d.current = null; ro.disconnect(); cancelAnimationFrame(glide.current); cancelAnimationFrame(frame.current); clearTimeout(commitTimer.current);
+      book3d.current?.dispose(); book3d.current = null; ro.disconnect(); clearTimeout(overTimer.current); cancelAnimationFrame(glide.current); cancelAnimationFrame(frame.current); clearTimeout(commitTimer.current);
     };
   }, [width, height]);
 
@@ -278,14 +291,15 @@ export const BookCanvas = forwardRef<BookCanvasHandle, {
     stopGlide();
     clearTimeout(commitTimer.current);
     if (pointers.current.size === 0) {
-      dragged.current = false; down.current = { x: e.clientX, y: e.clientY }; velocity.current = { x: 0, y: 0, at: 0 };
+      dragged.current = false; down.current = { x: e.clientX, y: e.clientY, at: performance.now() }; velocity.current = { x: 0, y: 0, at: 0 };
       // like a tap, this only means anything looking straight down - the tilt would bend the mapping
       const { x, y, s } = t.current;
-      scrub.current = tiltFor(s) === 0 ? (grab?.((e.clientX - x) / s, (e.clientY - y) / s) ?? null) : null;
+      scrub.current = null;
+      pending.current = tiltFor(s) === 0 ? (grab?.((e.clientX - x) / s, (e.clientY - y) / s) ?? null) : null;
     }
     pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
     if (pointers.current.size === 2) {
-      scrub.current = null; // a second finger means a pinch, whatever the first one was on
+      scrub.current = pending.current = null; // a second finger means a pinch, whatever the first one was on
       const [a, b] = [...pointers.current.values()];
       const { x, y, s } = t.current;
       const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
@@ -308,6 +322,23 @@ export const BookCanvas = forwardRef<BookCanvasHandle, {
       t.current = { x: mx - p.wx * s, y: my - p.wy * s, s };
       apply();
       renderLive();
+    } else if (pending.current && pointers.current.size === 1) {
+      // hold still until the finger has said what it wants. Slow and sideways = drag the dot; anything else =
+      // pan, and the movement so far goes to the pan so nothing is lost.
+      const tx = e.clientX - down.current.x, ty = e.clientY - down.current.y, d = Math.hypot(tx, ty);
+      if (d >= SCRUB_SLOP) {
+        const slow = d / Math.max(1, performance.now() - down.current.at) < SCRUB_SPEED;
+        if (slow && Math.abs(tx) > Math.abs(ty)) {
+          scrub.current = pending.current;
+          const { x, y, s } = t.current;
+          scrub.current!((e.clientX - x) / s, (e.clientY - y) / s);
+        } else {
+          t.current.x += tx; t.current.y += ty;
+          apply();
+          renderIfOff();
+        }
+        pending.current = null;
+      }
     } else if (scrub.current && pointers.current.size === 1) {
       const { x, y, s } = t.current;
       scrub.current((e.clientX - x) / s, (e.clientY - y) / s); // the book stays put: the finger is moving what is on it
@@ -328,7 +359,7 @@ export const BookCanvas = forwardRef<BookCanvasHandle, {
     if (pointers.current.size < 2) pinch.current = null;
     if (pointers.current.size === 0) {
       const scrubbed = !!scrub.current && dragged.current;
-      scrub.current = null;
+      scrub.current = pending.current = null;
       if (!dragged.current) {
         // a tap: only meaningful when looking straight down (the tilt would bend the mapping)
         const { x, y, s } = t.current;
