@@ -31,11 +31,13 @@ const DAYS = new Date(MONTH.year, MONTH.month, 0).getDate();
 const VALUES_KEY = `values-${MONTH.year}-${MONTH.month}`;
 const COLUMNS_KEY = "columns";
 const NOTES_KEY = `notes-${MONTH.year}-${MONTH.month}`;
+const PHOTOS_KEY = `photos-${MONTH.year}-${MONTH.month}`;
 const HAND_KEY = "hand";
 const generateId = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
 
 type Values = Record<string, string>; // "x" for checks, "71,5" / "8" for numbers, "7.5" for dots
 type Notes = Partial<Record<NoteField, string>>;
+type Photos = Record<string, string>; // slot -> a small JPEG as a data URL
 
 // ponytail: example text/values so the layout can be judged; seeded once, then Lukas' own data takes over
 const DEMO_NOTES: Notes = {
@@ -46,6 +48,16 @@ const DEMO_NOTES: Notes = {
   change: "Dagbog om aftenen i stedet for at scrolle\nLægge løbetøjet frem aftenen før\nIngen kaffe efter kl. 14",
   learned: "Gode dage starter med en god morgen\nJeg brokker mig mindre, når jeg har sovet nok\nDet er nemmere at sige nej, end jeg troede",
 };
+// ponytail: example plans, merged in once so the big field is not empty when Lukas first looks at it
+const DEMO_PLANS: Notes = {
+  plan0: "10 min meditation hver morgen\nIngen mail før kl. 9\nEn fridag om ugen uden planer",
+  plan1: "Løbe 3 gange om ugen, tirsdag, torsdag, søndag\nLægge 500 m på hver anden uge\nStrække ud bagefter",
+  plan2: "Telefonen i køkkenet efter kl. 21\nSlette de to værste apps\nLæse i stedet for at scrolle",
+  plan3: "20 sider hver aften før jeg sover\nBogen ligger på natbordet, ikke i tasken",
+  plan4: "Fast tid: søndag kl. 16\nSkrive det i kalenderen hele måneden frem",
+  plan5: "500 kr. overføres automatisk den 1.\nIngen takeaway på hverdage\nSælge cyklen der står i kælderen",
+};
+
 function demoValues(columns: Column[]): Values {
   const r = seededRandom("demo-" + MONTH.label);
   const v: Values = {};
@@ -81,21 +93,33 @@ function seedOnce<T>(flag: string, key: string, make: () => T, fallback: T): T {
 type ValuePrompt = { kind: "value"; key: string; label: string; value: string };
 type ColumnPrompt = { kind: "column"; index: number; column: Column }; // index -1 = new
 type HandPrompt = { kind: "hand" };
+type PhotoPrompt = { kind: "photo"; slot: string };
 type NotePrompt = { kind: "note"; field: NoteField; label: string; value: string };
-type Prompt = ValuePrompt | ColumnPrompt | NotePrompt | HandPrompt;
+type Prompt = ValuePrompt | ColumnPrompt | NotePrompt | HandPrompt | PhotoPrompt;
 
 export default function App() {
   const [columns, setColumns] = useState<Column[]>(() => load(COLUMNS_KEY, DEFAULT_COLUMNS));
   const [values, setValues] = useState<Values>(() => seedOnce("demo-seeded-2", VALUES_KEY, () => demoValues(load(COLUMNS_KEY, DEFAULT_COLUMNS)), {}));
-  const [notes, setNotes] = useState<Notes>(() => seedOnce("demo-notes-seeded-2", NOTES_KEY, () => DEMO_NOTES, {}));
+  const [notes, setNotes] = useState<Notes>(() => {
+    const n = seedOnce("demo-notes-seeded-2", NOTES_KEY, () => DEMO_NOTES, {});
+    // the plans came later than the rest of the demo text: merged in without touching anything already written
+    if (localStorage.getItem("demo-plans-seeded")) return n;
+    localStorage.setItem("demo-plans-seeded", "1");
+    const merged = { ...DEMO_PLANS, ...n };
+    localStorage.setItem(NOTES_KEY, JSON.stringify(merged));
+    return merged;
+  });
   const [hand, setHandState] = useState<Hand>(() => (localStorage.getItem(HAND_KEY) as Hand) in HANDS ? (localStorage.getItem(HAND_KEY) as Hand) : "lukas");
+  const [photos, setPhotos] = useState<Photos>(() => load(PHOTOS_KEY, {}));
   const [prompt, setPrompt] = useState<Prompt | null>(null);
+  const fileInput = useRef<HTMLInputElement>(null);
+  const fileSlot = useRef("");
   const book = useRef<BookCanvasHandle>(null);
   const scene = useRef<Scene>({ ...MONTH, monthLabel: MONTH.label, days: DAYS, columns, values, notes, writing: null, hand });
   scene.current = { ...scene.current, columns, values, notes, hand };
 
   const redraw = () => book.current?.redraw();
-  useEffect(() => { book.current?.refresh(); }, [columns, values, notes, hand]);
+  useEffect(() => { book.current?.setPhotos(photos); book.current?.refresh(); }, [columns, values, notes, hand, photos]);
 
   const write = (key: string, value: string | null) => {
     const next = { ...values };
@@ -147,6 +171,34 @@ export default function App() {
     };
   };
 
+  /** Photos go in as small JPEGs: a phone picture is 3-4 MB, and four of those would not fit in localStorage. */
+  const shrink = (file: File) => new Promise<string>((done, fail) => {
+    const img = new Image();
+    img.onload = () => {
+      const k = Math.min(1, 1000 / Math.max(img.width, img.height));
+      const c = document.createElement("canvas");
+      c.width = Math.round(img.width * k); c.height = Math.round(img.height * k);
+      c.getContext("2d")!.drawImage(img, 0, 0, c.width, c.height);
+      URL.revokeObjectURL(img.src);
+      done(c.toDataURL("image/jpeg", 0.75));
+    };
+    img.onerror = fail;
+    img.src = URL.createObjectURL(file);
+  });
+  const savePhotos = (next: Photos) => {
+    setPhotos(next);
+    setPrompt(null);
+    try { localStorage.setItem(PHOTOS_KEY, JSON.stringify(next)); }
+    catch { alert("Der er ikke plads til flere billeder på telefonen. Fjern et af dem først."); }
+  };
+  const pickPhoto = (slot: string) => { fileSlot.current = slot; fileInput.current?.click(); };
+  const onFile = async (e: FormEvent<HTMLInputElement>) => {
+    const file = (e.currentTarget.files ?? [])[0];
+    e.currentTarget.value = ""; // so the same picture can be chosen again
+    if (!file) return;
+    savePhotos({ ...photos, [fileSlot.current]: await shrink(file) });
+  };
+
   const onTap = (wx: number, wy: number) => {
     const hit = hitTest(wx, wy, columns, DAYS);
     if (!hit) return;
@@ -159,6 +211,7 @@ export default function App() {
       }
       return setPrompt({ kind: "value", key, label: `${col.name} · ${day}. ${MONTH.label.split(" ")[0].toLowerCase()}`, value: values[key] ?? "" });
     }
+    if (hit.kind === "photo") return photos[hit.slot] ? setPrompt({ kind: "photo", slot: hit.slot }) : pickPhoto(hit.slot);
     if (hit.kind === "header") return setPrompt({ kind: "column", index: hit.index, column: columns[hit.index] });
     if (hit.kind === "add") return setPrompt({ kind: "column", index: -1, column: { id: generateId(), name: "", type: "check" } });
     setPrompt({ kind: "note", field: hit.field, label: NOTE_LABEL[hit.field], value: notes[hit.field] ?? "" });
@@ -188,8 +241,19 @@ export default function App() {
     <>
       <BookCanvas ref={book} width={BOOK_W} height={BOOK_H} scene={scene} onTap={onTap} grab={grab} backdrop={<Backdrop />} />
       <span className="build">{__BUILD__}</span>
+      <input ref={fileInput} type="file" accept="image/*" hidden onInput={onFile} />
       <button className="hand-pick" onClick={() => setPrompt({ kind: "hand" })} aria-label="Vælg håndskrift">✎</button>
 
+      {prompt?.kind === "photo" && (
+        <div className="sheet-backdrop" onClick={() => setPrompt(null)}>
+          <div className="sheet" onClick={(e) => e.stopPropagation()}>
+            <label>Billede</label>
+            <button style={{ gridColumn: "1 / -1" }} onClick={() => pickPhoto(prompt.slot)}>Vælg et andet</button>
+            <button className="danger" style={{ gridColumn: "1 / -1" }}
+                    onClick={() => { const next = { ...photos }; delete next[prompt.slot]; savePhotos(next); }}>Fjern</button>
+          </div>
+        </div>
+      )}
       {prompt?.kind === "hand" && (
         <div className="sheet-backdrop" onClick={() => setPrompt(null)}>
           <div className="sheet" onClick={(e) => e.stopPropagation()}>

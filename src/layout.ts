@@ -25,13 +25,43 @@ export const GOALS = 6, GOALS_Y = 3 * CELL, GOAL_COL_W = (PAGE_W - TITLE_BOX_X -
 
 export type ColType = "check" | "number" | "rating" | "dots";
 export type Column = { id: string; name: string; type: ColType };
-export type NoteField = "good" | "better" | "change" | "learned" | `goal${number}`;
+export type NoteField = "good" | "better" | "change" | "learned" | `goal${number}` | `plan${number}`;
 export type Rect = { x: number; y: number; w: number; h: number };
 
 export const NOTE_LABEL: Record<string, string> = {
   good: "Hvad gik godt denne måned?", better: "Gøre bedre næste måned", change: "Ændre til næste måned", learned: "Hvad har jeg lært denne måned?",
 };
 for (let i = 0; i < GOALS; i++) NOTE_LABEL["goal" + i] = `Mål ${i + 1}`;
+for (let i = 0; i < GOALS; i++) NOTE_LABEL["plan" + i] = `Sådan kommer jeg i mål med ${i + 1}`;
+
+/** The heading over the big field, in the empty box under the month. */
+export const PLAN_LABEL = "Sådan kommer jeg i mål";
+/** The big field on the left page: the six goals again, larger, three in each column, each with room to write
+ *  how it is going to happen. Rows are whole cells so the writing still sits on the grid. */
+export const PLAN_Y = HEADER_Y + CELL, PLAN_ROW_H = 10 * CELL, PLAN_COL_W = PAGE_W / 2;
+export const PLAN_SQ = 1.5 * CELL; // the numbered square, half again as big as the one in the goal list
+export function planBoxes(i: number): { num: Rect; goal: Rect; plan: Rect } {
+  const x = (i < GOALS / 2 ? 0 : 1) * PLAN_COL_W, y = PLAN_Y + (i % (GOALS / 2)) * PLAN_ROW_H;
+  return {
+    num: { x: x + CELL, y, w: PLAN_SQ, h: PLAN_SQ },
+    goal: { x: x + CELL + PLAN_SQ + 8, y, w: PLAN_COL_W - 2 * CELL - PLAN_SQ - 8, h: 2 * CELL },
+    plan: { x: x + CELL, y: y + 2 * CELL, w: PLAN_COL_W - 2 * CELL, h: PLAN_ROW_H - 3 * CELL },
+  };
+}
+
+/** Somewhere to tape a photo in: three along the bottom of the left page, one in the top right corner of the
+ *  right page. Slots are named, so what is in them survives a change of layout. */
+export const PHOTOS_LEFT = ["b1", "b2", "b3"] as const;
+export const PHOTO_RIGHT = "b4";
+export function photoBoxes(days: number): { slot: string; box: Rect }[] {
+  const top = bottomY(days) + CELL, h = PAGE_H - CELL - top, m = CELL, w = (PAGE_W - 4 * m) / 3;
+  return PHOTOS_LEFT.map((slot, i) => ({ slot, box: { x: m + i * (w + m), y: top, w, h } }));
+}
+/** The empty corner on the right page, right of the last column and above the notes. */
+export function photoBoxRight(columns: Column[]): Rect {
+  const xs = columnXs(columns), right = xs[xs.length - 1];
+  return { x: right + 1.5 * CELL, y: CELL, w: PAGE_W - right - 2.5 * CELL, h: HEADER_Y - 2 * CELL };
+}
 
 export const widthOf = (t: ColType) => (t === "number" ? 2 : t === "dots" ? 6 : 1); // in cells
 /** x-position of a 0..10 value inside the 6-cell dots column; 0 and 10 sit mid-cell in the outer cells */
@@ -64,19 +94,26 @@ export type Hit =
   | { kind: "cell"; day: number; col: Column; fx: number }
   | { kind: "header"; index: number }
   | { kind: "add" }
-  | { kind: "note"; field: NoteField };
+  | { kind: "note"; field: NoteField }
+  | { kind: "photo"; slot: string };
 
 const inRect = (r: Rect, x: number, y: number) => x >= r.x && x < r.x + r.w && y >= r.y && y < r.y + r.h;
 
 /** What is under a world point? */
 export function hitTest(wx: number, wy: number, columns: Column[], days: number): Hit | null {
-  // left page: goals
+  // left page: goals, the plan under each of them, and the photos along the bottom
   const lx = wx - LEFT_PAGE.x, ly = wy - LEFT_PAGE.y;
   if (lx >= 0 && lx < PAGE_W && ly >= 0 && ly < PAGE_H) {
     for (let i = 0; i < GOALS; i++) {
       const b = goalTextBox(i), p = goalPos(i);
       if (inRect(b, lx, ly) || inRect({ x: p.x, y: p.y, w: CELL, h: CELL }, lx, ly)) return { kind: "note", field: `goal${i}` };
     }
+    for (let i = 0; i < GOALS; i++) {
+      const { num, goal, plan } = planBoxes(i);
+      if (inRect(num, lx, ly) || inRect(goal, lx, ly)) return { kind: "note", field: `goal${i}` };
+      if (inRect(plan, lx, ly)) return { kind: "note", field: `plan${i}` };
+    }
+    for (const { slot, box } of photoBoxes(days)) if (inRect(box, lx, ly)) return { kind: "photo", slot };
     return null;
   }
   const x = wx - RIGHT_PAGE.x, y = wy - RIGHT_PAGE.y;
@@ -90,6 +127,7 @@ export function hitTest(wx: number, wy: number, columns: Column[], days: number)
     const day = Math.floor((y - HEADER_Y) / CELL) + 1;
     for (let i = 0; i < columns.length; i++) if (x >= xs[i + 1] && x < xs[i + 2]) return { kind: "cell", day, col: columns[i], fx: (x - xs[i + 1]) / (xs[i + 2] - xs[i + 1]) };
   }
+  if (inRect(photoBoxRight(columns), x, y)) return { kind: "photo", slot: PHOTO_RIGHT };
   const boxes = noteBoxes(columns, days);
   for (const f of ["good", "better", "change", "learned"] as const) if (inRect(boxes[f], x, y)) return { kind: "note", field: f };
   return null;

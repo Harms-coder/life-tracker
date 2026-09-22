@@ -3,6 +3,7 @@ import { drawInBox, drawText, setHand, widthOfText, type Hand } from "./glyf";
 import {
   CELL, PAGE_W, PAGE_H, COVER, LIP, BOOK_W, BOOK_H, LEFT_PAGE, RIGHT_PAGE, HEADER_Y, TABLE_LEFT, DAY_COL_W,
   TITLE_BOX_X, TITLE_BOX_Y, GOALS, goalPos, goalTextBox, widthOf, dotX, columnXs, bottomY, noteBoxes, NOTE_LABEL,
+  PLAN_LABEL, PLAN_Y, PLAN_ROW_H, planBoxes, photoBoxes, photoBoxRight, PHOTO_RIGHT,
   type Column, type NoteField, type Rect,
 } from "./layout";
 
@@ -21,7 +22,11 @@ export type Scene = {
   /** whose handwriting the page is written in */
   hand: Hand;
 };
-export type Assets = { paper?: ImageBitmap; leather?: ImageBitmap };
+export type Assets = {
+  paper?: ImageBitmap; leather?: ImageBitmap;
+  /** photos taped into the book, by slot (see photoBoxes in layout.ts) */
+  photos?: Record<string, ImageBitmap>;
+};
 /** world -> plane: plane = world * s + (x, y) */
 export type View = { x: number; y: number; s: number };
 /** the part of the plane the canvas covers, and its resolution (device px per plane px) */
@@ -123,6 +128,39 @@ function noteText(ctx: Ctx, str: string, box: Rect, seed: string, o: { bullets?:
   });
 }
 
+/** A square drawn by hand: four wobbly sides. */
+function handBox(ctx: Ctx, b: Rect, seed: string, width = 1.3, alpha = 0.85) {
+  ctx.beginPath();
+  wobbly(ctx, b.x, b.y, b.x + b.w, b.y, seed + "a");
+  wobbly(ctx, b.x + b.w, b.y, b.x + b.w, b.y + b.h, seed + "b");
+  wobbly(ctx, b.x + b.w, b.y + b.h, b.x, b.y + b.h, seed + "c");
+  wobbly(ctx, b.x, b.y + b.h, b.x, b.y, seed + "d");
+  strokeInk(ctx, width, alpha);
+}
+
+/** A photo taped into the book: a white border, a little askew, with a shadow under it. An empty slot is a
+ *  faint hand-drawn frame with a + in it, so you can see where one can go. */
+function photo(ctx: Ctx, box: Rect, img: ImageBitmap | undefined, seed: string) {
+  if (!img) {
+    handBox(ctx, box, seed, 1.2, 0.3);
+    text(ctx, "+", box.x + box.w / 2, box.y + box.h / 2 + 8, { size: 24, seed: seed + "p", align: "center", alpha: 0.28 });
+    return;
+  }
+  const r = seededRandom(seed + "tilt");
+  const B = 5; // the white border round the picture
+  ctx.save();
+  ctx.translate(box.x + box.w / 2, box.y + box.h / 2);
+  ctx.rotate((r() - 0.5) * 0.055);
+  ctx.fillStyle = "rgba(40,30,15,.20)"; ctx.fillRect(-box.w / 2 + 3, -box.h / 2 + 4, box.w, box.h);
+  ctx.fillStyle = "#fdfaf0"; ctx.fillRect(-box.w / 2, -box.h / 2, box.w, box.h);
+  ctx.save();
+  ctx.beginPath(); ctx.rect(-box.w / 2 + B, -box.h / 2 + B, box.w - 2 * B, box.h - 2 * B); ctx.clip();
+  const sc = Math.max((box.w - 2 * B) / img.width, (box.h - 2 * B) / img.height); // fill the frame, crop the overhang
+  ctx.drawImage(img, (-img.width * sc) / 2, (-img.height * sc) / 2, img.width * sc, img.height * sc);
+  ctx.restore();
+  ctx.restore();
+}
+
 function labelled(ctx: Ctx, label: string, x: number, y: number, seed: string) {
   text(ctx, label, x, y, { size: 19, weight: 500, seed });
   const w = widthOfText(label, 19, seed); // same seed as the text above => the same glyph picks => the same width
@@ -148,8 +186,8 @@ export function drawScene(ctx: Ctx, view: View, plane: Plane, scene: Scene, asse
   drawBackground(ctx, vis, assets);
   drawGrid(ctx, vis, LEFT_PAGE);
   drawGrid(ctx, vis, RIGHT_PAGE);
-  ctx.save(); ctx.translate(LEFT_PAGE.x, LEFT_PAGE.y); drawLeftPage(ctx, scene, { x: vis.x - LEFT_PAGE.x, y: vis.y - LEFT_PAGE.y, w: vis.w, h: vis.h }); ctx.restore();
-  ctx.save(); ctx.translate(RIGHT_PAGE.x, RIGHT_PAGE.y); drawRightPage(ctx, scene, { x: vis.x - RIGHT_PAGE.x, y: vis.y - RIGHT_PAGE.y, w: vis.w, h: vis.h }, now); ctx.restore();
+  ctx.save(); ctx.translate(LEFT_PAGE.x, LEFT_PAGE.y); drawLeftPage(ctx, scene, { x: vis.x - LEFT_PAGE.x, y: vis.y - LEFT_PAGE.y, w: vis.w, h: vis.h }, assets); ctx.restore();
+  ctx.save(); ctx.translate(RIGHT_PAGE.x, RIGHT_PAGE.y); drawRightPage(ctx, scene, { x: vis.x - RIGHT_PAGE.x, y: vis.y - RIGHT_PAGE.y, w: vis.w, h: vis.h }, now, assets); ctx.restore();
 }
 
 function roundRect(ctx: Ctx, x: number, y: number, w: number, h: number, r: number) {
@@ -253,31 +291,52 @@ function drawSpine(ctx: Ctx) {
   ctx.fillStyle = g; ctx.fillRect(BOOK_W / 2 - 18, COVER, 36, PAGE_H);
 }
 
-function drawLeftPage(ctx: Ctx, scene: Scene, vis: Rect) {
+function drawLeftPage(ctx: Ctx, scene: Scene, vis: Rect, assets: Assets) {
   const { notes } = scene, by = bottomY(scene.days);
   ctx.beginPath();
   wobbly(ctx, 0, HEADER_Y, PAGE_W, HEADER_Y, "Lh");
   wobbly(ctx, 0, by, PAGE_W, by, "Lh3");
   wobbly(ctx, TITLE_BOX_X, 0, TITLE_BOX_X, HEADER_Y, "Lv");
-  wobbly(ctx, 0, TITLE_BOX_Y, TITLE_BOX_X, TITLE_BOX_Y, "Lhb");
+  wobbly(ctx, TITLE_BOX_X, TITLE_BOX_Y, 0, TITLE_BOX_Y, "Lhb");
   strokeInk(ctx, 1.7);
-  if (!overlaps(vis, { x: 0, y: 0, w: PAGE_W, h: HEADER_Y })) return;
-  // on the line at 3 cells, small enough to stay clear of the one above: drawn bigger, the digits sat across it
-  text(ctx, scene.monthLabel, 0.6 * CELL, 3 * CELL, { size: 31, weight: 500, seed: "title" });
-  labelled(ctx, "Mål denne måned", 12.6 * CELL, CELL + 19, "subtitle");
-  for (let i = 0; i < GOALS; i++) {
-    const p = goalPos(i);
-    ctx.beginPath();
-    wobbly(ctx, p.x, p.y, p.x + CELL, p.y, "sq" + i + "a"); wobbly(ctx, p.x + CELL, p.y, p.x + CELL, p.y + CELL, "sq" + i + "b");
-    wobbly(ctx, p.x + CELL, p.y + CELL, p.x, p.y + CELL, "sq" + i + "c"); wobbly(ctx, p.x, p.y + CELL, p.x, p.y, "sq" + i + "d");
-    strokeInk(ctx, 1.3);
-    text(ctx, String(i + 1), p.x + CELL / 2, p.y + CELL / 2, { size: 18, weight: 700, seed: "gn" + i, align: "center", baseline: "middle" });
-    const g = notes[`goal${i}`];
-    if (g) noteText(ctx, g, goalTextBox(i), "goal" + i, {});
+  if (overlaps(vis, { x: 0, y: 0, w: PAGE_W, h: HEADER_Y })) {
+    // on the line at 3 cells, small enough to stay clear of the one above: drawn bigger, the digits sat across it
+    text(ctx, scene.monthLabel, 0.6 * CELL, 3 * CELL, { size: 31, weight: 500, seed: "title" });
+    labelled(ctx, "Mål denne måned", 12.6 * CELL, CELL + 19, "subtitle");
+    // the heading for the big field below, in the box under the month
+    wrap(ctx, PLAN_LABEL, TITLE_BOX_X - 2 * CELL, 17).forEach((line, i, all) => {
+      const y = TITLE_BOX_Y + 28 + i * 24;
+      text(ctx, line, 0.6 * CELL, y, { size: 17, weight: 500, seed: "plabel" + i });
+      if (i === all.length - 1) { ctx.beginPath(); wobbly(ctx, 0.6 * CELL, y + 5, 0.6 * CELL + widthOfText(line, 17, "plabel" + i), y + 5, "pu"); strokeInk(ctx, 1.4); }
+    });
+    for (let i = 0; i < GOALS; i++) {
+      const p = goalPos(i);
+      handBox(ctx, { x: p.x, y: p.y, w: CELL, h: CELL }, "sq" + i);
+      text(ctx, String(i + 1), p.x + CELL / 2, p.y + CELL / 2, { size: 18, weight: 700, seed: "gn" + i, align: "center", baseline: "middle" });
+      const g = notes[`goal${i}`];
+      if (g) noteText(ctx, g, goalTextBox(i), "goal" + i, {});
+    }
+  }
+
+  // the big field: the six goals again, larger, and under each one how it is going to happen
+  if (overlaps(vis, { x: 0, y: PLAN_Y, w: PAGE_W, h: GOALS / 2 * PLAN_ROW_H })) {
+    for (let i = 0; i < GOALS; i++) {
+      const { num, goal, plan } = planBoxes(i);
+      handBox(ctx, num, "pq" + i);
+      text(ctx, String(i + 1), num.x + num.w / 2, num.y + num.h / 2, { size: 24, weight: 700, seed: "pn" + i, align: "center", baseline: "middle" });
+      const g = notes[`goal${i}`];
+      if (g) wrap(ctx, g, goal.w, 18).slice(0, 2).forEach((line, j) => text(ctx, line, goal.x, goal.y + 19 + j * 21, { size: 18, seed: "pg" + i + j, tilt: 0.25 }));
+      const pl = notes[`plan${i}`];
+      if (pl) noteText(ctx, pl, plan, "plan" + i, { bullets: true });
+    }
+  }
+
+  // and three photos along the bottom
+  for (const { slot, box } of photoBoxes(scene.days)) {
+    if (overlaps(vis, box)) photo(ctx, box, assets.photos?.[slot], slot);
   }
 }
-
-function drawRightPage(ctx: Ctx, scene: Scene, vis: Rect, now: number) {
+function drawRightPage(ctx: Ctx, scene: Scene, vis: Rect, now: number, assets: Assets) {
   const { columns, values, notes, days } = scene;
   const xs = columnXs(columns), right = xs[xs.length - 1], mid = (xs[0] + right) / 2, by = bottomY(days);
   // lines
@@ -304,6 +363,7 @@ function drawRightPage(ctx: Ctx, scene: Scene, vis: Rect, now: number) {
       }
     });
     text(ctx, "+", right + CELL / 2, HEADER_Y - 6, { size: 20, seed: "plus", align: "center", alpha: 0.35 });
+    photo(ctx, photoBoxRight(columns), assets.photos?.[PHOTO_RIGHT], PHOTO_RIGHT); // the empty corner
   }
 
   // day rows (only the visible ones)

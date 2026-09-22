@@ -9,7 +9,9 @@ import leatherUrl from "./textures/leather.png";
  * no longer freezes the finger tracking (93 ms worst on the phone before this).
  */
 /** `overview`: the whole spread at a coarse resolution, drawn on its own canvas, complete (no half-written X). */
-export type RenderRequest = { id: number; view: View; plane: Plane; live: boolean; scene: Scene; now: number; overview?: boolean };
+/** `photos` rides along on the first render after they changed (data URLs, by slot): they are decoded here,
+ *  once, and kept - sending them with every frame would copy half a megabyte per pinch. */
+export type RenderRequest = { id: number; view: View; plane: Plane; live: boolean; scene: Scene; now: number; overview?: boolean; photos?: Record<string, string> };
 export type RenderReply = { id: number; pixels: ArrayBuffer; w: number; h: number; k: number; overview?: boolean } | { id: number; error: string };
 
 const canvas = new OffscreenCanvas(1, 1);
@@ -26,10 +28,23 @@ const ready = Promise.race([
 
 const port = self as unknown as { postMessage(m: RenderReply, transfer: Transferable[]): void };
 
+const decoded = new Map<string, { url: string; bm: ImageBitmap }>(); // slot -> what is in it now
+
 onmessage = async (e: MessageEvent<RenderRequest>) => {
-  const { id, view, plane: p, live, scene, now, overview } = e.data;
+  const { id, view, plane: p, live, scene, now, overview, photos } = e.data;
   await ready;
   try {
+  if (photos) {
+    const next: Record<string, ImageBitmap> = {};
+    for (const [slot, url] of Object.entries(photos)) {
+      const had = decoded.get(slot);
+      if (had?.url !== url) { had?.bm.close(); decoded.set(slot, { url, bm: (await bitmapOf(url))! }); }
+      const bm = decoded.get(slot)?.bm;
+      if (bm) next[slot] = bm;
+    }
+    for (const [slot, had] of decoded) if (!(slot in photos)) { had.bm.close(); decoded.delete(slot); }
+    assets.photos = next;
+  }
   if (overview) {
     const w = Math.round(p.w * p.k), h = Math.round(p.h * p.k);
     if (overCanvas.width !== w || overCanvas.height !== h) { overCanvas.width = w; overCanvas.height = h; }

@@ -26,6 +26,8 @@ export type BookCanvasHandle = {
   redraw: () => void;
   /** something was written: the visible part AND the whole-spread stand-in are drawn again */
   refresh: () => void;
+  /** the photos in the book changed: they go to the worker with the next drawing */
+  setPhotos: (photos: Record<string, string>) => void;
 };
 
 /**
@@ -69,6 +71,7 @@ export const BookCanvas = forwardRef<BookCanvasHandle, {
   const frame = useRef(0);
   const commitTimer = useRef(0);
   const overTimer = useRef(0);
+  const photos = useRef<Record<string, string> | null>(null); // waiting to be sent to the worker
   const lastRender = useRef(0);
   const meter = useRef<HTMLDivElement>(null); // ?maal: redraw times in the corner, for reading off the phone
   const worst = useRef({ main: 0, trip: 0 });
@@ -145,6 +148,7 @@ export const BookCanvas = forwardRef<BookCanvasHandle, {
     const bx1 = Math.min(p.x0 + p.w, x + (BOOK_W + LIP) * s), by1 = Math.min(p.y0 + p.h, y + (BOOK_H + LIP) * s);
     const bp: Plane = { x0: bx0, y0: by0, w: Math.max(1, bx1 - bx0), h: Math.max(1, by1 - by0), k: p.k };
     const req: RenderRequest = { id: 0, view: { x, y, s }, plane: bp, live: budget < PIXEL_BUDGET, scene: scene.current, now: performance.now() };
+    if (photos.current) { req.photos = photos.current; photos.current = null; }
     inflight.current = { req, plane: p, at: performance.now() };
     lastRender.current = performance.now();
     worker.current.postMessage(req);
@@ -209,6 +213,7 @@ export const BookCanvas = forwardRef<BookCanvasHandle, {
     redraw: () => { if (t.current.s) render(); },
     // The visible part is redrawn at once; the whole-spread stand-in follows once the writing stops. Dragging a
     // dot writes ten times in a second, and redrawing all of it each time is what that would cost.
+    setPhotos: (p: Record<string, string>) => { photos.current = p; },
     refresh: () => {
       if (t.current.s) render();
       clearTimeout(overTimer.current);
