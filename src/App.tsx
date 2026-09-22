@@ -41,8 +41,9 @@ const COLUMNS_KEY = "columns";
 const HAND_KEY = "hand";
 /** How fast the pen writes; `?pen=6` slows it down so a screenshot can catch it half-written. */
 const PEN_K = Number(new URLSearchParams(location.search).get("pen")) || 1;
-/** Which of the three header placements to draw (`?ov=1|2|3`); it rides on the scene, since draw.ts is in a worker. */
-const HEAD_POS = Number(new URLSearchParams(location.search).get("ov")) || 2;
+/** How far a rotated column heading sits from its column's left edge (`?ox=N`); it rides on the scene, since
+ *  draw.ts runs in a worker and cannot read the address itself. */
+const HEAD_POS = Number(new URLSearchParams(location.search).get("ox")) || 0;
 const generateId = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
 
 type Values = Record<string, string>; // "x" for checks, "71,5" / "8" for numbers, "7.5" for dots
@@ -205,7 +206,7 @@ export default function App() {
   const [hand, setHandState] = useState<Hand>(() => (localStorage.getItem(HAND_KEY) as Hand) in HANDS ? (localStorage.getItem(HAND_KEY) as Hand) : "lukas");
   const [photos, setPhotos] = useState<Photos>(() => load(keyOf("photos", month), {}));
   const DAYS = daysOf(month), VALUES_KEY = keyOf("values", month), NOTES_KEY = keyOf("notes", month), PHOTOS_KEY = keyOf("photos", month);
-  const sceneOf = (m: Month, v: Values, n: Notes): Scene => ({ ...m, monthLabel: labelOf(m), days: daysOf(m), columns, values: v, notes: n, writing: null, hand, headPos: HEAD_POS });
+  const sceneOf = (m: Month, v: Values, n: Notes): Scene => ({ ...m, monthLabel: labelOf(m), days: daysOf(m), columns, values: v, notes: n, writing: null, hand, headPos: HEAD_POS || undefined });
   /** The spread on the other side of a leaf turned in `dir`, read straight from storage. */
   const otherScene = (dir: 1 | -1) => {
     const m = stepMonth(month, dir);

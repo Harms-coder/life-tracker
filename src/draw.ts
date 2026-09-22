@@ -1,5 +1,5 @@
 import { seededRandom } from "./random";
-import { drawInBox, drawText, setHand, widthOfText, type Hand } from "./glyf";
+import { drawInBox, drawText, setHand, widthOfText, vExtentOfText, type Hand } from "./glyf";
 import {
   CELL, PAGE_W, PAGE_H, COVER, LIP, BOOK_W, BOOK_H, LEFT_PAGE, RIGHT_PAGE, HEADER_Y, TABLE_LEFT, DAY_COL_W,
   TITLE_BOX_X, TITLE_BOX_Y, GOALS, goalPos, goalTextBox, widthOf, dotX, columnXs, bottomY, noteBoxes, NOTE_LABEL,
@@ -31,7 +31,7 @@ export type Scene = {
   } | null;
   /** whose handwriting the page is written in */
   hand: Hand;
-  /** where the column headings sit in their field (1 at the line, 2 middle, 3 top) - `?ov=N` while we pick one */
+  /** how far a rotated heading's anchor sits from its column's left edge (`?ox=N` while we pick the number) */
   headPos?: number;
 };
 export type Assets = {
@@ -49,15 +49,16 @@ export type Plane = { x0: number; y0: number; w: number; h: number; k: number; k
  *  theirs (Lukas, twice). Measured on the page: 8 put the first letter ON the line, since the rotated text's
  *  first glyph starts a few px before its anchor. */
 const HEADER_LIFT = 14;
-/** Where a column heading sits in the header field: 1 = at the line (as it was), 2 = in the middle of the field,
- *  3 = hanging from the top. It comes in on the scene, not from the address: this file runs in the worker, where
- *  `location` is the worker script and knows nothing about `?ov=`. A heading too long to fit stays at the line. */
-function headY(len: number, pos: number) {
-  const bottom = HEADER_Y - HEADER_LIFT;
-  if (pos === 1) return bottom;
-  const mid = (CELL + HEADER_Y) / 2 + len / 2;           // the word's middle at the field's middle
-  const top = CELL + 6 + len;                            // the word hanging from the top of the field
-  return Math.min(bottom, pos === 3 ? top : mid);
+/** A rotated heading is written along a VERTICAL baseline, and the letters' feet stood on the black line down
+ *  the right-hand side of its column - written on the line (Lukas). The word is now centred between the two
+ *  lines instead: its own ink reach above and below the baseline decides where the baseline goes, so a word
+ *  with tall letters and one without both end up with the same air on each side. */
+const HEAD_MASS = 2.5;
+function headAnchor(name: string, seed: string, left: number, w: number) {
+  const [up, down] = vExtentOfText(name, 16.5, seed); // SAME seed as the drawing, or it measures other glyphs
+  // + HEAD_MASS: a letter's ink sits mostly between the baseline and the x-height, so the middle of its REACH is
+  // not where the eye sees its middle. Measured on the page (centre of mass per column) and corrected by that much.
+  return left + w / 2 - (up + down) / 2 + HEAD_MASS;
 }
 const INK = "#1e2233", PAPER = "#efe9d4", GRID = "rgba(120,150,130,.42)";
 export const WEEKDAY = "SMTOTFL"; // indexed by Date.getDay()
@@ -434,21 +435,19 @@ function drawRightPage(ctx: Ctx, scene: Scene, vis: Rect, now: number, assets: A
   strokeInk(ctx, 1.7);
 
   // headers
-  const pos = scene.headPos ?? 2;
   if (overlaps(vis, { x: 0, y: 0, w: PAGE_W, h: HEADER_Y })) {
     columns.forEach((c, i) => {
       const left = xs[i + 1], w = widthOf(c.type) * CELL;
       // every heading sits the same way in the field (HEAD_POS); the scale under a dot graph is not a heading and
       // stays down by its own line. A heading lying flat is only as "long" as it is tall.
       if (c.type === "dots") {
-        text(ctx, c.name, left + w / 2, headY(16.5, pos) - 24, { size: 16.5, seed: "h" + c.id, align: "center" });
+        text(ctx, c.name, left + w / 2, HEADER_Y - 30, { size: 16.5, seed: "h" + c.id, align: "center" });
         for (const n of [0, 2, 4, 6, 8, 10]) text(ctx, String(n), left + dotX(n), HEADER_Y - 5, { size: 12, seed: "s" + n, align: "center" });
       } else if (c.type === "number") {
-        const size = c.name.length > 5 ? 11 : 14;
-        text(ctx, c.name, left + w / 2, headY(size, pos) - 7, { size, seed: "h" + c.id, align: "center", tilt: 0 });
+        text(ctx, c.name, left + w / 2, HEADER_Y - 7, { size: c.name.length > 5 ? 11 : 14, seed: "h" + c.id, align: "center", tilt: 0 });
       } else {
         // reads bottom→top, letter bottoms facing right ("A"): the anchor is where the first letter starts
-        text(ctx, c.name, left + w / 2 + 5, headY(widthOfText(c.name, 16.5, "h" + c.id), pos), { size: 16.5, seed: "h" + c.id, rotate: -Math.PI / 2, baseline: "middle" });
+        text(ctx, c.name, headAnchor(c.name, "h" + c.id, left, w) + (scene.headPos ?? 0), HEADER_Y - HEADER_LIFT, { size: 16.5, seed: "h" + c.id, rotate: -Math.PI / 2 });
       }
     });
     text(ctx, "+", right + CELL / 2, HEADER_Y - 6, { size: 20, seed: "plus", align: "center", alpha: 0.35 });

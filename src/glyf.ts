@@ -82,6 +82,39 @@ export function widthOfText(str: string, size: number, seed: string) {
   return w * em;
 }
 
+/** How far a glyph's ink reaches above and below the baseline, in box heights. Read out of the traced outline
+ *  itself (potrace writes plain M/C/L pairs), through the same transforms drawText applies, and kept. */
+const vCache = new Map<string, [number, number]>();
+function vExtent(v: Variant): [number, number] {
+  let e = vCache.get(v.d);
+  if (!e) {
+    const n = v.d.match(/-?\d+(?:\.\d+)?/g) ?? [];
+    let lo = Infinity, hi = -Infinity;
+    for (let i = 1; i < n.length; i += 2) {
+      const y = -v.t + v.k * (v.tr[1] + v.tr[3] * Number(n[i]));
+      if (y < lo) lo = y;
+      if (y > hi) hi = y;
+    }
+    e = [lo, hi];
+    vCache.set(v.d, e);
+  }
+  return e;
+}
+/** The ink's reach above (negative) and below (positive) the baseline for a whole string, in canvas units. */
+export function vExtentOfText(str: string, size: number, seed: string): [number, number] {
+  const r = seededRandom(seed);
+  let lo = 0, hi = 0;
+  for (const { ch, emoji } of parts(str)) {
+    if (emoji) { lo = Math.min(lo, -size * EMOJI_SIZE * 0.8); hi = Math.max(hi, size * EMOJI_SIZE * 0.2); continue; }
+    if (ch === " ") continue;
+    const v = pick(ch, r);
+    if (!v) continue;
+    const [a, b] = vExtent(v);
+    lo = Math.min(lo, a * size * EM); hi = Math.max(hi, b * size * EM);
+  }
+  return [lo, hi];
+}
+
 /** Draw `str` with its baseline at y (or centred/topped, matching the canvas baseline names). */
 export function drawText(ctx: OffscreenCanvasRenderingContext2D, str: string, x: number, y: number,
                          size: number, seed: string, align: CanvasTextAlign = "left", baseline: CanvasTextBaseline = "alphabetic") {

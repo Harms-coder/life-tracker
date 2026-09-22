@@ -182,20 +182,25 @@ telefonens egen emoji-skrift midt i skriften (`glyf.ts`):
   telefonens emoji-tastatur virker uden videre.
 - `node tools/emojicheck.mjs screenshots/emoji.png` = mål + plan med emojis, zoomet ind.
 
-## Status 2026-09-22 kl. 20.45 – OVERSKRIFTERNES PLADS I FELTET: TRE VARIANTER (?ov=1|2|3)
+## Status 2026-09-22 kl. 21.10 – OVERSKRIFTERNE: DET VAR DEN LODRETTE LINJE
 
-Lukas sendte et billede og bad om "i midten af feltet", men skriftretningen skal blive som nu. Hans billede er
-en MOCKUP: den lodrette skrift i det læses OPPEFRA OG NED (modsat appen), og fotoet er i perspektiv, så det kan
-ikke måles præcist. Efter at have ramt forkert på de overskrifter tre gange tidligere: tre varianter, han peger.
-- `headY(len, pos)` i draw.ts: 1 = ved linjen (som før, 14 px luft), 2 = ordets midte i feltets midte,
-  3 = hængt op i toppen. For lange ord klippes der til linjen, så de aldrig krydser den. Gælder ALLE overskrifter
-  (også de vandrette "Vægt" og "Søvn score"); prikgrafens 0–10-skala bliver ved sin egen linje.
-- **FALDGRUBE:** `?ov=` kunne ikke læses i draw.ts – den fil kører i WORKEREN, hvor `location` er worker-scriptet
-  og ikke siden. Knappen ligger nu i App (hovedtråden) og rider med på scenen (`headPos`), som `hand` gør.
-  Samme gælder enhver anden ny `?knap=` der skal virke i tegningen.
-- Standard = 2. `node tools/ovcheck.mjs screenshots/ov` tegner alle tre.
-- MÅLT (luft under ordene, verdens-px): ov=1 13,5 · ov=2 33–67 for de korte (lange ord står stadig ved linjen)
-  · ov=3 85–96. Bemærk ved måling: første række X'er stikker ~4 px op over linjen og forurener en naiv måling.
+**Det var aldrig den vandrette linje.** En roteret overskrift skrives langs en LODRET grundlinje, og bogstavernes
+fødder stod på den sorte streg i kolonnens HØJRE side. Lukas: "det er den linje i højre side, der er lodret …
+den skal være imellem de to linjer". Mine tre `?ov=`-varianter (lodret placering i feltet) var derfor svar på et
+spørgsmål han ikke stillede – RULLET TILBAGE, den lodrette placering er præcis som før (HEADER_LIFT = 14).
+- `headAnchor()` i draw.ts placerer grundlinjen, så ORDET står midt mellem de to lodrette linjer. Hvert ord måler
+  sin egen rækkevidde over/under grundlinjen: `vExtentOfText()` i glyf.ts læser min/max y ud af selve glyffens
+  sporede omrids (potrace skriver M/C/L-talpar) gennem drawText's egne transformationer, og cacher det pr. glyf.
+  SAMME seed som tegningen, ellers måles der på andre varianter. Baseline er nu "alphabetic" – "middle" lagde
+  selv en forskydning oveni, og det var halvdelen af problemet.
+- `HEAD_MASS` = 2,5: blækkets masse ligger mellem grundlinje og x-højde, så midten af rækkevidden er ikke der,
+  øjet ser midten. Tallet er MÅLT (tyngdepunkt pr. kolonne), ikke gættet.
+- MÅLT (tyngdepunkt i forhold til kolonnens midte, verdens-px): før +3,1…+5,3 (snit +4,3) → efter −3,0…+1,5 (snit −0,3).
+- `?ox=N` skubber grundlinjen N verdens-px til højre (ligger på scenen, ikke i adressen – se faldgruben nedenfor).
+- **MÅLEFALDGRUBE:** kolonnelinjerne er håndtegnede og bølger ±1,4 px, så "yderste mørke pixel i kolonnen" måler
+  linjen, ikke ordet – det gav 1,6–1,7 px "luft" i ALLE kolonner uanset indhold. Mål tyngdepunkt med en margen
+  på ~10 px ind fra linjerne (`scratchpad/mass.py`-metoden). Og første række X'er stikker ~4 px op over den
+  vandrette linje, så en lodret måling skal stoppe et stykke over den.
 
 ## Status 2026-09-22 kl. 20.15 – MARKØREN STARTER NEDERST
 Lukas: åbner man en skriveflade, sad markøren i den ØVERSTE linje – den skal stå i den tomme linje nederst, for
