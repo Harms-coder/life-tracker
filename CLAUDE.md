@@ -166,6 +166,20 @@ Rækker = dage 1–31 (antal efter måneden). Kolonner = brugerens egne trackere
 - Test-scripts ligger i sessionens scratchpad (`pw/shots.mjs` skærmbilleder, `pw/bench.mjs` frame-tider i WebKit,
   `pw/tapcheck.mjs` tryk). Dev-server: `npm run dev`. I dev sætter BookCanvas `window.__view` (x, y, s) til scripts.
 
+## Status 2026-09-22 kl. 15.00 – TO HÅNDSKRIFTER
+
+Louises tre ark laa som PDF på Lukas' skrivebord ("Louise haandskrift 1/2/3.pdf"); konverteret med
+`pdftoppm -jpeg -r 200` og lagt i `haandskrift/louise/` (i git). 86 tegn, 428 varianter – hun har også `&`.
+- `tools/glyffer.py` tager nu `--fotos DIR --ud FIL --krads N`. **KRADS** = hvor fyldt en boks skal være, før
+  den tæller som overstreget, og den AFHÆNGER AF PENNEN: tynd pen = rigtigt bogstav 0,37 / overstreget 0,54
+  (Lukas), tyk pen = almindeligt "0" 0,59 / overstreget 0,66–0,68 (Louise). Med standardværdien 0,45 faldt
+  Louises 0, 8, s, æ og B helt ud. Lukas' sæt bygger bit for bit ens med standardværdien (tjekket).
+  Louise: `python3 tools/glyffer.py --fotos haandskrift/louise --ud src/glyffer-louise.json --krads 0.62`
+- `glyf.ts` holder begge sæt (`HANDS`, `setHand`); valget ligger i `Scene.hand`, så WORKEREN følger med uden
+  ekstra beskeder. App.tsx gemmer det i localStorage under `hand`.
+- Valgknappen: en lille blyant nederst til VENSTRE (uden for bogen, modsat build-mærket). Lukas har ikke sagt
+  hvor han vil have den – gæt, to linjer at flytte.
+
 ## Status 2026-09-22 kl. 14.45 – RUNDE 3: TILBAGERULNING + TEKST
 
 - **Runde 2 var ikke det, Lukas mente.** Sidestakkens farve (STACK_LIT) og den mørke fold (FOLD_DARK/FOLD_FLAT,
@@ -382,7 +396,7 @@ workeren skal verificeres).
   ikke i farverne til resten".)
 - Ryggen: Lukas sagde ja til "lys/skygge i folden set fladt oppefra" – den gradient findes allerede (drawSpine +
   drawPage i draw.ts); intet ændret. Spørg hvad der konkret ser forkert ud.
-- `&` mangler i håndskriften. Roadmap trin 2 (flere måneder, sidevending, IndexedDB). Andre tidspunkter er låst til
+- `&` mangler i LUKAS' håndskrift (Louises har det). Roadmap trin 2 (flere måneder, sidevending, IndexedDB). Andre tidspunkter er låst til
   aften (`ONLY` i Backdrop.tsx) – lyskortet er også hårdkodet til aften.jpg i BookCanvas.
 
 ## Status 2026-09-17 kl. 21.30 (historik)
