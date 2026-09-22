@@ -166,6 +166,23 @@ Rækker = dage 1–31 (antal efter måneden). Kolonner = brugerens egne trackere
 - Test-scripts ligger i sessionens scratchpad (`pw/shots.mjs` skærmbilleder, `pw/bench.mjs` frame-tider i WebKit,
   `pw/tapcheck.mjs` tryk). Dev-server: `npm run dev`. I dev sætter BookCanvas `window.__view` (x, y, s) til scripts.
 
+## Status 2026-09-22 kl. 14.45 – RUNDE 3: TILBAGERULNING + TEKST
+
+- **Runde 2 var ikke det, Lukas mente.** Sidestakkens farve (STACK_LIT) og den mørke fold (FOLD_DARK/FOLD_FLAT,
+  v_shade-bunden) er RULLET HELT TILBAGE. Den spejlede skarpe bordplade BLIVER – den var den eneste af de tre,
+  han ville beholde. LÆRE: da han sagde "underlig hvid kant" og "man kan se igennem folden", var min diagnose
+  rigtig nok teknisk, men rettelsen ramte forkert. SPØRG næste gang, eller lav varianter bag `?knap=N` og lad
+  ham pege – det står allerede i ARBEJDSFORM længere nede, og jeg sprang det over.
+- Kolonneoverskrifterne stod i bunden af overskriftsfeltet ("skrevet på linjen"); nu midt i feltet
+  (`mid = CELL + HEADER_H/2` i drawRightPage). Prikgrafens 0–10-skala bliver nede ved sin egen linje.
+  For lange navne skaleres ned med `fit()`, så de bliver i feltet.
+- "September 2026": 38 px med grundlinje 56 lagde tallenes top hen over gitterlinjen ved 40. Nu 31 px på linjen
+  ved 3 tern.
+- **VENTER PÅ LUKAS: nye håndskriftsark.** Han har udfyldt ét sæt mere og vil kunne VÆLGE mellem to alfabeter.
+  Fotos skal i `haandskrift/fotos/` (samme skabelon, samme 3 sider). Pipeline i dag: `python3 tools/glyffer.py`
+  → `src/glyffer.json` (ét sæt). Til to sæt: glyffer.py skal kunne skrive til et andet navn, glyf.ts holde to
+  sæt, og der skal være et sted at vælge i appen.
+
 ## Status 2026-09-22 kl. 14.30 – KANT, FOLD OG BORD (runde 2 samme dag)
 
 Lukas' næste tre ting. Rettet, pushet, IKKE set af ham på telefonen endnu. Knapper: `?kant=N` `?fold=N`.
