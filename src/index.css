@@ -67,3 +67,11 @@ body { font-family: var(--font-hand); -webkit-user-select: none; user-select: no
   position: fixed; left: 10px; bottom: 6px; width: 34px; height: 34px; border: 0; border-radius: 17px;
   background: rgba(20,20,20,.35); color: rgba(255,255,255,.75); font-size: 17px; line-height: 1; padding: 0;
 }
+
+/* turn a leaf: one small arrow at each side of the screen (a swipe across the tipped-back book does the same) */
+.turn {
+  position: fixed; top: 50%; margin-top: -19px; width: 38px; height: 38px; border: 0; border-radius: 19px;
+  background: rgba(20,20,20,.35); color: rgba(255,255,255,.8); font: 26px/34px -apple-system, system-ui, sans-serif; padding: 0 0 2px;
+}
+.turn.prev { left: 10px; }
+.turn.next { right: 10px; }

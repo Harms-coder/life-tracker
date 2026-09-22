@@ -10,8 +10,16 @@ declare const __BUILD__: string; // set in vite.config.ts
 
 const TYPE_LABEL: Record<ColType, string> = { check: "Afkrydsning", number: "Tal", rating: "Rating 1–10", dots: "Prikgraf 0–10" };
 
-// ponytail: fixed month; months + page turning come in roadmap step 2
-const MONTH = { year: 2026, month: 9, label: "September 2026" };
+/** One month of the book: `month` 1..12. Everything written in it is stored under its own keys. */
+type Month = { year: number; month: number };
+const MONTHS_DA = ["Januar", "Februar", "Marts", "April", "Maj", "Juni", "Juli", "August", "September", "Oktober", "November", "December"];
+const labelOf = (m: Month) => `${MONTHS_DA[m.month - 1]} ${m.year}`;
+const daysOf = (m: Month) => new Date(m.year, m.month, 0).getDate();
+const stepMonth = (m: Month, dir: 1 | -1): Month => ({ year: m.year + (m.month + dir < 1 ? -1 : m.month + dir > 12 ? 1 : 0), month: ((m.month + dir + 11) % 12) + 1 });
+const keyOf = (kind: "values" | "notes" | "photos", m: Month) => `${kind}-${m.year}-${m.month}`;
+const MONTH_KEY = "month"; // the spread the book was last open at
+/** The month the demo text and values were written into, once, on the first visit. */
+const DEMO_MONTH: Month = { year: 2026, month: 9 };
 const DEFAULT_COLUMNS: Column[] = [
   { id: "vaegt", name: "Vægt", type: "number" },
   { id: "loeb", name: "Løb", type: "check" },
@@ -27,11 +35,7 @@ const DEFAULT_COLUMNS: Column[] = [
   { id: "soevn", name: "Søvn score", type: "dots" },
   { id: "dagsscore", name: "Dagsscore", type: "rating" },
 ];
-const DAYS = new Date(MONTH.year, MONTH.month, 0).getDate();
-const VALUES_KEY = `values-${MONTH.year}-${MONTH.month}`;
 const COLUMNS_KEY = "columns";
-const NOTES_KEY = `notes-${MONTH.year}-${MONTH.month}`;
-const PHOTOS_KEY = `photos-${MONTH.year}-${MONTH.month}`;
 const HAND_KEY = "hand";
 const generateId = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
 
@@ -59,10 +63,10 @@ const DEMO_PLANS: Notes = {
 };
 
 function demoValues(columns: Column[]): Values {
-  const r = seededRandom("demo-" + MONTH.label);
+  const r = seededRandom("demo-" + labelOf(DEMO_MONTH));
   const v: Values = {};
   let weight = 71.8;
-  for (let day = 1; day <= DAYS; day++) {
+  for (let day = 1; day <= daysOf(DEMO_MONTH); day++) {
     const goodDay = r() < 0.6; // some days just go better
     weight += (r() - 0.55) * 0.4;
     const sleep = Math.round((goodDay ? 6.5 : 5) + r() * 3.5);
@@ -99,27 +103,43 @@ type Prompt = ValuePrompt | ColumnPrompt | NotePrompt | HandPrompt | PhotoPrompt
 
 export default function App() {
   const [columns, setColumns] = useState<Column[]>(() => load(COLUMNS_KEY, DEFAULT_COLUMNS));
-  const [values, setValues] = useState<Values>(() => seedOnce("demo-seeded-2", VALUES_KEY, () => demoValues(load(COLUMNS_KEY, DEFAULT_COLUMNS)), {}));
-  const [notes, setNotes] = useState<Notes>(() => {
-    const n = seedOnce("demo-notes-seeded-2", NOTES_KEY, () => DEMO_NOTES, {});
-    // the plans came later than the rest of the demo text: merged in without touching anything already written
-    if (localStorage.getItem("demo-plans-seeded")) return n;
-    localStorage.setItem("demo-plans-seeded", "1");
-    const merged = { ...DEMO_PLANS, ...n };
-    localStorage.setItem(NOTES_KEY, JSON.stringify(merged));
-    return merged;
+  const [month, setMonth] = useState<Month>(() => {
+    // the demo month is filled in once, on the first visit, whichever month the book then opens at
+    seedOnce("demo-seeded-2", keyOf("values", DEMO_MONTH), () => demoValues(load(COLUMNS_KEY, DEFAULT_COLUMNS)), {});
+    const n = seedOnce("demo-notes-seeded-2", keyOf("notes", DEMO_MONTH), () => DEMO_NOTES, {});
+    if (!localStorage.getItem("demo-plans-seeded")) { // the plans came later than the rest of the demo text: merged in without touching anything already written
+      localStorage.setItem("demo-plans-seeded", "1");
+      localStorage.setItem(keyOf("notes", DEMO_MONTH), JSON.stringify({ ...DEMO_PLANS, ...n }));
+    }
+    const today = new Date();
+    return load<Month>(MONTH_KEY, { year: today.getFullYear(), month: today.getMonth() + 1 });
   });
+  const [values, setValues] = useState<Values>(() => load(keyOf("values", month), {}));
+  const [notes, setNotes] = useState<Notes>(() => load(keyOf("notes", month), {}));
   const [hand, setHandState] = useState<Hand>(() => (localStorage.getItem(HAND_KEY) as Hand) in HANDS ? (localStorage.getItem(HAND_KEY) as Hand) : "lukas");
-  const [photos, setPhotos] = useState<Photos>(() => load(PHOTOS_KEY, {}));
+  const [photos, setPhotos] = useState<Photos>(() => load(keyOf("photos", month), {}));
+  const DAYS = daysOf(month), VALUES_KEY = keyOf("values", month), NOTES_KEY = keyOf("notes", month), PHOTOS_KEY = keyOf("photos", month);
+  const sceneOf = (m: Month, v: Values, n: Notes): Scene => ({ ...m, monthLabel: labelOf(m), days: daysOf(m), columns, values: v, notes: n, writing: null, hand });
+  /** The spread on the other side of a leaf turned in `dir`, read straight from storage. */
+  const otherScene = (dir: 1 | -1) => {
+    const m = stepMonth(month, dir);
+    return { scene: sceneOf(m, load(keyOf("values", m), {}), load(keyOf("notes", m), {})), photos: load<Photos>(keyOf("photos", m), {}) };
+  };
+  /** The leaf has landed: the book is open at that month now. */
+  const onTurned = (dir: 1 | -1) => {
+    const m = stepMonth(month, dir);
+    setMonth(m); setValues(load(keyOf("values", m), {})); setNotes(load(keyOf("notes", m), {})); setPhotos(load(keyOf("photos", m), {}));
+    localStorage.setItem(MONTH_KEY, JSON.stringify(m));
+  };
   const [prompt, setPrompt] = useState<Prompt | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
   const fileSlot = useRef("");
   const book = useRef<BookCanvasHandle>(null);
-  const scene = useRef<Scene>({ ...MONTH, monthLabel: MONTH.label, days: DAYS, columns, values, notes, writing: null, hand });
-  scene.current = { ...scene.current, columns, values, notes, hand };
+  const scene = useRef<Scene>(sceneOf(month, values, notes));
+  scene.current = { ...sceneOf(month, values, notes), writing: scene.current.writing };
 
   const redraw = () => book.current?.redraw();
-  useEffect(() => { book.current?.setPhotos(photos); book.current?.refresh(); }, [columns, values, notes, hand, photos]);
+  useEffect(() => { book.current?.setPhotos(photos); book.current?.refresh(); }, [month, columns, values, notes, hand, photos]);
 
   const write = (key: string, value: string | null) => {
     const next = { ...values };
@@ -209,7 +229,7 @@ export default function App() {
         const v = dotValue(hit.fx * widthOf("dots") * CELL);
         return write(key, values[key] === String(v) ? null : String(v));
       }
-      return setPrompt({ kind: "value", key, label: `${col.name} · ${day}. ${MONTH.label.split(" ")[0].toLowerCase()}`, value: values[key] ?? "" });
+      return setPrompt({ kind: "value", key, label: `${col.name} · ${day}. ${MONTHS_DA[month.month - 1].toLowerCase()}`, value: values[key] ?? "" });
     }
     if (hit.kind === "photo") return photos[hit.slot] ? setPrompt({ kind: "photo", slot: hit.slot }) : pickPhoto(hit.slot);
     if (hit.kind === "header") return setPrompt({ kind: "column", index: hit.index, column: columns[hit.index] });
@@ -239,8 +259,10 @@ export default function App() {
 
   return (
     <>
-      <BookCanvas ref={book} width={BOOK_W} height={BOOK_H} scene={scene} onTap={onTap} grab={grab} backdrop={<Backdrop />} />
+      <BookCanvas ref={book} width={BOOK_W} height={BOOK_H} scene={scene} onTap={onTap} grab={grab} otherScene={otherScene} onTurned={onTurned} backdrop={<Backdrop />} />
       <span className="build">{__BUILD__}</span>
+      <button className="turn prev" onClick={() => book.current?.turn(-1)} aria-label="Forrige måned">‹</button>
+      <button className="turn next" onClick={() => book.current?.turn(1)} aria-label="Næste måned">›</button>
       <input ref={fileInput} type="file" accept="image/*" hidden onInput={onFile} />
       <button className="hand-pick" onClick={() => setPrompt({ kind: "hand" })} aria-label="Vælg håndskrift">✎</button>
 

@@ -1,6 +1,6 @@
 import { forwardRef, useImperativeHandle, useLayoutEffect, useRef, type ReactNode } from "react";
-import { BG, BOOK_H, BOOK_W, LIP, TABLE } from "./layout";
-import { ARCH, createBook3D, type Book3D } from "./bog3d";
+import { BG, BOOK_H, BOOK_W, COVER, LIP, PAGE_H, PAGE_W, TABLE } from "./layout";
+import { ARCH, createBook3D, type Book3D, type Turn } from "./bog3d";
 import type { Plane, Scene, View } from "./draw";
 import type { RenderReply, RenderRequest } from "./draw.worker";
 
@@ -28,6 +28,9 @@ export type BookCanvasHandle = {
   refresh: () => void;
   /** the photos in the book changed: they go to the worker with the next drawing */
   setPhotos: (photos: Record<string, string>) => void;
+  /** turn a leaf: +1 forward (the right page swings over), -1 back. Zoomed in, the camera first pulls back to
+   *  the whole spread - a leaf turning right under the camera would pass through it. */
+  turn: (dir: 1 | -1) => void;
 };
 
 /**
@@ -46,8 +49,14 @@ export const BookCanvas = forwardRef<BookCanvasHandle, {
   /** Does anything at this world point follow the finger? Return a handler and the drag moves that instead of
    *  the book (the dot in the sleep graph); return null and the finger pans as usual. */
   grab?: (wx: number, wy: number) => ((wx: number, wy: number) => void) | null;
+  /** The spread on the other side of a leaf turned in `dir`: what it shows, and its photos (data URLs by slot). */
+  otherScene: (dir: 1 | -1) => { scene: Scene; photos: Record<string, string> };
+  /** A leaf has landed: the book is open at the spread `otherScene(dir)` described. */
+  onTurned: (dir: 1 | -1) => void;
   backdrop?: ReactNode;
-}>(function BookCanvas({ width, height, scene, onTap, grab, backdrop }, ref) {
+}>(function BookCanvas({ width, height, scene, onTap, grab, otherScene, onTurned, backdrop }, ref) {
+  const props = useRef({ otherScene, onTurned }); // read at call time: the imperative handle and the animations outlive one render
+  props.current = { otherScene, onTurned };
   const view = useRef<HTMLDivElement>(null);
   const scene2d = useRef<HTMLDivElement>(null); // the room: pans and zooms with the world, never tilts
   const worker = useRef<Worker | null>(null); // draws the flat spread (draw.ts) off the main thread
@@ -76,11 +85,31 @@ export const BookCanvas = forwardRef<BookCanvasHandle, {
   const meter = useRef<HTMLDivElement>(null); // ?maal: redraw times in the corner, for reading off the phone
   const worst = useRef({ main: 0, trip: 0 });
   const uploadFrame = useRef({ max: 0, n: 0 }); // ?maal: the slowest frame while a texture went up, and how many it took
+  /** A leaf mid-turn. `anim` while it settles on its own, `drag` while a finger holds its fore-edge. */
+  const turn = useRef<(Turn & { anim: number; drag: { wx0: number } | null }) | null>(null);
+  const turnGrab = useRef<{ wx: number; fy: number } | null>(null); // the finger went down on the tipped-back book: a sideways drag turns a leaf
+  const viewAnim = useRef(0); // the camera moving on its own (pulling back before a turn)
+  /** Bumped when the book opens at another spread: drawings asked for before that show the old month and are dropped. */
+  const gen = useRef(0);
 
   /** 0 (looking straight down) .. 1 (fully tipped back) */
   const tiltAmount = (s: number) => { const out = Math.min(1, Math.max(0, (fitScale.current * (1 + TILT_RANGE) - s) / (fitScale.current * TILT_RANGE))); return out * out; };
   const tiltFor = (s: number) => TILT_MAX * tiltAmount(s);
   const maxScale = () => fitScale.current * MAX_OVER_FIT;
+  /** Something is moving on its own (a leaf settling, the camera pulling back): fingers wait. */
+  const busy = () => !!(turn.current?.anim || viewAnim.current);
+
+  /** Screen point -> world point on the book's plane, tilt and all: the inverse of the vertex shader's projection
+   *  at height 0 (CSS px throughout; the shader works in device px, but the ratio is the same). */
+  const unproject = (sx: number, sy: number) => {
+    const { x, y, s } = t.current;
+    const th = (tiltFor(s) * Math.PI) / 180, P = PERSPECTIVE;
+    const ox = x + (BOOK_W / 2) * s, oy = y + (BOOK_H / 2) * s;
+    const q = sy - oy;
+    const dy = (q * P) / (Math.cos(th) * P + q * Math.sin(th));
+    const dx = (sx - ox) * (P - dy * Math.sin(th)) / P;
+    return { wx: (ox + dx - x) / s, wy: (oy + dy - y) / s };
+  };
 
   /** Zoomed out you can pan to the edge of the photo (it always covers the screen); looking straight down only
    *  over the table in it, never up to the window. In between the limit slides from one to the other, so nothing jumps. */
@@ -118,6 +147,7 @@ export const BookCanvas = forwardRef<BookCanvasHandle, {
       // the sharp top-down table comes in a little ahead of the book flattening, so the photo's far table edge is
       // gone before the unfolding book reaches it
       fade: Math.min(1, (1 - a) * 1.6),
+      turn: turn.current,
     });
     if (uploading) {
       uploadFrame.current = { max: Math.max(uploadFrame.current.max, performance.now() - t0), n: uploadFrame.current.n + 1 };
@@ -147,7 +177,7 @@ export const BookCanvas = forwardRef<BookCanvasHandle, {
     const bx0 = Math.max(p.x0, x - LIP * s), by0 = Math.max(p.y0, y - LIP * s);
     const bx1 = Math.min(p.x0 + p.w, x + (BOOK_W + LIP) * s), by1 = Math.min(p.y0 + p.h, y + (BOOK_H + LIP) * s);
     const bp: Plane = { x0: bx0, y0: by0, w: Math.max(1, bx1 - bx0), h: Math.max(1, by1 - by0), k: p.k };
-    const req: RenderRequest = { id: 0, view: { x, y, s }, plane: bp, live: budget < PIXEL_BUDGET, scene: scene.current, now: performance.now() };
+    const req: RenderRequest = { id: gen.current, view: { x, y, s }, plane: bp, live: budget < PIXEL_BUDGET, scene: scene.current, now: performance.now() };
     if (photos.current) { req.photos = photos.current; photos.current = null; }
     inflight.current = { req, plane: p, at: performance.now() };
     lastRender.current = performance.now();
@@ -157,10 +187,17 @@ export const BookCanvas = forwardRef<BookCanvasHandle, {
   const next = () => { inflight.current = null; if (queued.current !== null) { const b = queued.current; queued.current = null; render(b); } };
   const onReply = (e: MessageEvent<RenderReply>) => {
     if ("error" in e.data) { console.error("draw.worker:", e.data.error); next(); return; }
-    if (e.data.overview) { book3d.current?.setOverview(new Uint8Array(e.data.pixels), e.data.w, e.data.h); if (t.current.s) paint(); return; }
+    const stale = e.data.id !== gen.current; // asked for before the book turned to another spread: it shows the old month
+    if (e.data.overview) {
+      if (stale || !book3d.current) return;
+      const px = new Uint8Array(e.data.pixels);
+      if (e.data.slot === "next") book3d.current.setNext(px, e.data.w, e.data.h); else book3d.current.setOverview(px, e.data.w, e.data.h);
+      if (t.current.s) paint();
+      return;
+    }
     const job = inflight.current;
     const { pixels, w, h, k } = e.data;
-    if (!job || !book3d.current) { next(); return; }
+    if (!job || !book3d.current || stale) { next(); return; }
     const { x, y, s } = job.req.view, bp = job.req.plane;
     // The bitmap is the WHOLE worker canvas, which mid-pinch is deliberately larger than the part just drawn (it
     // is kept rather than reallocated). Telling the mesh it only covers bp squeezed the spread into a fraction
@@ -203,13 +240,73 @@ export const BookCanvas = forwardRef<BookCanvasHandle, {
 
   /** The whole spread, coarse, outside the one-at-a-time queue: it stands in wherever the page texture does not
    *  reach, so a fast zoom out or pan never shows a blank page while the next drawing is on its way. */
-  const renderOverview = () => {
+  const renderOverview = (of?: { scene: Scene; photos: Record<string, string> }) => {
     const w = BOOK_W + 2 * LIP, h = BOOK_H + 2 * LIP; // the whole board, lip and all: that is what v_ouv maps onto
     const k = Math.sqrt(OVERVIEW_BUDGET / (w * h));
-    worker.current?.postMessage({ id: 0, view: { x: 0, y: 0, s: 1 }, plane: { x0: -LIP, y0: -LIP, w, h, k }, live: false, scene: scene.current, now: performance.now(), overview: true } satisfies RenderRequest);
+    const req: RenderRequest = { id: gen.current, view: { x: 0, y: 0, s: 1 }, plane: { x0: -LIP, y0: -LIP, w, h, k }, live: false, scene: of?.scene ?? scene.current, now: performance.now(), overview: true };
+    if (of) { req.slot = "next"; req.photos = of.photos; }
+    worker.current?.postMessage(req);
   };
 
+  /** A leaf starts to turn: ask for the spread on its other side, so its back has something to show. */
+  const beginTurn = (dir: 1 | -1, twist: number) => {
+    renderOverview(props.current.otherScene(dir));
+    turn.current = { dir, p: 0, twist: Math.max(-1, Math.min(1, twist)), anim: 0, drag: null };
+  };
+  /** The leaf goes the rest of the way on its own: down onto the other page (1), or back where it was (0). */
+  const settleTurn = (target: 0 | 1) => {
+    const tr = turn.current!;
+    tr.drag = null;
+    const from = tr.p, dist = Math.abs(target - from), ms = 180 + 620 * dist, t0 = performance.now();
+    const step = (now: number) => {
+      const u = Math.min(1, (now - t0) / ms);
+      // a whole turn eases in and out; a leaf let go mid-air just eases out into its landing
+      const e = from === 0 && target === 1 ? u * u * (3 - 2 * u) : 1 - Math.pow(1 - u, 3);
+      tr.p = from + (target - from) * e;
+      if (u < 1) { tr.anim = requestAnimationFrame(step); apply(); return; }
+      tr.anim = 0;
+      turn.current = null;
+      if (target === 1) {
+        gen.current++; // whatever is being drawn now shows the month just left
+        book3d.current?.commitTurn();
+        props.current.onTurned(tr.dir);
+      }
+      apply();
+    };
+    tr.anim = requestAnimationFrame(step);
+  };
+  /** The camera moves on its own to `to`, then `then` runs. */
+  const animateView = (to: View, ms: number, then: () => void) => {
+    const from = { ...t.current }, t0 = performance.now();
+    const step = (now: number) => {
+      const u = Math.min(1, (now - t0) / ms), e = u * u * (3 - 2 * u);
+      t.current = { x: from.x + (to.x - from.x) * e, y: from.y + (to.y - from.y) * e, s: from.s + (to.s - from.s) * e };
+      apply();
+      renderLive();
+      if (u < 1) { viewAnim.current = requestAnimationFrame(step); return; }
+      viewAnim.current = 0;
+      commit();
+      then();
+    };
+    viewAnim.current = requestAnimationFrame(step);
+  };
+
+  if (import.meta.env.DEV) { // for the screenshot scripts: hold a leaf at a given angle, or turn it for real
+    const w = window as unknown as { __turnTo: (dir: 1 | -1, p: number) => void; __turn: (dir: 1 | -1) => void; __busy: () => boolean };
+    w.__turnTo = (dir, p) => { if (!turn.current) beginTurn(dir, 0.6); turn.current!.p = p; if (p <= 0 || p >= 1) turn.current = null; apply(); };
+    w.__turn = (dir) => (ref as React.RefObject<BookCanvasHandle>).current?.turn(dir);
+    w.__busy = busy;
+  }
+
   useImperativeHandle(ref, () => ({
+    turn: (dir) => {
+      if (turn.current || busy() || !t.current.s) return;
+      const go = () => { beginTurn(dir, 0.6); settleTurn(1); }; // held by the bottom corner, as one does
+      if (tiltFor(t.current.s) > 0) { go(); return; }
+      // looking straight down, pull back first: the whole spread, tipped back on the table
+      const v = view.current!, s = fitScale.current;
+      animateView({ x: (v.clientWidth - BOOK_W * s) / 2, y: (v.clientHeight - BOOK_H * s) / 2, s }, 420, go);
+    },
     redraw: () => { if (t.current.s) render(); },
     // The visible part is redrawn at once; the whole-spread stand-in follows once the writing stops. Dragging a
     // dot writes ten times in a second, and redrawing all of it each time is what that would cost.
@@ -268,6 +365,7 @@ export const BookCanvas = forwardRef<BookCanvasHandle, {
     return () => {
       worker.current?.terminate(); worker.current = null; inflight.current = null; queued.current = null;
       book3d.current?.dispose(); book3d.current = null; ro.disconnect(); clearTimeout(overTimer.current); cancelAnimationFrame(glide.current); cancelAnimationFrame(frame.current); clearTimeout(commitTimer.current);
+      cancelAnimationFrame(turn.current?.anim ?? 0); turn.current = null; cancelAnimationFrame(viewAnim.current); viewAnim.current = 0;
     };
   }, [width, height]);
 
@@ -292,6 +390,7 @@ export const BookCanvas = forwardRef<BookCanvasHandle, {
   };
 
   const onPointerDown = (e: React.PointerEvent) => {
+    if (busy()) return; // a leaf is landing or the camera is on its way: it is over in well under a second
     try { view.current!.setPointerCapture(e.pointerId); } catch { /* synthetic event in tests */ }
     stopGlide();
     clearTimeout(commitTimer.current);
@@ -301,10 +400,17 @@ export const BookCanvas = forwardRef<BookCanvasHandle, {
       const { x, y, s } = t.current;
       scrub.current = null;
       pending.current = tiltFor(s) === 0 ? (grab?.((e.clientX - x) / s, (e.clientY - y) / s) ?? null) : null;
+      // tipped back, a finger on the book takes hold of a leaf (which one depends on the way it then moves)
+      turnGrab.current = null;
+      if (tiltFor(s) > 0) {
+        const w = unproject(e.clientX, e.clientY);
+        if (w.wx > 0 && w.wx < BOOK_W && w.wy > 0 && w.wy < BOOK_H) turnGrab.current = { wx: w.wx, fy: (w.wy - COVER) / PAGE_H };
+      }
     }
     pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
     if (pointers.current.size === 2) {
-      scrub.current = pending.current = null; // a second finger means a pinch, whatever the first one was on
+      scrub.current = pending.current = turnGrab.current = null; // a second finger means a pinch, whatever the first one was on
+      if (turn.current?.drag) settleTurn(turn.current.p > 0.5 ? 1 : 0); // the leaf is let go
       const [a, b] = [...pointers.current.values()];
       const { x, y, s } = t.current;
       const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
@@ -327,6 +433,24 @@ export const BookCanvas = forwardRef<BookCanvasHandle, {
       t.current = { x: mx - p.wx * s, y: my - p.wy * s, s };
       apply();
       renderLive();
+    } else if (turn.current?.drag && pointers.current.size === 1) {
+      // the fore-edge follows the finger's sideways travel: from lying flat, out at PAGE_W from the spine, over
+      // to the other page. The book itself stays put.
+      const tr = turn.current, w = unproject(e.clientX, e.clientY);
+      tr.p = Math.acos(Math.max(-1, Math.min(1, (PAGE_W + tr.dir * (w.wx - tr.drag!.wx0)) / PAGE_W))) / Math.PI;
+      track(e, prev);
+      apply();
+    } else if (turnGrab.current && pointers.current.size === 1) {
+      // hold still until the finger has said what it wants: sideways = turn the leaf, up or down = pan
+      const tx = e.clientX - down.current.x, ty = e.clientY - down.current.y;
+      if (Math.hypot(tx, ty) >= SCRUB_SLOP) {
+        const g = turnGrab.current;
+        turnGrab.current = null;
+        if (Math.abs(tx) > Math.abs(ty)) {
+          beginTurn(tx < 0 ? 1 : -1, (g.fy - 0.5) * 1.6); // the corner nearest the finger leads
+          turn.current!.drag = { wx0: unproject(e.clientX, e.clientY).wx };
+        } else { t.current.x += tx; t.current.y += ty; apply(); renderIfOff(); }
+      }
     } else if (pending.current && pointers.current.size === 1) {
       // hold still until the finger has said what it wants. Slow and sideways = drag the dot; anything else =
       // pan, and the movement so far goes to the pan so nothing is lost.
@@ -348,14 +472,18 @@ export const BookCanvas = forwardRef<BookCanvasHandle, {
       const { x, y, s } = t.current;
       scrub.current((e.clientX - x) / s, (e.clientY - y) / s); // the book stays put: the finger is moving what is on it
     } else if (pointers.current.size === 1) {
-      const now = performance.now(), dt = Math.max(1, now - (velocity.current.at || now - 16));
-      const dx = e.clientX - prev.x, dy = e.clientY - prev.y;
-      velocity.current = { x: 0.8 * (dx / dt) + 0.2 * velocity.current.x, y: 0.8 * (dy / dt) + 0.2 * velocity.current.y, at: now };
-      t.current.x += dx;
-      t.current.y += dy;
+      track(e, prev);
+      t.current.x += e.clientX - prev.x;
+      t.current.y += e.clientY - prev.y;
       apply();
       renderIfOff();
     }
+  };
+  /** The finger's speed, smoothed: what the glide and a flicked leaf start from. */
+  const track = (e: React.PointerEvent, prev: { x: number; y: number }) => {
+    const now = performance.now(), dt = Math.max(1, now - (velocity.current.at || now - 16));
+    const dx = e.clientX - prev.x, dy = e.clientY - prev.y;
+    velocity.current = { x: 0.8 * (dx / dt) + 0.2 * velocity.current.x, y: 0.8 * (dy / dt) + 0.2 * velocity.current.y, at: now };
   };
 
   const onPointerUp = (e: React.PointerEvent) => {
@@ -363,6 +491,14 @@ export const BookCanvas = forwardRef<BookCanvasHandle, {
     pointers.current.delete(e.pointerId);
     if (pointers.current.size < 2) pinch.current = null;
     if (pointers.current.size === 0) {
+      turnGrab.current = null;
+      if (turn.current?.drag) {
+        // let go: a flick decides, otherwise which side it is nearer
+        const tr = turn.current, fresh = performance.now() - velocity.current.at < 80;
+        const flick = fresh ? -tr.dir * velocity.current.x : 0; // px/ms in the leaf's direction of travel
+        settleTurn(flick > 0.3 ? 1 : flick < -0.3 ? 0 : tr.p > 0.5 ? 1 : 0);
+        return;
+      }
       const scrubbed = !!scrub.current && dragged.current;
       scrub.current = pending.current = null;
       if (!dragged.current) {
@@ -376,6 +512,7 @@ export const BookCanvas = forwardRef<BookCanvasHandle, {
   };
 
   const onWheel = (e: React.WheelEvent) => {
+    if (busy()) return;
     const s = Math.min(maxScale(), Math.max(minScale.current, t.current.s * Math.exp(-e.deltaY * 0.0025)));
     const { x, y, s: s0 } = t.current;
     t.current = { x: e.clientX - ((e.clientX - x) / s0) * s, y: e.clientY - ((e.clientY - y) / s0) * s, s };

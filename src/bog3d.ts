@@ -112,12 +112,16 @@ uniform vec4 u_lightRect;  // the part of the spread the light map covers: x, y,
 uniform float u_out;       // how much of a_off to apply: it collapses with the tilt, like every height does
 uniform float u_table;     // > 0: the table pass - lies flat in the 2D world like the photo, never tilted
 uniform vec4 u_tableRect;  // where the table picture lies, in world px
+uniform float u_leaf;      // > 0: this pass draws the leaf being turned (see u_turn)
+uniform vec4 u_turn;       // x: direction (+1 the right leaf goes over to the left, -1 the other way), y: angle 0..pi, z: bend, w: twist
 varying vec2 v_uv;
 varying vec2 v_ouv;
+varying vec2 v_buv;        // the leaf's back: where it lands on the other spread
 varying vec2 v_luv;
 varying vec2 v_tuv;
 varying float v_shade;
 varying float v_layer;
+varying float v_side;      // -1 left page, +1 right page
 
 /** Height of the page above the board at distance s from the spine. u_book.y and .z both fade out with the
  *  tilt, so looking straight down the page is exactly flat - which is what lets the flat hit-test in layout.ts
@@ -131,53 +135,91 @@ float pageZ(float s) {
   return wave - u_dip.x * smoothstep(u_dip.y, 1.0, s);
 }
 
+/** The shade of the page surface at distance s from the spine, on the side "side" (-1 left, +1 right): the
+ *  window is behind the book, so a slope facing away from the viewer catches the light, and the fold is dark. */
+float pageShade(float s, float side) {
+  float slope = (pageZ(s + 0.01) - pageZ(s - 0.01)) / (0.02 * u_book.w);
+  float fold = 1.0 - min(1.0, s * 6.0);
+  return clamp(1.0 + (-side * slope) * 0.55 - fold * fold * u_foldDark, 0.6, 1.06);
+}
+
 void main() {
   float s = a_pos.z;
-  float z = a_meta.x < 0.0 ? 0.0 : mix(u_book.x, pageZ(s), a_meta.x);  // a_meta.x slides 1..0 as the stack rolls over to the board; < 0 = down on the table
-  if (a_meta.y > 0.0) {
-    v_shade = a_meta.y;
+  vec2 op = a_pos.xy;   // where this point lies on the flat spread (for the leaf: where it lay before it lifted)
+  vec2 xy;
+  float z;
+  if (u_leaf > 0.0) {
+    // The leaf being turned. The mesh is the right page; for the other direction it is mirrored about the spine.
+    // It is not a stiff board swinging on a hinge: the free edge leads, so the sheet bows along its length. The
+    // tangent angle grows linearly from the hinge angle at the spine (u_turn.y) to that plus the bend at the
+    // fore-edge - most when the sheet stands upright, nothing when it lies flat on either side. The twist lets
+    // one corner lead (where the finger holds it), so the fore-edge lifts on a slant.
+    float dir = u_turn.x;
+    op.x = u_spine + dir * (a_pos.x - u_spine);
+    float u = s * u_book.w;                                    // distance along the sheet, world px
+    float v = (a_pos.y - ${COVER}.0) / ${PAGE_H}.0;            // 0 at the top edge, 1 at the bottom
+    float th = u_turn.y;
+    float c = u_turn.z * sin(th) * (1.0 + u_turn.w * (v - 0.5)) / u_book.w; // curvature, rad per world px
+    float r, cz;
+    if (abs(c) < 1e-6) { r = u * cos(th); cz = u * sin(th); }
+    else { r = (sin(th + c * u) - sin(th)) / c; cz = (cos(th) - cos(th + c * u)) / c; }
+    float alpha = th + c * u;
+    xy = vec2(u_spine + dir * r, a_pos.y);
+    float footS = clamp(abs(xy.x - u_spine) / u_book.w, 0.0, 1.0);
+    if (u_shadow.z > 0.0) { xy += u_shadow.xy * cz; footS = clamp(abs(xy.x - u_spine) / u_book.w, 0.0, 1.0); z = pageZ(footS); } // its shadow falls on the page under it
+    else z = cz + pageZ(footS);
+    // lit like the page under it (so nothing pops when it starts to lift), darker as it turns edge on
+    v_shade = pageShade(footS, xy.x < u_spine ? -1.0 : 1.0) * (0.74 + 0.26 * abs(cos(alpha)));
+    v_layer = 0.0;
   } else {
-    // the window is behind the book, so a slope facing away from the viewer catches the light and the fold is dark
-    float slope = (pageZ(s + 0.01) - pageZ(s - 0.01)) / (0.02 * u_book.w);
-    float dir = a_pos.x < u_spine ? -1.0 : 1.0;
-    float fold = 1.0 - min(1.0, s * 6.0);
-    v_shade = clamp(1.0 + (-dir * slope) * 0.55 - fold * fold * u_foldDark, 0.6, 1.06);
+    z = a_meta.x < 0.0 ? 0.0 : mix(u_book.x, pageZ(s), a_meta.x);  // a_meta.x slides 1..0 as the stack rolls over to the board; < 0 = down on the table
+    v_shade = a_meta.y > 0.0 ? a_meta.y : pageShade(s, a_pos.x < u_spine ? -1.0 : 1.0);
+    // the sheets have a real thickness, so the lines must keep their spacing all the way along the skirt: carry
+    // the distance DOWN from the page rim, in world px, not a 0..1 share of a skirt that thins out at the fold
+    v_layer = a_meta.z * (pageZ(s) - u_book.x);
+    // The stack only shows because the book is tipped back. Looking straight down you see the top sheet and
+    // nothing else, so the skirt folds back under the page rim - otherwise it stays as a pale border round the
+    // paper that nothing can remove (Lukas, zoomed in).
+    xy = a_pos.xy + a_off * u_out;
+    if (u_shadow.z > 0.0) { xy += u_shadow.xy * z; z = 0.0; }
   }
-  // the sheets have a real thickness, so the lines must keep their spacing all the way along the skirt: carry
-  // the distance DOWN from the page rim, in world px, not a 0..1 share of a skirt that thins out at the fold
-  v_layer = a_meta.z * (pageZ(s) - u_book.x);
-  // The stack only shows because the book is tipped back. Looking straight down you see the top sheet and
-  // nothing else, so the skirt folds back under the page rim - otherwise it stays as a pale border round the
-  // paper that nothing can remove (Lukas, zoomed in).
-  vec2 xy = a_pos.xy + a_off * u_out;
-  if (u_shadow.z > 0.0) { xy += u_shadow.xy * z; z = 0.0; }
+  v_side = op.x < u_spine ? -1.0 : 1.0;
   vec2 flat_px = u_view + xy * u_scale;
   float h = z * u_scale;
   vec2 d = flat_px - u_origin;
   float ry = d.y * u_trig.x - h * u_trig.y;
   float rz = d.y * u_trig.y + h * u_trig.x;
-  float k = u_persp / max(u_persp - rz, 1.0);
+  float k = u_persp / max(u_persp - rz, u_persp * 0.1); // a leaf standing up can come close to the camera; never let it pass it
   vec2 sp = u_origin + vec2(d.x * k, ry * k);
   if (u_table > 0.0) sp = flat_px;
   v_tuv = (a_pos.xy - u_tableRect.xy) / u_tableRect.zw;
   gl_Position = vec4((sp / u_res) * 2.0 - 1.0, 0.0, 1.0);
   gl_Position.y = -gl_Position.y;
-  v_uv = (a_pos.xy - u_tex.xy) / u_tex.zw;
-  v_ouv = (a_pos.xy + ${LIP}.0) / vec2(${BOOK_W + 2 * LIP}.0, ${BOOK_H + 2 * LIP}.0);
-  v_luv = (a_pos.xy - u_lightRect.xy) / u_lightRect.zw;
+  v_uv = (op - u_tex.xy) / u_tex.zw;
+  vec2 board = vec2(${BOOK_W + 2 * LIP}.0, ${BOOK_H + 2 * LIP}.0);
+  v_ouv = (op + ${LIP}.0) / board;
+  v_buv = (vec2(2.0 * u_spine - op.x, op.y) + ${LIP}.0) / board;
+  v_luv = (op - u_lightRect.xy) / u_lightRect.zw;
 }`;
 
 const FRAG = `
 precision mediump float;
 varying vec2 v_uv;
 varying vec2 v_ouv;
+varying vec2 v_buv;
 varying vec2 v_luv;
 varying vec2 v_tuv;
 varying float v_shade;
 varying float v_layer;
+varying float v_side;
 uniform sampler2D u_img;
 uniform sampler2D u_over;     // the whole spread, coarser: stands in wherever u_img does not reach
 uniform float u_hasOver;
+uniform sampler2D u_next;     // the spread being turned to, coarse: the leaf's back, and the page it uncovers
+uniform float u_hasNext;
+uniform float u_turnSide;     // mid-turn: which page of the spread (-1 left, +1 right) already shows u_next
+uniform highp float u_leaf;   // highp: shared with the vertex shader, or the program does not link
+uniform highp vec4 u_turn;
 uniform sampler2D u_tableTex; // the sharp top-down table
 uniform highp float u_table;  // 1: the table's colour (u_flat) 2: its picture; both faded by u_fade (highp: shared with the vertex shader, or it does not link)
 uniform float u_fade;
@@ -215,9 +257,17 @@ void main() {
   // zoomed in, the texture holds only the visible slice of the spread. A fast pan or zoom out runs off it before
   // the next drawing is back (~150 ms on the phone): there, and wherever that drawing did not reach, the coarser
   // whole-spread overview stands in, so the book never goes blank.
-  bool outside = v_uv.x < 0.0 || v_uv.x > 1.0 || v_uv.y < 0.0 || v_uv.y > 1.0;
-  vec4 c = outside ? vec4(0.0) : texture2D(u_img, v_uv);
-  if (c.a < 0.01 && u_hasOver > 0.5) c = texture2D(u_over, v_ouv);
+  vec4 c;
+  // The flat spread is drawn clockwise on screen, so a page lying the right way up is back-facing to GL (mirrored
+  // for the other direction, so front-facing); once the leaf has swung past upright its winding flips, and that
+  // is its back: the other spread, mirrored about the spine.
+  if (u_leaf > 0.0 && gl_FrontFacing == (u_turn.x > 0.0)) c = u_hasNext > 0.5 ? texture2D(u_next, v_buv) : vec4(0.0);
+  else if (u_leaf < 0.5 && u_turnSide * v_side > 0.5) c = u_hasNext > 0.5 ? texture2D(u_next, v_ouv) : vec4(0.0);
+  else {
+    bool outside = v_uv.x < 0.0 || v_uv.x > 1.0 || v_uv.y < 0.0 || v_uv.y > 1.0;
+    c = outside ? vec4(0.0) : texture2D(u_img, v_uv);
+    if (c.a < 0.01 && u_hasOver > 0.5) c = texture2D(u_over, v_ouv);
+  }
   if (c.a < 0.01) { // the board's rounded corners - or nothing drawn there yet: paper
     if (u_paper.a <= 0.0) discard;
     gl_FragColor = vec4(u_paper.rgb * v_shade * light, 1.0);
@@ -268,14 +318,16 @@ function buildQuad(x: number, y: number, w: number, h: number): Mesh {
   return { pos: new Float32Array(pos), off: new Float32Array(8), meta: new Float32Array([-1, 1, 0, -1, 1, 0, -1, 1, 0, -1, 1, 0]), idx: new Uint16Array([0, 1, 2, 0, 2, 3]), n: 6 };
 }
 
-function buildPages(): Mesh {
+/** `sides`: both pages, or only the right one - that is the leaf being turned (the shader mirrors it for the
+ *  other direction), and it is drawn finer along the page, since it bends and twists in both directions. */
+function buildPages(sides: number[] = [-1, 1], segY = SEG_Y): Mesh {
   const pos: number[] = [], meta: number[] = [], idx: number[] = [];
   const push = (x: number, y: number, s: number, curve: number, shade: number) => {
     pos.push(x, y, s); meta.push(curve, shade, 0); return pos.length / 3 - 1;
   };
   const quad = (a: number, b: number, c: number, d: number) => idx.push(a, b, c, a, c, d);
-  const top = COVER, bot = COVER + PAGE_H, spine = BOOK_W / 2;
-  for (const dir of [-1, 1]) {
+  const top = COVER, bot = COVER + PAGE_H, spine = BOOK_W / 2, SEG_Y = segY;
+  for (const dir of sides) {
     const grid: number[][] = [];
     for (let i = 0; i <= SEG_X; i++) {
       const s = i / SEG_X, x = spine + dir * s * PAGE_W, col: number[] = [];
@@ -346,15 +398,29 @@ export type Book3D = {
   /** The whole spread at a coarse resolution (raw RGBA): shown wherever the page texture does not reach. Uploaded
    *  in one go - it only changes at start-up and when something is written, never mid-gesture. */
   setOverview(pixels: Uint8Array, w: number, h: number): void;
+  /** The spread on the other side of the leaf about to be turned, coarse like the overview: its back, and the
+   *  page it uncovers. */
+  setNext(pixels: Uint8Array, w: number, h: number): void;
+  /** The leaf has landed: that spread is the one shown now. Its coarse picture stands in for the whole book until
+   *  the sharp drawing of it arrives (the old sharp one is dropped, it shows the month just left). */
+  commitTurn(): void;
   /** The room photo and where it lies in spread coordinates: the light over the book is taken from it.
    *  False when nothing usable came of it (the light then stays off; try again later). */
   setLight(img: HTMLImageElement, bg: { x: number; y: number; w: number; h: number }): boolean;
   /** The sharp top-down picture of the table (lies in TABLE, world px). */
   setTable(img: HTMLImageElement): void;
   /** Draw one frame. `arch` 0 = flat. `fade` 0..1: how far the top-down table is in over the photo. */
-  draw(o: { w: number; h: number; view: { x: number; y: number; s: number }; origin: [number, number]; tilt: number; arch: number; flat: number; fade: number }): void;
+  draw(o: { w: number; h: number; view: { x: number; y: number; s: number }; origin: [number, number]; tilt: number; arch: number; flat: number; fade: number; turn?: Turn | null }): void;
   dispose(): void;
 };
+/** A leaf mid-turn: `dir` +1 = the right leaf swings over to the left (the next month), -1 the other way;
+ *  `p` 0 = lying where it was, 1 = landed; `twist` -1..1 = which corner leads (top .. bottom), 0 = the whole edge. */
+export type Turn = { dir: 1 | -1; p: number; twist: number };
+/** How much the sheet bows while it turns (rad at the fore-edge when upright), and its shadow on the page under
+ *  it: shorter and lighter than the book's own on the table (the sheet is thin and close). ?bend= ?ls= ?ld= tune. */
+const BEND = Number(new URLSearchParams(location.search).get("bend") ?? 0.65);
+const LEAF_SHADOW_LEN = Number(new URLSearchParams(location.search).get("ls") ?? 0.35);
+const LEAF_SHADOW_DARK = Number(new URLSearchParams(location.search).get("ld") ?? 0.3);
 
 /** The page texture goes up in slices of at most this many bytes per frame (`?strip=MB`). One upload of the whole
  *  25 MB bitmap cost 47 ms on the iPhone - the one hitch left once the drawing had moved off the main thread. */
@@ -371,7 +437,7 @@ export function createBook3D(canvas: HTMLCanvasElement, persp: number): Book3D |
   gl.attachShader(prog, compile(gl, gl.VERTEX_SHADER, VERT));
   gl.attachShader(prog, compile(gl, gl.FRAGMENT_SHADER, FRAG));
   gl.linkProgram(prog);
-  if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) return null;
+  if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) { console.error("WebGL link:", gl.getProgramInfoLog(prog)); return null; }
   gl.useProgram(prog);
 
   const loc = (n: string) => gl.getUniformLocation(prog, n);
@@ -382,12 +448,13 @@ export function createBook3D(canvas: HTMLCanvasElement, persp: number): Book3D |
     bow: loc("u_bow"), dip: loc("u_dip"), amp: loc("u_sheetAmp"), out: loc("u_out"), shadow: loc("u_shadow"), shadowC: loc("u_shadowC"),
     light: loc("u_light"), lightAmt: loc("u_lightAmt"), over: loc("u_over"), hasOver: loc("u_hasOver"), lightRect: loc("u_lightRect"), tone: loc("u_tone"), paper: loc("u_paper"),
     table: loc("u_table"), tableTex: loc("u_tableTex"), tableRect: loc("u_tableRect"), fade: loc("u_fade"),
+    next: loc("u_next"), hasNext: loc("u_hasNext"), turnSide: loc("u_turnSide"), leaf: loc("u_leaf"), turn: loc("u_turn"),
   };
   const aPos = gl.getAttribLocation(prog, "a_pos"), aOff = gl.getAttribLocation(prog, "a_off"), aMeta = gl.getAttribLocation(prog, "a_meta");
   /** One set of buffers per mesh, so a frame that changes nothing only binds them. Re-uploading both meshes
    *  every frame cost ~45 ms on roughly every ninth frame of a pinch. */
   const slot = () => ({ pos: gl.createBuffer()!, off: gl.createBuffer()!, meta: gl.createBuffer()!, idx: gl.createBuffer()!, n: 0 });
-  const slots = { cover: slot(), rim: slot(), pages: slot(), edges: slot(), tableFill: slot(), tableImg: slot() };
+  const slots = { cover: slot(), rim: slot(), pages: slot(), edges: slot(), tableFill: slot(), tableImg: slot(), leaf: slot() };
   const pageTexture = () => {
     const t = gl.createTexture()!;
     gl.bindTexture(gl.TEXTURE_2D, t);
@@ -413,9 +480,23 @@ export function createBook3D(canvas: HTMLCanvasElement, persp: number): Book3D |
   gl.activeTexture(gl.TEXTURE0);
   gl.uniform1i(U.light, 1);
   gl.uniform1i(U.tableTex, 2);
-  const over = pageTexture(); // its unit is 3; pageTexture binds on whichever unit is active, setOverview rebinds it there
+  let over = pageTexture(); // its unit is 3; pageTexture binds on whichever unit is active, setOverview rebinds it there
   gl.uniform1i(U.over, 3);
   gl.uniform1f(U.hasOver, 0);
+  let next = pageTexture(); // unit 4: the spread on the other side of a leaf being turned
+  gl.uniform1i(U.next, 4);
+  gl.uniform1f(U.hasNext, 0);
+  gl.uniform1f(U.turnSide, 0);
+  gl.uniform1f(U.leaf, 0);
+  /** A coarse whole-spread picture, in one go (they only change when something is written, never mid-gesture). */
+  const putWhole = (unit: number, tex: { t: WebGLTexture; w: number; h: number }, pixels: Uint8Array, w: number, h: number) => {
+    gl.activeTexture(gl.TEXTURE0 + unit);
+    gl.bindTexture(gl.TEXTURE_2D, tex.t);
+    gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, 0);
+    if (tex.w === w && tex.h === h) gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, w, h, gl.RGBA, gl.UNSIGNED_BYTE, pixels);
+    else { gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, w, h, 0, gl.RGBA, gl.UNSIGNED_BYTE, pixels); tex.w = w; tex.h = h; }
+    gl.activeTexture(gl.TEXTURE0);
+  };
   gl.uniform4f(U.tableRect, TABLE.x, TABLE.y, TABLE.w, TABLE.h);
   gl.uniform1f(U.table, 0);
   let lightK: [number, number, number] | null = null; // 1 / mean of the light map, per channel; null until one is set
@@ -450,18 +531,22 @@ export function createBook3D(canvas: HTMLCanvasElement, persp: number): Book3D |
   fill(slots.rim, buildRim());
   fill(slots.pages, buildPages());
   fill(slots.edges, buildEdges());
+  fill(slots.leaf, buildPages([1], 24));
   fill(slots.tableFill, buildQuad(TABLE.x - TABLE_PAD, TABLE.y - TABLE_PAD, TABLE.w + 2 * TABLE_PAD, TABLE.h + 2 * TABLE_PAD));
   fill(slots.tableImg, buildQuad(TABLE.x - TABLE_PAD, TABLE.y - TABLE_PAD, TABLE.w + 2 * TABLE_PAD, TABLE.h + 2 * TABLE_PAD)); // mirrored out past the picture, so there is no edge to see
 
   return {
     setTexture(pixels, w, h, rect, done) { upload = { pixels, w, h, rect, row: 0, done }; },
-    setOverview(pixels, w, h) {
-      gl.activeTexture(gl.TEXTURE3);
-      gl.bindTexture(gl.TEXTURE_2D, over.t);
-      gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, 0);
-      if (over.w === w && over.h === h) gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, w, h, gl.RGBA, gl.UNSIGNED_BYTE, pixels);
-      else { gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, w, h, 0, gl.RGBA, gl.UNSIGNED_BYTE, pixels); over.w = w; over.h = h; }
-      gl.uniform1f(U.hasOver, 1);
+    setOverview(pixels, w, h) { putWhole(3, over, pixels, w, h); gl.uniform1f(U.hasOver, 1); },
+    setNext(pixels, w, h) { putWhole(4, next, pixels, w, h); gl.uniform1f(U.hasNext, 1); },
+    commitTurn() {
+      [over, next] = [next, over];
+      gl.activeTexture(gl.TEXTURE3); gl.bindTexture(gl.TEXTURE_2D, over.t);
+      gl.activeTexture(gl.TEXTURE4); gl.bindTexture(gl.TEXTURE_2D, next.t);
+      gl.activeTexture(gl.TEXTURE0);
+      gl.uniform1f(U.hasOver, over.w ? 1 : 0); // what was "next" is the spread now - if it ever arrived
+      gl.uniform1f(U.hasNext, 0);
+      texRect = { x: -1e6, y: -1e6, w: 1, h: 1 }; // the sharp drawing shows the month just left: nothing samples it until a new one is up
     },
     pending() { return !!upload; },
     setTable(img) {
@@ -508,7 +593,7 @@ export function createBook3D(canvas: HTMLCanvasElement, persp: number): Book3D |
       if (!ok) console.error("lyskortet kunne ikke lægges ind – lyset er slået fra");
       return ok;
     },
-    draw({ w, h, view, origin, tilt, arch, flat, fade }) {
+    draw({ w, h, view, origin, tilt, arch, flat, fade, turn }) {
       if (upload) { // one slice of the next page texture, into the back texture
         const u = upload;
         gl.activeTexture(gl.TEXTURE0);
@@ -597,13 +682,35 @@ export function createBook3D(canvas: HTMLCanvasElement, persp: number): Book3D |
       gl.uniform4f(U.shadowC, 0, 0, 0, 0);
       gl.uniform3f(U.shadow, 0, 0, 0);
       shape(flat, arch);
+      // mid-turn the page the leaf is leaving behind already shows the spread it is turning to
+      gl.uniform1f(U.turnSide, turn ? turn.dir : 0);
       drawAll(false);
+      if (turn && turn.p > 0 && turn.p < 1) {
+        // the leaf: its shadow on the page under it first, then the sheet itself, over everything
+        gl.uniform1f(U.leaf, 1);
+        gl.uniform4f(U.turn, turn.dir, turn.p * Math.PI, BEND, turn.twist);
+        const la = 1 - Math.pow(1 - LEAF_SHADOW_DARK, 1 / SHADOW_PASSES);
+        gl.uniform4f(U.shadowC, 0.08 * la, 0.04 * la, 0.02 * la, la);
+        bind(slots.leaf);
+        for (let k = 0; k < SHADOW_PASSES && SHADOW_ON; k++) {
+          const len = SHADOW_LEN * LEAF_SHADOW_LEN * (0.7 + (0.6 * k) / (SHADOW_PASSES - 1));
+          gl.uniform3f(U.shadow, SHADOW_DIR[0] * len, SHADOW_DIR[1] * len, 1);
+          gl.drawElements(gl.TRIANGLES, slots.leaf.n, gl.UNSIGNED_SHORT, 0);
+        }
+        gl.uniform4f(U.shadowC, 0, 0, 0, 0);
+        gl.uniform3f(U.shadow, 0, 0, 0);
+        gl.uniform4f(U.paper, 0.94, 0.91, 0.83, 1);
+        gl.drawElements(gl.TRIANGLES, slots.leaf.n, gl.UNSIGNED_SHORT, 0);
+        gl.uniform1f(U.leaf, 0);
+      }
+      gl.uniform1f(U.turnSide, 0);
     },
     dispose() {
       for (const sl of Object.values(slots)) for (const b of [sl.pos, sl.off, sl.meta, sl.idx]) gl.deleteBuffer(b);
       gl.deleteTexture(front.t);
       gl.deleteTexture(back.t);
       gl.deleteTexture(over.t);
+      gl.deleteTexture(next.t);
       gl.deleteTexture(lightTex);
       gl.deleteTexture(tableTex);
       gl.deleteProgram(prog);
