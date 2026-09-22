@@ -955,7 +955,7 @@ Alt er committet og pushet. Galleriet til Lukas: https://claude.ai/artifact/S914
 ## Roadmap
 1. ~~Prototype af ét opslag: bog på bord, ternede sider, pinch-zoom, afkrydsning med håndskrevne X-varianter.~~ ✅ 2026-09-16
 ~~1b. Fuldstændig glat zoom på iPhone: 2D-tegningen i en Worker, upload i skiver, oversigtstekstur.~~ ✅ 2026-09-18 (godkendt af Lukas)
-2. Sidevending mellem måneder + datamodel (måneder, trackere, værdier) med lokal lagring. – bladring + måneder i localStorage lavet 2026-09-22 (ikke set af Lukas); IndexedDB mangler.
+2. ~~Sidevending mellem måneder + datamodel (måneder, trackere, værdier) med lokal lagring.~~ ✅ 2026-09-22 – bladring + måneder lavet; billederne flyttet til IndexedDB (`src/photos.ts`, migrerer selv fra localStorage). Tal/tekst/kolonner bliver i localStorage med vilje: de fylder få kB, og det holder tegningen synkron.
 3. Venstre side (mål/undermål/plan) med tekst i håndskrift.
 4. Lukas' egen håndskrift som glyffer.
 5. Finpudsning: papirtekstur, skygger, animation af skrift.
