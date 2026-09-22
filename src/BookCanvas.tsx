@@ -288,7 +288,8 @@ export const BookCanvas = forwardRef<BookCanvasHandle, {
     tr.anim = requestAnimationFrame(step);
   };
   if (import.meta.env.DEV) { // for the screenshot scripts: hold a leaf at a given angle, or turn it for real
-    const w = window as unknown as { __turnTo: (dir: 1 | -1, p: number) => void; __turn: (dir: 1 | -1) => void; __busy: () => boolean };
+    const w = window as unknown as { __turnTo: (dir: 1 | -1, p: number) => void; __turn: (dir: 1 | -1) => void; __busy: () => boolean; __tap: (wx: number, wy: number) => void };
+    w.__tap = onTap; // open an input sheet from a screenshot script, without aiming a finger at the tipped-back book
     w.__turnTo = (dir, p) => { if (!turn.current) beginTurn(dir, 0.6); turn.current!.p = p; if (p <= 0 || p >= 1) turn.current = null; apply(); };
     w.__turn = (dir) => (ref as React.RefObject<BookCanvasHandle>).current?.turn(dir);
     w.__busy = busy;

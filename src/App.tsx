@@ -94,12 +94,27 @@ function seedOnce<T>(flag: string, key: string, make: () => T, fallback: T): T {
   return v;
 }
 
-type ValuePrompt = { kind: "value"; key: string; label: string; value: string };
+type ValuePrompt = { kind: "value"; key: string; label: string; value: string; rating: boolean };
 type ColumnPrompt = { kind: "column"; index: number; column: Column }; // index -1 = new
 type HandPrompt = { kind: "hand" };
 type PhotoPrompt = { kind: "photo"; slot: string };
 type NotePrompt = { kind: "note"; field: NoteField; label: string; value: string };
 type Prompt = ValuePrompt | ColumnPrompt | NotePrompt | HandPrompt | PhotoPrompt;
+
+/** Every input in the book opens the same slip of paper: heading, what you are writing, and the buttons. */
+function Sheet({ title, onClose, onSubmit, children }: { title: string; onClose: () => void; onSubmit?: (e: FormEvent<HTMLFormElement>) => void; children: React.ReactNode }) {
+  return (
+    <div className="sheet-backdrop" onClick={onClose}>
+      <form className="sheet" onSubmit={onSubmit ?? ((e) => e.preventDefault())} onClick={(e) => e.stopPropagation()}>
+        <div className="sheet-head">
+          <h2>{title}</h2>
+          <button type="button" className="sheet-x" onClick={onClose} aria-label="Luk">×</button>
+        </div>
+        {children}
+      </form>
+    </div>
+  );
+}
 
 export default function App() {
   const [columns, setColumns] = useState<Column[]>(() => load(COLUMNS_KEY, DEFAULT_COLUMNS));
@@ -132,6 +147,7 @@ export default function App() {
     localStorage.setItem(MONTH_KEY, JSON.stringify(m));
   };
   const [prompt, setPrompt] = useState<Prompt | null>(null);
+  const close = () => setPrompt(null);
   const fileInput = useRef<HTMLInputElement>(null);
   const fileSlot = useRef("");
   const book = useRef<BookCanvasHandle>(null);
@@ -229,7 +245,7 @@ export default function App() {
         const v = dotValue(hit.fx * widthOf("dots") * CELL);
         return write(key, values[key] === String(v) ? null : String(v));
       }
-      return setPrompt({ kind: "value", key, label: `${col.name} · ${day}. ${MONTHS_DA[month.month - 1].toLowerCase()}`, value: values[key] ?? "" });
+      return setPrompt({ kind: "value", key, label: `${col.name} · ${day}. ${MONTHS_DA[month.month - 1].toLowerCase()}`, value: values[key] ?? "", rating: col.type === "rating" });
     }
     if (hit.kind === "photo") return photos[hit.slot] ? setPrompt({ kind: "photo", slot: hit.slot }) : pickPhoto(hit.slot);
     if (hit.kind === "header") return setPrompt({ kind: "column", index: hit.index, column: columns[hit.index] });
@@ -245,8 +261,8 @@ export default function App() {
   };
   const submitColumn = (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    const p = prompt as ColumnPrompt, fd = new FormData(e.currentTarget);
-    const col: Column = { ...p.column, name: (fd.get("name") as string).trim(), type: fd.get("type") as ColType };
+    const p = prompt as ColumnPrompt;
+    const col: Column = { ...p.column, name: (new FormData(e.currentTarget).get("name") as string).trim() };
     if (!col.name) return;
     const next = [...columns];
     if (p.index < 0) next.push(col); else next[p.index] = col;
@@ -267,61 +283,63 @@ export default function App() {
       <button className="hand-pick" onClick={() => setPrompt({ kind: "hand" })} aria-label="Vælg håndskrift">✎</button>
 
       {prompt?.kind === "photo" && (
-        <div className="sheet-backdrop" onClick={() => setPrompt(null)}>
-          <div className="sheet" onClick={(e) => e.stopPropagation()}>
-            <label>Billede</label>
-            <button style={{ gridColumn: "1 / -1" }} onClick={() => pickPhoto(prompt.slot)}>Vælg et andet</button>
-            <button className="danger" style={{ gridColumn: "1 / -1" }}
-                    onClick={() => { const next = { ...photos }; delete next[prompt.slot]; savePhotos(next); }}>Fjern</button>
+        <Sheet title="Billede" onClose={close}>
+          <div className="sheet-row">
+            <button type="button" className="ghost" onClick={() => pickPhoto(prompt.slot)}>Vælg et andet</button>
+            <button type="button" className="danger" onClick={() => { const next = { ...photos }; delete next[prompt.slot]; savePhotos(next); }}>Fjern</button>
           </div>
-        </div>
+        </Sheet>
       )}
       {prompt?.kind === "hand" && (
-        <div className="sheet-backdrop" onClick={() => setPrompt(null)}>
-          <div className="sheet" onClick={(e) => e.stopPropagation()}>
-            <label>Håndskrift</label>
+        <Sheet title="Håndskrift" onClose={close}>
+          <div className="chips wide">
             {(Object.keys(HANDS) as Hand[]).map((h) => (
-              <button key={h} className={h === hand ? "" : "danger"} style={{ gridColumn: "1 / -1" }}
-                      onClick={() => { setHandState(h); localStorage.setItem(HAND_KEY, h); setPrompt(null); }}>
-                {HANDS[h]}{h === hand ? " ✓" : ""}
-              </button>
+              <button type="button" key={h} className={"chip" + (h === hand ? " on" : "")}
+                      onClick={() => { setHandState(h); localStorage.setItem(HAND_KEY, h); close(); }}>{HANDS[h]}</button>
             ))}
           </div>
-        </div>
+        </Sheet>
       )}
 
       {prompt?.kind === "value" && (
-        <div className="sheet-backdrop" onClick={() => setPrompt(null)}>
-          <form className="sheet" onSubmit={submitValue} onClick={(e) => e.stopPropagation()}>
-            <label>{prompt.label}</label>
-            <input name="v" inputMode="decimal" autoFocus defaultValue={prompt.value} placeholder="tom = slet" />
-            <button type="submit">Skriv</button>
-          </form>
-        </div>
+        <Sheet title={prompt.label} onClose={close} onSubmit={submitValue}>
+          {prompt.rating ? (
+            // a rating is one of ten numbers: tap it, no keyboard
+            <div className="chips">
+              {Array.from({ length: 10 }, (_, i) => String(i + 1)).map((n) => (
+                <button type="button" key={n} className={"chip" + (Math.round(Number(prompt.value.replace(",", "."))) === Number(n) ? " on" : "")}
+                        onClick={() => { write(prompt.key, prompt.value === n ? null : n); close(); }}>{n}</button>
+              ))}
+            </div>
+          ) : (
+            <input className="hand-input" name="v" inputMode="decimal" autoFocus defaultValue={prompt.value} placeholder="—" />
+          )}
+          <div className="sheet-row">
+            {prompt.value !== "" && <button type="button" className="danger" onClick={() => { write(prompt.key, null); close(); }}>Slet</button>}
+            {!prompt.rating && <button type="submit" className="primary">Skriv</button>}
+          </div>
+        </Sheet>
       )}
       {prompt?.kind === "note" && (
-        <div className="sheet-backdrop" onClick={() => setPrompt(null)}>
-          <form className="sheet" onSubmit={submitNote} onClick={(e) => e.stopPropagation()}>
-            <label>{prompt.label}</label>
-            <textarea name="v" autoFocus defaultValue={prompt.value} rows={5} placeholder="Én linje pr. punkt" />
-            <button type="submit">Skriv</button>
-          </form>
-        </div>
+        <Sheet title={prompt.label} onClose={close} onSubmit={submitNote}>
+          <textarea name="v" autoFocus defaultValue={prompt.value} placeholder="Én linje pr. punkt" />
+          <div className="sheet-row"><button type="submit" className="primary">Skriv</button></div>
+        </Sheet>
       )}
       {prompt?.kind === "column" && (
-        <div className="sheet-backdrop" onClick={() => setPrompt(null)}>
-          <form className="sheet" onSubmit={submitColumn} onClick={(e) => e.stopPropagation()}>
-            <label>{prompt.index < 0 ? "Ny kolonne" : "Ret kolonne"}</label>
-            <input name="name" autoFocus defaultValue={prompt.column.name} placeholder="Navn" maxLength={16} />
-            <button type="submit">Gem</button>
-            <select name="type" defaultValue={prompt.column.type}>
-              {(Object.keys(TYPE_LABEL) as ColType[]).map((t) => <option key={t} value={t}>{TYPE_LABEL[t]}</option>)}
-            </select>
-            {prompt.index >= 0 && (
-              <button type="button" className="danger" onClick={() => saveColumns(columns.filter((_, i) => i !== prompt.index))}>Slet</button>
-            )}
-          </form>
-        </div>
+        <Sheet title={prompt.index < 0 ? "Ny kolonne" : "Ret kolonne"} onClose={close} onSubmit={submitColumn}>
+          <input className="hand-input" name="name" autoFocus defaultValue={prompt.column.name} placeholder="Navn" maxLength={16} />
+          <div className="chips wide">
+            {(Object.keys(TYPE_LABEL) as ColType[]).map((t) => (
+              <button type="button" key={t} className={"chip" + (prompt.column.type === t ? " on" : "")}
+                      onClick={() => setPrompt({ ...prompt, column: { ...prompt.column, type: t } })}>{TYPE_LABEL[t]}</button>
+            ))}
+          </div>
+          <div className="sheet-row">
+            {prompt.index >= 0 && <button type="button" className="danger" onClick={() => saveColumns(columns.filter((_, i) => i !== prompt.index))}>Slet</button>}
+            <button type="submit" className="primary">Gem</button>
+          </div>
+        </Sheet>
       )}
     </>
   );

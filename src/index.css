@@ -43,18 +43,74 @@ body { font-family: var(--font-hand); -webkit-user-select: none; user-select: no
 
 .meter { position: fixed; left: 8px; top: calc(8px + env(safe-area-inset-top, 0px)); padding: 4px 8px; background: rgba(0,0,0,.6); color: #fff; font: 13px -apple-system, system-ui, sans-serif; border-radius: 6px; pointer-events: none; z-index: 9; }
 
-/* --- number input sheet ----------------------------------------------- */
-.sheet-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,.25); display: flex; align-items: flex-end; }
-.sheet {
-  width: 100%; box-sizing: border-box; padding: 14px 16px calc(14px + env(safe-area-inset-bottom, 0px));
-  background: #fff; display: grid; grid-template-columns: 1fr auto; gap: 8px 10px;
-  font-family: -apple-system, system-ui, sans-serif; font-size: 16px;
+/* --- input sheets: a slip of the same paper, sliding up from the bottom ---
+   No white system box: cream paper with the book's grid, handwriting for
+   everything the user writes, ink-coloured buttons. */
+.sheet-backdrop {
+  position: fixed; inset: 0; z-index: 20;
+  background: rgba(10, 8, 4, .42); -webkit-backdrop-filter: blur(3px); backdrop-filter: blur(3px);
+  display: flex; align-items: flex-end; animation: sheet-fade .18s ease both;
 }
-.sheet label { grid-column: 1 / -1; color: #444; }
-.sheet input { font-size: 22px; padding: 8px 10px; border: 1px solid #bbb; border-radius: 8px; min-width: 0; }
-.sheet button { font-size: 16px; padding: 8px 18px; border: 0; border-radius: 8px; background: #1e2233; color: #fff; }
-.sheet select { font-size: 16px; padding: 8px 10px; border: 1px solid #bbb; border-radius: 8px; background: #fff; }
-.sheet .danger { background: #fff; color: #b3261e; border: 1px solid #b3261e; }
+.sheet {
+  width: 100%; box-sizing: border-box;
+  padding: 10px 20px calc(18px + env(safe-area-inset-bottom, 0px));
+  border-radius: 20px 20px 0 0;
+  background:
+    repeating-linear-gradient(to right, transparent 0 19px, rgba(120,150,130,.2) 19px 20px),
+    repeating-linear-gradient(to bottom, transparent 0 19px, rgba(120,150,130,.2) 19px 20px),
+    linear-gradient(#f3ecd6, #eae1c8);
+  box-shadow: 0 -2px 0 rgba(255,255,255,.5) inset, 0 -14px 44px rgba(0,0,0,.5);
+  display: flex; flex-direction: column; gap: 12px;
+  color: var(--ink);
+  animation: sheet-up .28s cubic-bezier(.2, .9, .3, 1) both;
+  max-height: 88vh; overflow: auto;
+}
+@keyframes sheet-fade { from { opacity: 0 } to { opacity: 1 } }
+@keyframes sheet-up { from { transform: translateY(100%) } to { transform: none } }
+
+/* the little grab bar, as on a notebook flap */
+.sheet::before { content: ""; width: 42px; height: 4px; border-radius: 2px; background: rgba(30,34,51,.22); align-self: center; }
+.sheet-head { display: flex; align-items: baseline; gap: 12px; border-bottom: 1.5px solid rgba(30,34,51,.35); padding-bottom: 4px; }
+.sheet-head h2 { flex: 1; margin: 0; font: 500 30px/1.1 var(--font-hand); color: var(--ink); }
+.sheet-x {
+  border: 0; background: none; padding: 0 2px; font: 30px/1 -apple-system, system-ui, sans-serif;
+  color: rgba(30,34,51,.45);
+}
+
+/* what you write goes on a line, in the same hand as the page */
+.sheet .hand-input {
+  font: 500 40px/1.2 var(--font-hand); color: var(--ink);
+  background: none; border: 0; border-bottom: 2px solid rgba(30,34,51,.3); border-radius: 0;
+  padding: 2px 4px; width: 100%; box-sizing: border-box; text-align: center;
+}
+.sheet .hand-input::placeholder { color: rgba(30,34,51,.25); }
+.sheet .hand-input:focus, .sheet textarea:focus { outline: 0; border-bottom-color: var(--ink); }
+.sheet textarea {
+  font: 500 27px/40px var(--font-hand); color: var(--ink);
+  background: none; border: 0; border-radius: 0; padding: 0 2px; min-height: 170px; resize: none; width: 100%; box-sizing: border-box;
+}
+.sheet textarea::placeholder { color: rgba(30,34,51,.28); }
+
+/* pick a number / a type / a hand by tapping it */
+.chips { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; }
+.chips.wide { grid-template-columns: repeat(2, 1fr); }
+.chip {
+  font: 500 26px/1 var(--font-hand); color: var(--ink);
+  background: rgba(255,252,240,.72); border: 1.5px solid rgba(30,34,51,.28); border-radius: 12px;
+  padding: 12px 4px; min-height: 48px;
+}
+.chips.wide .chip { font-size: 20px; padding: 12px 6px; }
+.chip.on { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+
+.sheet-row { display: flex; gap: 10px; }
+.sheet-row > * { flex: 1; }
+.sheet button.primary, .sheet button.ghost {
+  font: 500 22px/1 var(--font-hand); padding: 13px 18px; border-radius: 12px; border: 1.5px solid var(--ink);
+}
+.sheet button.primary { background: var(--ink); color: var(--paper); }
+.sheet button.ghost { background: none; color: var(--ink); }
+.sheet button.danger { background: none; color: #8c2f26; border-color: rgba(140,47,38,.55); }
+
 .scale-tick { position: absolute; bottom: 4px; width: 20px; margin-left: -10px; text-align: center; }
 .scale-tick .ink { position: static; }
 
