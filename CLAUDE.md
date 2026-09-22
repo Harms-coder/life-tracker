@@ -201,6 +201,9 @@ og om den hakker). Hans valg mellem finger og pile: begge er lavet, han kan skæ
   rigtig vending via `__turn(dir)`), `node tools/dragturn.mjs` (simuleret finger: vend, lodret træk = pan, kort træk
   falder tilbage). Kun målt i headless Chrome – ydelsen på telefonen er ukendt (6 ekstra tegnepas pr. frame under
   vendingen, ellers intet).
+- Lukas' dom (16.10): "lige som jeg gerne ville have det" – men bladet beholdt sin skygge og skiftede først ved landing.
+  Årsag: rummets lys (v_luv, sprossernes skygger) blev slået op på bladets GAMLE plads (`op`). Nu følger det bladets
+  faktiske fodaftryk (`xy`), så lyset glider over undervejs. Rettet og pushet – IKKE bekræftet af Lukas endnu.
 - Åbent: stadig localStorage (IndexedDB er ikke lavet). Ingen stak af sider der bliver tyndere/tykkere med måneden.
 
 ## Status 2026-09-22 kl. 16.25 (tidligere samme dag) – SESSIONEN LUKKET NED, ALT ER PUSHET

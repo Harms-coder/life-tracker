@@ -199,7 +199,10 @@ void main() {
   vec2 board = vec2(${BOOK_W + 2 * LIP}.0, ${BOOK_H + 2 * LIP}.0);
   v_ouv = (op + ${LIP}.0) / board;
   v_buv = (vec2(2.0 * u_spine - op.x, op.y) + ${LIP}.0) / board;
-  v_luv = (op - u_lightRect.xy) / u_lightRect.zw;
+  // the room's light falls where the point IS, not where it lay: a leaf being turned moves through the window
+  // frame's shadows on its way over, and lands lit like the page it lands on (Lukas: it kept its old shading
+  // and switched at the last moment)
+  v_luv = ((u_leaf > 0.0 ? xy : op) - u_lightRect.xy) / u_lightRect.zw;
 }`;
 
 const FRAG = `
