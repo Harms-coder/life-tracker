@@ -166,6 +166,25 @@ Rækker = dage 1–31 (antal efter måneden). Kolonner = brugerens egne trackere
 - Test-scripts ligger i sessionens scratchpad (`pw/shots.mjs` skærmbilleder, `pw/bench.mjs` frame-tider i WebKit,
   `pw/tapcheck.mjs` tryk). Dev-server: `npm run dev`. I dev sætter BookCanvas `window.__view` (x, y, s) til scripts.
 
+## Status 2026-09-22 kl. 18.35 – PANORERING ZOOMET IND ("hakker meget")
+
+Lukas: zoomet ind og med fingeren rundt på siden hakker det. Kan ikke måles herfra (headless = ingen GPU), så
+tre rettelser der hver fjerner arbejde pr. frame uden at ændre billedet:
+1. **Overtegning** (`covered` i bog3d.ts draw()): når siderne dækker hele skærmen (fladt, ingen vending, COVER·s
+   inden for skærmen på alle fire sider) tegnes KUN pages-passet. Før: bord (2 pas) + skygge (5 pas × rim+edges+
+   pages) + cover + rim + edges + pages ≈ 10 fuldskærms-pas pr. frame ved 3× DPR med MSAA – alt sammen malet
+   over af siderne. Målt: 323 af 1,3 M pixels afviger ved 2,5× (støj).
+2. **Fotolaget skjules** (`scene2d.style.visibility` i paint()) når WebGL-bordet er helt tonet ind (fade ≥ 1 ⇔
+   a ≤ 0,375): bordet er uigennemsigtigt og dækker skærmen (TABLE_PAD er dimensioneret til det; tjekket mod
+   clamp-grænserne), så fotoet ses ikke – men Safari holdt et lag på tusindvis af px rasteriseret under hver pan.
+3. **Margen der læner sig i bevægelsesretningen** (`LEAD_MS` 300 i render()): den tegnede margen (20 % af
+   skærmen) lægges foran fingeren i stedet for jævnt om skærmen – dobbelt så langt mellem fulde tegninger under
+   en pan, samme canvas. `renderIfOff` regner nu med et asymmetrisk plan (skærmen skal ligge inde i det ± 20 px).
+   Målt i headless: 9 → 7 fulde tegninger på samme pan (glidet dominerer).
+- `node tools/pancheck.mjs` tæller fulde tegninger under en pan (patcher Worker.postMessage). zoomcheck OK.
+- IKKE SET AF LUKAS. Hakker det stadig: bed om `?maal`-tallene og lad ham prøve `?skygge=0` og `?aa=0` (MSAA
+  ved 3× DPR er den største tilbageværende GPU-post – kan gøres til antialias:false zoomet ind).
+
 ## Status 2026-09-22 kl. 18.10 – SKARP MIDT I PINCHEN + INGEN SORT BOG VED START
 
 Lukas: sløret mens fingrene er på skærmen; bogen sort et splitsekund ved load; "optimér en sidste gang".

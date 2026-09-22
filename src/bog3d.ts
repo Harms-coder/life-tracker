@@ -686,7 +686,18 @@ export function createBook3D(canvas: HTMLCanvasElement, persp: number): Book3D |
       gl.uniform1f(U.amp, Math.max(0, Math.min(1, (sheet * view.s * fore - 1.5) / 1.6)));
       gl.activeTexture(gl.TEXTURE0);
       gl.bindTexture(gl.TEXTURE_2D, front.t);
+      // Zoomed in with the pages filling the screen, the table, the shadow (five passes), the board and the stack
+      // are all painted and then painted over: ten full-screen passes a frame for nothing, and the pan stuttered
+      // on the phone (Lukas). Then only the pages are drawn. Flat only: tipped, the projection moves the edges.
+      const m = COVER * view.s;
+      const covered = flat === 0 && !turn && view.x + m < 0 && view.y + m < 0 && view.x + BOOK_W * view.s - m > w && view.y + BOOK_H * view.s - m > h;
       const drawAll = (shadow: boolean) => {
+        if (covered) {
+          gl.uniform4f(U.flat, 0, 0, 0, 0);
+          gl.uniform4f(U.paper, 0.94, 0.91, 0.83, 1);
+          bind(slots.pages); gl.drawElements(gl.TRIANGLES, slots.pages.n, gl.UNSIGNED_SHORT, 0);
+          return;
+        }
         // board, then the page stack standing on it, then the pages on top: the board is wider than the stack,
         // so drawn later it would paint right over it. The board mesh is LIP wider than the book (its texture
         // ends there anyway), so it stays out of the shadow: painted dark it was a frame all round the flat book.
@@ -704,7 +715,7 @@ export function createBook3D(canvas: HTMLCanvasElement, persp: number): Book3D |
       // the table under everything: its colour out to the padding, then the picture, both faded in as the camera
       // goes overhead. Drawn here rather than as an <img> in the page: a picture this size under a scale that
       // changes every frame had Safari on the iPhone re-rasterising it over and over, until it gave the page up.
-      if (fade > 0) {
+      if (fade > 0 && !covered) {
         gl.uniform1f(U.fade, fade);
         gl.uniform1f(U.table, 1); gl.uniform4f(U.flat, 0.706, 0.498, 0.318, 1); // #b47f51, the wood's own colour
         bind(slots.tableFill); gl.drawElements(gl.TRIANGLES, slots.tableFill.n, gl.UNSIGNED_SHORT, 0);
@@ -718,7 +729,7 @@ export function createBook3D(canvas: HTMLCanvasElement, persp: number): Book3D |
       shape(sf, ARCH * sf);
       const a = 1 - Math.pow(1 - SHADOW_DARK, 1 / SHADOW_PASSES);
       gl.uniform4f(U.shadowC, 0.08 * a, 0.04 * a, 0.02 * a, a);
-      for (let k = 0; k < SHADOW_PASSES && SHADOW_ON; k++) {
+      for (let k = 0; k < SHADOW_PASSES && SHADOW_ON && !covered; k++) {
         const len = SHADOW_LEN * (0.7 + (0.6 * k) / (SHADOW_PASSES - 1));
         gl.uniform3f(U.shadow, SHADOW_DIR[0] * len, SHADOW_DIR[1] * len, 1);
         drawAll(true);

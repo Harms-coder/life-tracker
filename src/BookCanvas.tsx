@@ -27,6 +27,7 @@ const LIVE_BUDGET = 4e6;
 const LIVE_RATIO = 1.25; // redraw mid-pinch once the page texture is stretched this much
 const LIVE_GAP = 140;    // ms between such redraws
 const STILL_MS = 160;    // fingers down but not moving for this long: a full, sharp drawing
+const LEAD_MS = 300;     // how far ahead of a moving finger the drawn margin leans, in ms of its speed
 /** The whole-spread stand-in is drawn into this many pixels: a power of two each way, so WebGL can mipmap it.
  *  Without mipmaps it was minified with a plain 2x2 filter on the phone's screen, and the thin ink strokes all
  *  but vanished for the moment it stood in after a page turn (Lukas: "teksten blinker væk"). 8 MB + mipmaps. */
@@ -141,6 +142,10 @@ export const BookCanvas = forwardRef<BookCanvasHandle, {
     if (import.meta.env.DEV) (window as unknown as { __view: View }).__view = t.current; // for the test scripts
     const a = tiltAmount(s);
     scene2d.current!.style.transform = `translate(${x}px, ${y}px) scale(${s})`;
+    // Once the camera is far enough overhead, the wooden table drawn in WebGL is opaque and covers the screen
+    // (its padding is sized for that), so the photo behind it is not seen at all. Hidden, Safari stops keeping
+    // the huge scaled photo layer rasterised under every pan - zoomed in it is thousands of px across.
+    scene2d.current!.style.visibility = (1 - a) * 1.6 >= 1 ? "hidden" : "visible";
 
     // The book is redrawn in full every frame: the mesh is a few thousand vertices and the page texture only
     // changes when render() runs, so the tilt and the curve stay exact all the way through a pinch.
@@ -181,7 +186,12 @@ export const BookCanvas = forwardRef<BookCanvasHandle, {
     const { x, y, s } = t.current;
     const dpr = window.devicePixelRatio || 1;
     const mw = v.clientWidth * MARGIN, mh = v.clientHeight * MARGIN;
-    const vp: Plane = { x0: -mw, y0: -mh, w: v.clientWidth + 2 * mw, h: v.clientHeight + 2 * mh, k: 1 }; // the screen and a margin around it
+    // The margin leans into the direction the finger is moving: what is behind the pan will not be looked at,
+    // what is ahead will. Same canvas, twice as far before the next drawing is needed (a fast pan zoomed in
+    // asked for a full drawing every 80 px and stuttered on the phone).
+    const moving = performance.now() - velocity.current.at < 80 && (pointers.current.size === 1 || glide.current);
+    const lead = (vel: number, m: number) => (moving ? Math.max(-m, Math.min(m, vel * LEAD_MS)) : 0);
+    const vp: Plane = { x0: -mw - lead(velocity.current.x, mw), y0: -mh - lead(velocity.current.y, mh), w: v.clientWidth + 2 * mw, h: v.clientHeight + 2 * mh, k: 1 }; // the screen and a margin around it
     // tipped back you see the whole book, so draw all of it (at a resolution the budget allows)
     const p: Plane = tiltFor(s) > 0 ? { x0: x, y0: y, w: BOOK_W * s, h: BOOK_H * s, k: 1 } : { ...vp };
     // the cover board sticks LIP out past the book on every side, and a hair more: the mesh samples right up to
@@ -251,9 +261,11 @@ export const BookCanvas = forwardRef<BookCanvasHandle, {
   /** A long pan or fling runs off the drawn bitmap: draw again, from where we are now. While one is out this
    *  only queues the next, so a fast pan gets a fresh drawing about as often as the worker can make one. */
   const renderIfOff = () => {
-    const c = committed.current, p = plane.current;
-    const offX = t.current.x - c.x, offY = t.current.y - c.y;
-    if (tiltFor(t.current.s) === 0 && (Math.abs(offX) > -p.x0 - 20 || Math.abs(offY) > -p.y0 - 20)) render();
+    const c = committed.current, p = plane.current, v = view.current!;
+    // the screen, in the coordinates the drawing was made in: it must stay inside the drawn plane (less a hair)
+    const sx = c.x - t.current.x, sy = c.y - t.current.y;
+    const off = sx < p.x0 + 20 || sy < p.y0 + 20 || sx + v.clientWidth > p.x0 + p.w - 20 || sy + v.clientHeight > p.y0 + p.h - 20;
+    if (tiltFor(t.current.s) === 0 && off) render();
   };
 
   /** The whole spread, coarse, outside the one-at-a-time queue: it stands in wherever the page texture does not
