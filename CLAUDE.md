@@ -166,6 +166,26 @@ Rækker = dage 1–31 (antal efter måneden). Kolonner = brugerens egne trackere
 - Test-scripts ligger i sessionens scratchpad (`pw/shots.mjs` skærmbilleder, `pw/bench.mjs` frame-tider i WebKit,
   `pw/tapcheck.mjs` tryk). Dev-server: `npm run dev`. I dev sætter BookCanvas `window.__view` (x, y, s) til scripts.
 
+## Status 2026-09-22 kl. 14.00 – BOGENS KANT ZOOMET IND
+
+Lukas zoomede ind og så tre ting: striber i den sorte kant, hjørner der ikke var dækket (bordet skinnede
+igennem i en trappe), og en lys/hvid kant om siderne, der ikke kunne fjernes. Alle tre lå i den 30 px brede
+kant (`LIP`, nu i `layout.ts`), hvor omslaget står ud forbi bogen:
+- Kanten blev ALDRIG tegnet – `draw.ts` stoppede ved BOOK_W x BOOK_H – så shaderen faldt tilbage på
+  oversigtsteksturen, hvis yderste pixelrække CLAMP_TO_EDGE smurte ud over de 30 px (striberne), og i hjørnet
+  var den smurte pixel gennemsigtig (hullet). REGEL: alt der tegner eller måler opslaget arbejder i
+  LIP-kassen (`COVER_BOX` i draw.ts), ikke i BOOK_W x BOOK_H – det gælder baggrunds-cachen, detaljeudsnittet
+  (`render()` i BookCanvas) og oversigten (`renderOverview`, som `v_ouv` mapper på).
+- Den hvide kant var papirstakkens skørt (`buildEdges`), som stod OVERHANG = 20 px ud fra sidens kant OGSÅ når
+  bogen lå helt fladt. Stakken kan kun ses, fordi bogen er vippet, så den foldes nu væk med vippet: positionen
+  er sidens egen kant, udrulningen ligger i et nyt attribut `a_off` og ganges med `u_out` (= samme faktor `f`
+  som alle højder bruger, sat i `shape()`).
+- `node tools/kantcheck.mjs <mappe>` zoomer helt ind og fotograferer de fire hjørner + kanterne. Galleri med
+  før/efter: https://claude.ai/artifact/S914mdZ2Tq4gAuqWUrxLYb
+- IKKE SET AF LUKAS PÅ TELEFONEN ENDNU. Tilbage af hans klage: bordpladen er stadig sløret zoomet helt ind
+  (kendt grænse, bord.webp er 4k over 1900 verdens-px ≈ 1,6 px pr. verdens-px; max zoom 7x ville kræve ~13000 px).
+  Knap: MAX_OVER_FIT (nu 7) ned, eller en skarpere/større bordplade.
+
 ## Status 2026-09-18 kl. 00.05 – ROADMAP 1b FÆRDIG OG GODKENDT
 
 **Live:** https://harms-coder.github.io/life-tracker/ — alt pushet. Lukas' dom: "det fungerer godt, 1b er færdigt, godt arbejde".
