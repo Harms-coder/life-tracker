@@ -6,6 +6,14 @@
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <title>Månedsbog</title>
+    <!-- On the home screen iOS uses apple-touch-icon, not the manifest. The file is a FULL SQUARE: iOS rounds
+         the corners itself, and the drawn rounded corners were filled out to the paper colour first, or they
+         would be rounded twice and show white notches. The paths are RELATIVE: Vite puts the base in front
+         of them itself, and %BASE_URL% on top of that gave /life-tracker/life-tracker/ in dev. -->
+    <link rel="apple-touch-icon" href="apple-touch-icon.png" />
+    <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png" />
+    <link rel="manifest" href="manifest.webmanifest" />
+    <meta name="theme-color" content="#2a211a" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Caveat:wght@400;500;700&display=swap" rel="stylesheet" />

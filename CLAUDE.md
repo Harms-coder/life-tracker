@@ -155,15 +155,33 @@ Rækker = dage 1–31 (antal efter måneden). Kolonner = brugerens egne trackere
   panorerer ALTID. Kun `turn(dir)` fra pilene bladrer. BYG DET IKKE IGEN uden at han beder om det.
   `node tools/swipecheck.mjs` = otte swipes fra forskellige steder og retninger må ikke bladre, pilene skal.
   (tools/dragturn.mjs er slettet med det.)
+- APP-IKON (2026-09-22): Lukas' eget genererede ikon (åben bog + sol i papir/olivengrønt). `public/apple-touch-icon.png`
+  (180), `icon-192/512.png`, `manifest.webmanifest`. VIGTIGT: filen er en FULD FIRKANT i papirfarven (249,242,230) –
+  iOS runder selv hjørnerne, og kildens indtegnede runde hjørner blev fyldt ud først, ellers rundes de to gange og
+  viser hvide hak. Stierne i index.html er RELATIVE: Vite sætter selv basen foran, og `%BASE_URL%` oveni gav
+  `/life-tracker/life-tracker/` i dev. `node tools/ikoncheck.mjs` tjekker filerne, stierne og de fire hjørner.
+  `apple-mobile-web-app-capable` har været der hele tiden – appen har altid åbnet i fuld skærm uden Safari-linje.
+- MANGLENDE TEGN ER IKKE EN OPGAVE (Lukas 2026-09-22): `&` i Lukas' håndskrift og `É` i begge – "det kommer jeg
+  ikke til at lave". Ukendte tegn bliver et mellemrum. Nævn det ikke som noget udestående igen.
+- BEKRÆFTET PÅ TELEFONEN 2026-09-22: emojis VIRKER i iOS Safari. Skrive-/viskeanimationen er god (tempo og
+  trinvished). Billedpladsen b4 øverst til højre ligger rigtigt. Billederne overlevede flytningen til IndexedDB.
+  Hakkeriet zoomet ind er væk efter scissor-klipningen. Bladring med fingeren er fjernet efter Lukas' ønske.
 - Læsebåndet er fjernet (Lukas' ønske).
 - iPhone først, hele opslaget synligt + pinch-zoom.
 - Venstre side = månedens mål, undermål og plan. Højre side = daglig tracking.
 
 ## Åbne spørgsmål
-- Skal der være plads til "taknemlighed" eller noter et sted (fx en ekstra kolonne eller senere side)?
-- Kuglepen vs. blyant – valgfrit pr. bog eller pr. indtastning?
-- Statistik/oversigt over flere måneder?
-- Tech-stack endeligt valg (PWA vs. native iOS).
+- ~~Taknemlighed/noter et sted?~~ **NEJ** (Lukas 2026-09-22). Byg det ikke.
+- ~~Tech-stack: PWA vs. native iOS?~~ **PWA** – afgjort for længst, app-ikon lavet 2026-09-22.
+- Kuglepen vs. blyant: Lukas vil gerne kunne VÆLGE mellem de to. "Lige nu er det kuglepen, det er sådan for nu."
+  Ikke hastende. (Bemærk: de to HÅNDSKRIFTER, Lukas/Louise, er noget andet – det er skriveredskabet, han mener.)
+- **OPSUMMERINGSBOGEN** (Lukas' idé 2026-09-22, "ikke noget vi skal i gang med lige nu"): en anden, lille bog,
+  hvor en AI koger de sidste 3 / 6 / 12 måneder ned – hvad han har lært, hvad han har opnået og hvordan, hvor
+  glad han har været – så man kan få overblikket uden at bladre tilbage måned for måned. Erstatter det gamle
+  "statistik/oversigt over flere måneder".
+- Morgen/middag/nat er stadig låst til aftenbilledet (`ONLY` i Backdrop.tsx; lyskortet er også hårdkodet til
+  aften.jpg i BookCanvas). Lukas: "det kommer til at være sådan lidt endnu, men det skal gøres på et tidspunkt."
+- Zoomet langt ind under en bladring ses bladets skygge som 5 trin (SHADOW_PASSES).
 
 ## Reference
 - `referencer/` – billeder af papirbogen (august 2025-opslaget og tomt opslag).
