@@ -17,10 +17,18 @@ export type Scene = {
   columns: Column[];
   values: Record<string, string>;
   notes: Partial<Record<NoteField, string>>;
-  /** what the pen is writing right now: the value key ("5:loeb") or note field, when it started, how long it
-   *  takes, and - for a list of points - WHICH lines are new. Only those are written; what was already on the
-   *  page stays where it is (Lukas: it must not rewrite the whole box). */
-  writing: { key: string; start: number; ms: number; lines?: number[] } | null;
+  /** What the pen is doing right now, to one value key ("5:loeb") or note field. It first rubs out what was
+   *  removed, then writes what was added - and only that: `edits` say which line changed and from which
+   *  character, so an added question mark neither rewrites its sentence nor touches the lines around it. */
+  writing: {
+    key: string; start: number;
+    eraseMs: number; writeMs: number;
+    /** the text/value as it WAS: drawn while the rubber is still going over it */
+    erase?: string;
+    /** line = paragraph index (0 for a cell), from = the character the change starts at */
+    eraseEdits?: { line: number; from: number }[];
+    writeEdits?: { line: number; from: number }[];
+  } | null;
   /** whose handwriting the page is written in */
   hand: Hand;
 };
@@ -44,30 +52,60 @@ export const WEEKDAY = "SMTOTFL"; // indexed by Date.getDay()
 
 /** Runs in draw.worker.ts, off the main thread: an OffscreenCanvas, no DOM, no fonts (all text is Lukas' glyphs). */
 type Ctx = OffscreenCanvasRenderingContext2D;
-/** How far the pen has got on `key`: 1 when nothing is being written there. */
-const penAt = (scene: Scene, key: string, now: number) =>
-  scene.writing?.key === key ? Math.max(0, Math.min(1, (now - scene.writing.start) / scene.writing.ms)) : 1;
-/** Which lines of that note are being written (undefined = all of it, or nothing is). */
-const penLines = (scene: Scene, key: string) => (scene.writing?.key === key ? scene.writing.lines : undefined);
+/** What the pen is doing to `key` at `now`: nothing, rubbing the old out, or writing the new. */
+export type Pen = { erasing: boolean; p: number; edits?: { line: number; from: number }[]; text?: string };
+const clamp01 = (v: number) => Math.max(0, Math.min(1, v));
+function penOn(scene: Scene, key: string, now: number): Pen | null {
+  const w = scene.writing;
+  if (!w || w.key !== key) return null;
+  const t = now - w.start;
+  if (w.eraseMs > 0 && t < w.eraseMs) return { erasing: true, p: clamp01(t / w.eraseMs), edits: w.eraseEdits, text: w.erase };
+  if (w.writeMs > 0 && t < w.eraseMs + w.writeMs) return { erasing: false, p: clamp01((t - w.eraseMs) / w.writeMs), edits: w.writeEdits };
+  return null;
+}
+/** How much of `line` (a wrapped line starting at character `off` of its paragraph) the pen is working on, and
+ *  from which character of it. A line no edit mentions is simply already on the page. */
+function penPart(pen: Pen | null | undefined, para: number, off: number, line: string) {
+  if (!pen) return null;
+  const e = pen.edits?.find((x) => x.line === para);
+  if (pen.edits && !e) return null;
+  const from = Math.max(0, Math.min(line.length, (e?.from ?? 0) - off));
+  return from >= line.length ? null : { from, chars: line.length - from };
+}
 
 const overlaps = (a: Rect, b: Rect) => a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
 
 /** Handwritten text with a small, stable wobble (seeded), so it looks the same every time. */
-function text(ctx: Ctx, str: string, x: number, y: number, o: { size: number; seed: string; weight?: number; align?: CanvasTextAlign; baseline?: CanvasTextBaseline; tilt?: number; rotate?: number; alpha?: number; reveal?: number }) {
-  if (o.reveal !== undefined && o.reveal <= 0) return;
+function text(ctx: Ctx, str: string, x: number, y: number, o: { size: number; seed: string; weight?: number; align?: CanvasTextAlign; baseline?: CanvasTextBaseline; tilt?: number; rotate?: number; alpha?: number; reveal?: number; from?: number; erase?: boolean }) {
+  if (o.reveal !== undefined && !o.erase && o.reveal <= 0 && !o.from) return;
   const r = seededRandom(o.seed);
   ctx.save();
   ctx.translate(x + (r() - 0.5) * 2, y + (r() - 0.5) * 2);
   ctx.rotate(((r() - 0.5) * 5 * (o.tilt ?? 1) * Math.PI) / 180 + (o.rotate ?? 0));
-  // the pen runs along the line: everything to the right of it is not written yet
-  if (o.reveal !== undefined && o.reveal < 1) {
-    const w = widthOfText(str, o.size, o.seed);
-    const x0 = o.align === "center" ? -w / 2 : o.align === "right" ? -w : 0;
-    ctx.beginPath(); ctx.rect(x0 - 2, -o.size * 2.5, w * o.reveal + 2, o.size * 5); ctx.clip();
-  }
   ctx.fillStyle = INK;
-  if (o.alpha !== undefined) ctx.globalAlpha = o.alpha;
-  drawText(ctx, str, 0, 0, o.size, o.seed, o.align ?? "left", o.baseline ?? "alphabetic");
+  const draw = () => drawText(ctx, str, 0, 0, o.size, o.seed, o.align ?? "left", o.baseline ?? "alphabetic");
+  if (o.reveal === undefined) {
+    if (o.alpha !== undefined) ctx.globalAlpha = o.alpha;
+    draw();
+    ctx.restore();
+    return;
+  }
+  // The same seed gives the same glyph picks, so the width of the first `from` characters is exactly where they
+  // end on the page: the pen (or the rubber) starts there and the rest of the line never moves.
+  const wAll = widthOfText(str, o.size, o.seed);
+  const wPre = o.from ? widthOfText(str.slice(0, o.from), o.size, o.seed) : 0;
+  const x0 = o.align === "center" ? -wAll / 2 : o.align === "right" ? -wAll : 0;
+  const edge = o.erase ? wAll - (wAll - wPre) * o.reveal : wPre + (wAll - wPre) * o.reveal;
+  const part = (from: number, to: number, alpha: number) => {
+    if (to <= from || alpha <= 0) return;
+    ctx.save();
+    ctx.beginPath(); ctx.rect(x0 + from, -o.size * 2.5, to - from, o.size * 5); ctx.clip();
+    ctx.globalAlpha = (o.alpha ?? 1) * alpha;
+    draw();
+    ctx.restore();
+  };
+  part(-2, edge, 1);
+  if (o.erase) part(edge, wAll + 2, 0.22 * (1 - o.reveal)); // where the rubber has been: a fading smudge, then nothing
   ctx.restore();
 }
 
@@ -121,29 +159,36 @@ function handX(ctx: Ctx, x: number, y: number, seed: string, progress = 1) {
 const wrap = (_ctx: Ctx, str: string, width: number, size: number) => wrapText(str, width, size);
 
 /** Free text written line by line on the grid; `bullets` puts a dot in front of each paragraph. */
-function noteText(ctx: Ctx, str: string, box: Rect, seed: string, o: { bullets?: boolean; minRows?: number; top?: number; reveal?: number; lines?: number[]; until?: number }) {
+function noteText(ctx: Ctx, str: string, box: Rect, seed: string, o: { bullets?: boolean; minRows?: number; top?: number; pen?: Pen | null; until?: number }) {
   const indent = o.bullets ? NOTE_INDENT : 0, size = NOTE_SIZE;
   const paras = str.split("\n").filter((p) => p.trim());
   while (paras.length < (o.minRows ?? 0)) paras.push("");
-  // laid out first, so a line knows its share of the pen's journey down the page
-  const rows: { bullet: boolean; line: string; i: number; j: number; row: number }[] = [];
+  // laid out first, so a line knows where it starts in its paragraph and its share of the pen's journey
+  const rows: { bullet: boolean; line: string; off: number; i: number; j: number; row: number }[] = [];
   let row = 0;
   paras.forEach((para, i) => {
     const lines = para ? wrap(ctx, para, box.w - 10 - indent, size) : [""];
-    lines.forEach((line, j) => rows.push({ bullet: !!o.bullets && j === 0, line, i, j, row: row++ }));
+    let off = 0;
+    lines.forEach((line, j) => { rows.push({ bullet: !!o.bullets && j === 0, line, off, i, j, row: row++ }); off += line.length + 1; });
   });
-  // only the new points are written; the rest is already on the page
-  const isNew = (i: number) => o.reveal !== undefined && (!o.lines || o.lines.includes(i));
-  const written = rows.filter((r) => r.line && isNew(r.i)).length;
+  // the pen's time is shared out over the characters that actually change, in the order they are read
+  const parts = rows.map((r) => (r.line ? penPart(o.pen, r.i, r.off, r.line) : null));
+  const total = parts.reduce((n, part) => n + (part?.chars ?? 0), 0);
   let done = 0;
-  for (const r of rows) {
+  rows.forEach((r, k) => {
     const y = box.y + (o.top ?? 0) + r.row * CELL + 15;
-    if (o.until !== undefined && y > o.until) break; // a photo is taped in below: the text stops above it
-    // each new line takes its turn: the pen finishes one before it starts the next
-    const p = !r.line || !isNew(r.i) ? 1 : Math.max(0, Math.min(1, o.reveal! * written - done));
-    if (r.bullet && p > 0) text(ctx, "•", box.x + 6, y, { size: 22, weight: 700, seed: seed + "b" + r.i, tilt: 0 });
-    if (r.line) { text(ctx, r.line, box.x + 6 + indent, y, { size, seed: seed + r.i + "-" + r.j, tilt: 0.25, reveal: p }); if (isNew(r.i)) done++; }
-  }
+    if (o.until !== undefined && y > o.until) return; // a photo is taped in below: the text stops above it
+    const part = parts[k];
+    const p = !part || !total ? 1 : clamp01((o.pen!.p * total - done) / part.chars);
+    // the bullet goes up with the first stroke of its point, and only leaves when the whole point is rubbed out
+    const gone = !!part && o.pen!.erasing && part.from === 0 && p >= 1;
+    const coming = !!part && !o.pen!.erasing && part.from === 0 && p <= 0;
+    if (r.bullet && !gone && !coming) text(ctx, "•", box.x + 6, y, { size: 22, weight: 700, seed: seed + "b" + r.i, tilt: 0 });
+    if (r.line) {
+      text(ctx, r.line, box.x + 6 + indent, y, { size, seed: seed + r.i + "-" + r.j, tilt: 0.25, ...(part ? { reveal: p, from: part.from, erase: o.pen!.erasing } : {}) });
+      if (part) done += part.chars;
+    }
+  });
 }
 
 /** A square drawn by hand: four wobbly sides. */
@@ -325,8 +370,9 @@ function drawLeftPage(ctx: Ctx, scene: Scene, vis: Rect, now: number, assets: As
       const p = goalPos(i);
       handBox(ctx, { x: p.x, y: p.y, w: CELL, h: CELL }, "sq" + i);
       text(ctx, String(i + 1), p.x + CELL / 2, p.y + CELL / 2, { size: 18, weight: 700, seed: "gn" + i, align: "center", baseline: "middle" });
-      const g = notes[`goal${i}`];
-      if (g) noteText(ctx, g, goalTextBox(i), "goal" + i, { reveal: penAt(scene, `goal${i}`, now), lines: penLines(scene, `goal${i}`) });
+      const pen = penOn(scene, `goal${i}`, now);
+      const g = pen?.erasing ? pen.text : notes[`goal${i}`];
+      if (g) noteText(ctx, g, goalTextBox(i), "goal" + i, { pen });
     }
   }
 
@@ -336,13 +382,25 @@ function drawLeftPage(ctx: Ctx, scene: Scene, vis: Rect, now: number, assets: As
       const { num, goal, plan } = planBoxes(i);
       handBox(ctx, num, "pq" + i);
       text(ctx, String(i + 1), num.x + num.w / 2, num.y + num.h / 2, { size: 24, weight: 700, seed: "pn" + i, align: "center", baseline: "middle" });
-      const g = notes[`goal${i}`];
+      const gpen = penOn(scene, `goal${i}`, now);
+      const g = gpen?.erasing ? gpen.text : notes[`goal${i}`];
       if (g) {
-        const gp = penAt(scene, `goal${i}`, now), lines = wrap(ctx, g, goal.w, 18).slice(0, 2);
-        lines.forEach((line, j) => text(ctx, line, goal.x, goal.y + 19 + j * 21, { size: 18, seed: "pg" + i + j, tilt: 0.25, reveal: Math.max(0, Math.min(1, gp * lines.length - j)) }));
+        // the same goal, written large: the pen works on the same characters here as in the list above
+        const lines = wrap(ctx, g, goal.w, 18).slice(0, 2);
+        let off = 0;
+        const parts = lines.map((line) => { const part = penPart(gpen, i, off, line); off += line.length + 1; return part; });
+        const total = parts.reduce((n, part) => n + (part?.chars ?? 0), 0);
+        let done = 0;
+        lines.forEach((line, j) => {
+          const part = parts[j];
+          const p = !part || !total ? 1 : clamp01((gpen!.p * total - done) / part.chars);
+          text(ctx, line, goal.x, goal.y + 19 + j * 21, { size: 18, seed: "pg" + i + j, tilt: 0.25, ...(part ? { reveal: p, from: part.from, erase: gpen!.erasing } : {}) });
+          if (part) done += part.chars;
+        });
       }
-      const pl = notes[`plan${i}`];
-      if (pl) noteText(ctx, pl, plan, "plan" + i, { bullets: true, reveal: penAt(scene, `plan${i}`, now), lines: penLines(scene, `plan${i}`) });
+      const ppen = penOn(scene, `plan${i}`, now);
+      const pl = ppen?.erasing ? ppen.text : notes[`plan${i}`];
+      if (pl) noteText(ctx, pl, plan, "plan" + i, { bullets: true, pen: ppen });
     }
   }
 
@@ -391,17 +449,21 @@ function drawRightPage(ctx: Ctx, scene: Scene, vis: Rect, now: number, assets: A
     text(ctx, WEEKDAY[new Date(scene.year, scene.month - 1, day).getDay()], xs[0] + CELL / 2, y + CELL / 2, { size: 15, seed: "w" + day, align: "center", baseline: "middle" });
     text(ctx, String(day), xs[0] + 1.5 * CELL, y + CELL / 2, { size: 15, seed: "d" + day, align: "center", baseline: "middle" });
     columns.forEach((c, i) => {
-      const key = `${day}:${c.id}`, v = values[key];
+      const key = `${day}:${c.id}`;
+      const pen = penOn(scene, key, now);
+      const v = pen?.erasing ? pen.text ?? "" : values[key]; // being rubbed out: it is off the page already, but not off the paper
       if (!v) return;
       const left = xs[i + 1], w = widthOf(c.type) * CELL;
-      const pen = penAt(scene, key, now);
+      const p = pen ? pen.p : 1, gone = pen?.erasing ? 1 - p : p;
       if (c.type === "check") {
-        handX(ctx, left, y, key, pen);
+        if (pen?.erasing) { ctx.globalAlpha = 0.22 * (1 - p); handX(ctx, left, y, key, 1); ctx.globalAlpha = 1; }
+        handX(ctx, left, y, key, gone);
       } else if (c.type === "dots") {
-        if (pen <= 0) return;
-        ctx.beginPath(); ctx.arc(left + dotX(Number(v)), y + CELL / 2, 2.5, 0, Math.PI * 2); ctx.fillStyle = INK; ctx.globalAlpha = 0.9 * pen; ctx.fill(); ctx.globalAlpha = 1;
+        if (gone <= 0) return;
+        ctx.beginPath(); ctx.arc(left + dotX(Number(v)), y + CELL / 2, 2.5, 0, Math.PI * 2); ctx.fillStyle = INK; ctx.globalAlpha = 0.9 * gone; ctx.fill(); ctx.globalAlpha = 1;
       } else {
-        text(ctx, v, left + w / 2, y + CELL / 2, { size: c.type === "number" ? 17 : v.length > 2 ? 12.5 : 15, seed: key, align: "center", baseline: "middle", reveal: pen });
+        const from = pen?.edits?.[0]?.from ?? 0;
+        text(ctx, v, left + w / 2, y + CELL / 2, { size: c.type === "number" ? 17 : v.length > 2 ? 12.5 : 15, seed: key, align: "center", baseline: "middle", ...(pen ? { reveal: p, from, erase: pen.erasing } : {}) });
       }
     });
   }
@@ -435,6 +497,7 @@ function drawRightPage(ctx: Ctx, scene: Scene, vis: Rect, now: number, assets: A
     const b = boxes[f];
     if (!overlaps(vis, b)) return;
     labelled(ctx, NOTE_LABEL[f], b.x + 6, b.y + 16, "n" + f);
-    noteText(ctx, notes[f] ?? "", b, f, { bullets: true, minRows: f === "good" ? 0 : 3, top: CELL, reveal: penAt(scene, f, now), lines: penLines(scene, f), until: f === "good" && b7 ? b7.y - 8 : undefined });
+    const pen = penOn(scene, f, now);
+    noteText(ctx, (pen?.erasing ? pen.text : notes[f]) ?? "", b, f, { bullets: true, minRows: f === "good" ? 0 : 3, top: CELL, pen, until: f === "good" && b7 ? b7.y - 8 : undefined });
   });
 }

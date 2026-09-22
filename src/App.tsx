@@ -2,6 +2,8 @@ import { useEffect, useRef, useState, type FormEvent } from "react";
 import { BookCanvas, type BookCanvasHandle } from "./BookCanvas";
 import { Backdrop } from "./Backdrop";
 import type { Scene } from "./draw";
+
+type Writing = NonNullable<Scene["writing"]>;
 import { BOOK_H, BOOK_W, columnXs, dotX, hitTest, NOTE_LABEL, RIGHT_PAGE, widthOf, CELL, type ColType, type Column, type NoteField } from "./layout";
 import { seededRandom } from "./random";
 import { HANDS, setHand, type Hand } from "./glyf";
@@ -94,6 +96,34 @@ function seedOnce<T>(flag: string, key: string, make: () => T, fallback: T): T {
   localStorage.setItem(key, JSON.stringify(v));
   localStorage.setItem(flag, "1");
   return v;
+}
+
+/** How long the pen takes over `chars` characters: about nine a second, and never less than a moment. */
+const penMs = (chars: number) => (chars > 0 ? Math.min(3000, 260 + Math.max(chars, 5) * 110) * PEN_K : 0);
+/** How many characters two strings start out the same - counted in whole characters, so an emoji is not cut in half. */
+function prefixLen(a: string, b: string) {
+  const A = Array.from(a), B = Array.from(b);
+  let i = 0;
+  while (i < A.length && i < B.length && A[i] === B[i]) i++;
+  return A.slice(0, i).join("").length;
+}
+const lines = (s: string) => s.split("\n").filter((l) => l.trim()); // the paragraphs the book draws, in its order
+/** What changed between two lists of points: lines that are word for word the same are left alone, the rest are
+ *  paired up in order, and each pair only differs from the character where they part company. */
+function diffLines(before: string[], after: string[]) {
+  const used = before.map(() => false);
+  const same = after.map((l) => { const i = before.findIndex((b, j) => !used[j] && b === l); if (i >= 0) used[i] = true; return i; });
+  const oldLeft = before.map((_, i) => i).filter((i) => !used[i]);
+  const newLeft = after.map((_, i) => i).filter((i) => same[i] < 0);
+  const eraseEdits: { line: number; from: number }[] = [], writeEdits: { line: number; from: number }[] = [];
+  let eraseChars = 0, writeChars = 0;
+  for (let i = 0; i < Math.max(oldLeft.length, newLeft.length); i++) {
+    const o = oldLeft[i], n = newLeft[i];
+    const k = o !== undefined && n !== undefined ? prefixLen(before[o], after[n]) : 0;
+    if (o !== undefined && before[o].length > k) { eraseEdits.push({ line: o, from: k }); eraseChars += before[o].length - k; }
+    if (n !== undefined && after[n].length > k) { writeEdits.push({ line: n, from: k }); writeChars += after[n].length - k; }
+  }
+  return { eraseEdits, writeEdits, eraseChars, writeChars };
 }
 
 type ValuePrompt = { kind: "value"; key: string; label: string; value: string; rating: boolean };
@@ -195,26 +225,33 @@ export default function App() {
   const redraw = () => book.current?.redraw();
   useEffect(() => { book.current?.setPhotos(photos); book.current?.refresh(); }, [month, columns, values, notes, hand, photos]);
 
-  /** Write it in the book the way a hand would: the pen runs along the line while the book redraws.
-   *  Everything goes through here - X's, weights, ratings and the text on both pages. */
-  const penWrite = (key: string, chars: number, lines?: number[]) => {
-    // a hand's pace: about nine characters a second, and never less than a moment (an X is two strokes)
-    const w = { key, start: performance.now(), ms: Math.min(6000, 260 + Math.max(chars, 5) * 110) * PEN_K, lines };
-    scene.current.writing = w;
+  /** Write it in the book the way a hand would: the rubber first goes over what was taken away, then the pen
+   *  writes what was added - and only that. Adding a question mark writes the question mark, not the sentence. */
+  const startPen = (key: string, w: Omit<Writing, "key" | "start" | "eraseMs" | "writeMs"> & { eraseChars: number; writeChars: number }) => {
+    const pen: Writing = { key, start: performance.now(), eraseMs: penMs(w.eraseChars), writeMs: penMs(w.writeChars), erase: w.erase, eraseEdits: w.eraseEdits, writeEdits: w.writeEdits };
+    if (!pen.eraseMs && !pen.writeMs) return;
+    scene.current.writing = pen;
     const step = () => {
-      if (scene.current.writing !== w) return; // something else is being written now
+      if (scene.current.writing !== pen) return; // something else is being written now
       redraw();
-      if (performance.now() - w.start < w.ms) requestAnimationFrame(step);
+      if (performance.now() - pen.start < pen.eraseMs + pen.writeMs) requestAnimationFrame(step);
       else { scene.current.writing = null; redraw(); }
     };
     requestAnimationFrame(step);
   };
   const write = (key: string, value: string | null, pen = true) => {
+    const before = values[key] ?? "", after = value ?? "";
     const next = { ...values };
-    if (value === null || value === "") delete next[key]; else next[key] = value;
+    if (!after) delete next[key]; else next[key] = after;
     setValues(next);
     localStorage.setItem(VALUES_KEY, JSON.stringify(next));
-    if (value && pen) penWrite(key, value.length);
+    if (!pen || before === after) return;
+    const k = prefixLen(before, after); // "71,4" -> "71,5" changes one digit, and that is all that moves
+    startPen(key, {
+      erase: before || undefined,
+      eraseEdits: [{ line: 0, from: k }], writeEdits: [{ line: 0, from: k }],
+      eraseChars: Math.max(0, before.length - k), writeChars: Math.max(0, after.length - k),
+    });
   };
   const saveColumns = (next: Column[]) => {
     setColumns(next);
@@ -222,15 +259,12 @@ export default function App() {
     setPrompt(null);
   };
   const saveNote = (field: NoteField, text: string) => {
-    const before = (notes[field] ?? "").split("\n").filter((l) => l.trim());
+    const before = lines(notes[field] ?? ""), after = lines(text);
     const next = { ...notes, [field]: text };
     setNotes(next);
     localStorage.setItem(NOTES_KEY, JSON.stringify(next));
     setPrompt(null);
-    // only what is new gets written: the lines that were not there before (Lukas)
-    const after = text.split("\n").filter((l) => l.trim());
-    const fresh = after.map((l, i) => (before.includes(l) ? -1 : i)).filter((i) => i >= 0);
-    if (fresh.length) penWrite(field, fresh.reduce((n, i) => n + after[i].length, 0), fresh);
+    startPen(field, { erase: before.join("\n"), ...diffLines(before, after) });
   };
 
   /** How near the dot the finger has to land before it can slide it, in world px (a cell is 20). */

@@ -182,6 +182,26 @@ telefonens egen emoji-skrift midt i skriften (`glyf.ts`):
   telefonens emoji-tastatur virker uden videre.
 - `node tools/emojicheck.mjs screenshots/emoji.png` = mål + plan med emojis, zoomet ind.
 
+## Status 2026-09-22 kl. 20.05 – KUN DET ÆNDREDE SKRIVES, OG DET FJERNEDE VISKES UD
+
+Lukas: sætter man et spørgsmålstegn på en sætning, skal KUN spørgsmålstegnet skrives; fjerner man det igen, skal
+det VISKES ud, ikke blinke væk. Pennen er bygget om (to faser, tegn for tegn):
+- `Scene.writing` = `{key, start, eraseMs, writeMs, erase?, eraseEdits?, writeEdits?}`. `erase` = teksten som den
+  VAR (tegnes mens viskelæderet går over den); `edits` = `{line, from}` pr. ændret afsnit, hvor `from` er det
+  tegn, ændringen starter ved. Fase 1 visker ud (bagfra ind mod `from`, med en falmende skygge, `part()` i text()),
+  fase 2 skriver frem (fra `from` og ud). Er der intet at viske/skrive, springes fasen over.
+- `penOn(scene, key, now)` i draw.ts giver fasen; `penPart(pen, afsnit, offset, linje)` oversætter et edit til den
+  enkelte ombrudte linje (tegnoffset følger med i `rows`). Tiden deles proportionalt ud på de tegn, der faktisk
+  ændrer sig – ikke pr. linje.
+- `text()` har `reveal` + `from` + `erase`. Prefixbredden måles med SAMME seed, så de uændrede bogstaver ikke
+  flytter sig en pixel. X'et: strækkerne trækker sig tilbage + en falmende skygge. Prikken toner ud.
+- App: `diffLines(before, after)` parrer linjer – ordret ens linjer røres ikke, resten parres i rækkefølge, og
+  hvert par adskiller sig først fra `prefixLen` (tælles i hele tegn, så en emoji ikke deles). `write()` gør det
+  samme for en celle ("71,4" → "71,5" flytter kun cifret). Fart: 260 + max(tegn,5) × 110 ms pr. fase, max 3000.
+- Målt (`node tools/pencheck.mjs screenshots/pen`, `?pen=5`, zoomet ind): "?" tilføjet = ændringen vokser fra
+  venstre (x 282→297), intet andet på siden ændrer sig; "?" fjernet = den trækker sig tilbage fra højre (289→283).
+- Billedkassen under måneden er delt i TO (b5 + b8): ét bredt felt beskar et almindeligt foto grimt (Lukas).
+
 ## Status 2026-09-22 kl. 19.10 – TRE BILLEDPLADSER MERE + SORTE KANTER
 - Lukas' tre cirkler: b5 = kassen under måneden (venstre), b6 = over "Søvn score" i prikgrafens overskriftsfelt,
   b7 = de nederste 7 tern af "Hvad gik godt"-kassen. `photoBoxes(days)` (venstre, nu 4) og `photoBoxesRight(columns,

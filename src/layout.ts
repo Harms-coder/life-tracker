@@ -56,7 +56,10 @@ export const PHOTOS_LEFT = ["b1", "b2", "b3"] as const;
 export function photoBoxes(days: number): { slot: string; box: Rect }[] {
   const top = bottomY(days) + CELL, h = PAGE_H - CELL - top, m = CELL, w = (PAGE_W - 4 * m) / 3;
   const out: { slot: string; box: Rect }[] = PHOTOS_LEFT.map((slot, i) => ({ slot, box: { x: m + i * (w + m), y: top, w, h } }));
-  out.push({ slot: "b5", box: { x: 8, y: TITLE_BOX_Y + 8, w: TITLE_BOX_X - 16, h: HEADER_Y - TITLE_BOX_Y - 16 } });
+  // the box under the month: two small pictures rather than one very wide one, which cropped a photo oddly (Lukas)
+  const bw = (TITLE_BOX_X - 16 - 8) / 2, by2 = TITLE_BOX_Y + 8, bh = HEADER_Y - TITLE_BOX_Y - 16;
+  out.push({ slot: "b5", box: { x: 8, y: by2, w: bw, h: bh } });
+  out.push({ slot: "b8", box: { x: 8 + bw + 8, y: by2, w: bw, h: bh } });
   return out;
 }
 /** `notes` decides one of them: the slot at the foot of "what went well" shares its box with the text, so it is
