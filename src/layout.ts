@@ -1,5 +1,10 @@
 /** Geometry of the spread in world pixels (1 grid square = 20 px). Shared by drawing and hit-testing. */
 export const CELL = 20, PAGE_W = 704, PAGE_H = 1000, COVER = 24;
+/** How far the cover board sticks out past the book on every side. It has to clear the page stack's OVERHANG in
+ *  bog3d.ts, or the stack rolls out over the board and the dark rim around the book disappears. Everything that
+ *  draws or measures the spread works in this box, not in BOOK_W x BOOK_H: leave the lip undrawn and WebGL
+ *  smears the outermost pixel row out over it (stripes along the edge, a see-through corner). */
+export const LIP = 30;
 export const BOOK_W = PAGE_W * 2 + COVER * 2, BOOK_H = PAGE_H + COVER * 2;
 export const LEFT_PAGE = { x: COVER, y: COVER }, RIGHT_PAGE = { x: COVER + PAGE_W, y: COVER };
 /** The background photo (9:16), in world units relative to the book's top-left corner. Its size sets how big

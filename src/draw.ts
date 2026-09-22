@@ -1,7 +1,7 @@
 import { seededRandom } from "./random";
 import { drawInBox, drawText, widthOfText } from "./glyf";
 import {
-  CELL, PAGE_W, PAGE_H, COVER, BOOK_W, BOOK_H, LEFT_PAGE, RIGHT_PAGE, HEADER_Y, TABLE_LEFT, DAY_COL_W,
+  CELL, PAGE_W, PAGE_H, COVER, LIP, BOOK_W, BOOK_H, LEFT_PAGE, RIGHT_PAGE, HEADER_Y, TABLE_LEFT, DAY_COL_W,
   TITLE_BOX_X, TITLE_BOX_Y, GOALS, goalPos, goalTextBox, widthOf, dotX, columnXs, bottomY, noteBoxes, NOTE_LABEL,
   type Column, type NoteField, type Rect,
 } from "./layout";
@@ -155,9 +155,12 @@ function roundRect(ctx: Ctx, x: number, y: number, w: number, h: number, r: numb
   ctx.quadraticCurveTo(x, y + h, x, y + h - r); ctx.lineTo(x, y + r); ctx.quadraticCurveTo(x, y, x + r, y); ctx.closePath();
 }
 
+/** The cover board: the whole box the mesh in bog3d.ts covers, lip and all. Stopping at BOOK_W x BOOK_H left
+ *  the lip with nothing in it, and the shader filled it by repeating the edge pixel - the striped rim and the
+ *  see-through corner Lukas saw zoomed in. */
 function drawCover(ctx: Ctx, vis: Rect, assets: Assets) {
-  if (!overlaps(vis, { x: 0, y: 0, w: BOOK_W, h: BOOK_H })) return;
-  roundRect(ctx, 0, 0, BOOK_W, BOOK_H, 9);
+  if (!overlaps(vis, COVER_BOX)) return;
+  roundRect(ctx, -LIP, -LIP, BOOK_W + 2 * LIP, BOOK_H + 2 * LIP, 9);
   ctx.fillStyle = "#141414"; ctx.fill();
   if (assets.leather) { const p = ctx.createPattern(assets.leather, "repeat"); if (p) { ctx.fillStyle = p; ctx.fill(); } }
   const sheen = ctx.createLinearGradient(0, 0, BOOK_W, BOOK_H * 0.6);
@@ -173,22 +176,24 @@ function drawCover(ctx: Ctx, vis: Rect, assets: Assets) {
  *  soft, so CACHE_K = 1.25 px per world px is plenty even zoomed right in (and it is 10 MB the iPhone has to hold).
  *  The grid and the ink are drawn live: they have to stay crisp. */
 const CACHE_K = 1.25;
+/** The whole board in spread coordinates: the book plus the lip that sticks out around it. */
+const COVER_BOX: Rect = { x: -LIP, y: -LIP, w: BOOK_W + 2 * LIP, h: BOOK_H + 2 * LIP };
 let cache: OffscreenCanvas | null = null;
 function drawBackground(ctx: Ctx, vis: Rect, assets: Assets) {
   if (!cache) { // the worker waits for the textures before its first draw, so this is built once (~100 ms)
-    cache = new OffscreenCanvas(Math.round(BOOK_W * CACHE_K), Math.round(BOOK_H * CACHE_K));
+    cache = new OffscreenCanvas(Math.round(COVER_BOX.w * CACHE_K), Math.round(COVER_BOX.h * CACHE_K));
     const c = cache.getContext("2d")!;
-    c.setTransform(CACHE_K, 0, 0, CACHE_K, 0, 0);
-    const all: Rect = { x: 0, y: 0, w: BOOK_W, h: BOOK_H };
-    drawCover(c, all, assets);
-    drawPaper(c, all, assets, LEFT_PAGE, "left");
-    drawPaper(c, all, assets, RIGHT_PAGE, "right");
+    c.setTransform(CACHE_K, 0, 0, CACHE_K, LIP * CACHE_K, LIP * CACHE_K); // spread coordinates: the lip is at -LIP
+    drawCover(c, COVER_BOX, assets);
+    drawPaper(c, COVER_BOX, assets, LEFT_PAGE, "left");
+    drawPaper(c, COVER_BOX, assets, RIGHT_PAGE, "right");
     drawSpine(c);
   }
   // only the visible part: the source is clipped, so a deep zoom does not ask for a blit the size of the world
-  const x0 = Math.max(0, vis.x), y0 = Math.max(0, vis.y), x1 = Math.min(BOOK_W, vis.x + vis.w), y1 = Math.min(BOOK_H, vis.y + vis.h);
+  const x0 = Math.max(COVER_BOX.x, vis.x), y0 = Math.max(COVER_BOX.y, vis.y);
+  const x1 = Math.min(COVER_BOX.x + COVER_BOX.w, vis.x + vis.w), y1 = Math.min(COVER_BOX.y + COVER_BOX.h, vis.y + vis.h);
   if (x1 <= x0 || y1 <= y0) return;
-  ctx.drawImage(cache, x0 * CACHE_K, y0 * CACHE_K, (x1 - x0) * CACHE_K, (y1 - y0) * CACHE_K, x0, y0, x1 - x0, y1 - y0);
+  ctx.drawImage(cache, (x0 - COVER_BOX.x) * CACHE_K, (y0 - COVER_BOX.y) * CACHE_K, (x1 - x0) * CACHE_K, (y1 - y0) * CACHE_K, x0, y0, x1 - x0, y1 - y0);
 }
 
 /** The squared grid, live and crisp. Multiplied onto the paper so the fold's shadow still darkens it. */

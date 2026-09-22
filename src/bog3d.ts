@@ -1,4 +1,4 @@
-import { BOOK_H, BOOK_W, COVER, PAGE_H, PAGE_W, TABLE, TABLE_PAD } from "./layout";
+import { BOOK_H, BOOK_W, COVER, LIP, PAGE_H, PAGE_W, TABLE, TABLE_PAD } from "./layout";
 
 /**
  * The open book as real geometry (WebGL, no library).
@@ -35,9 +35,6 @@ const BOW2 = 0.9;
 const DIP_MAX = 9;
 const DIP = Math.max(0, Math.min(DIP_MAX, Number(new URLSearchParams(location.search).get("dip") ?? 5)));
 const DIP_FROM = 0.84;
-/** The cover sticks out past the pages by this much. It has to clear OVERHANG, or the page stack rolls out over
- *  the board and the thin dark rim around the book disappears. */
-const LIP = 30;
 /** How far the foot of the page stack stands out past the page above it, and in how many steps it rolls over.
  *  A real book's stack is not a vertical wall: it curves out of the page's rim and then down, so the top of it
  *  faces upwards and you see the sheet ends even along the sides, where a flat wall is edge on to the camera. */
@@ -91,6 +88,7 @@ export const pageZ = (s: number, arch: number) => {
 
 const VERT = `
 attribute vec3 a_pos;      // x, y in spread coordinates; z = s, the distance from the spine (0..1)
+attribute vec2 a_off;      // how far this vertex stands out from the page rim (the page stack), at full tilt
 attribute vec3 a_meta;     // x: 1 = at the page surface, 0 = down on the board, sliding between
                            // y: fixed shade, or 0 to work it out from the slope
                            // z: 0..1 across the page stack, for the sheet lines
@@ -108,6 +106,7 @@ uniform vec3 u_bow;        // BOW, BOW2, WAVE: the shape of the page's wave
 uniform vec2 u_dip;        // how far, and from where, the page tips back down at the fore-edge
 uniform vec3 u_shadow;     // z > 0: draw the shadow instead - every point laid on the table, moved xy per unit of height
 uniform vec4 u_lightRect;  // the part of the spread the light map covers: x, y, w, h
+uniform float u_out;       // how much of a_off to apply: it collapses with the tilt, like every height does
 uniform float u_table;     // > 0: the table pass - lies flat in the 2D world like the photo, never tilted
 uniform vec4 u_tableRect;  // where the table picture lies, in world px
 varying vec2 v_uv;
@@ -144,7 +143,10 @@ void main() {
   // the sheets have a real thickness, so the lines must keep their spacing all the way along the skirt: carry
   // the distance DOWN from the page rim, in world px, not a 0..1 share of a skirt that thins out at the fold
   v_layer = a_meta.z * (pageZ(s) - u_book.x);
-  vec2 xy = a_pos.xy;
+  // The stack only shows because the book is tipped back. Looking straight down you see the top sheet and
+  // nothing else, so the skirt folds back under the page rim - otherwise it stays as a pale border round the
+  // paper that nothing can remove (Lukas, zoomed in).
+  vec2 xy = a_pos.xy + a_off * u_out;
   if (u_shadow.z > 0.0) { xy += u_shadow.xy * z; z = 0.0; }
   vec2 flat_px = u_view + xy * u_scale;
   float h = z * u_scale;
@@ -158,7 +160,7 @@ void main() {
   gl_Position = vec4((sp / u_res) * 2.0 - 1.0, 0.0, 1.0);
   gl_Position.y = -gl_Position.y;
   v_uv = (a_pos.xy - u_tex.xy) / u_tex.zw;
-  v_ouv = a_pos.xy / vec2(${BOOK_W}.0, ${BOOK_H}.0);
+  v_ouv = (a_pos.xy + ${LIP}.0) / vec2(${BOOK_W + 2 * LIP}.0, ${BOOK_H + 2 * LIP}.0);
   v_luv = (a_pos.xy - u_lightRect.xy) / u_lightRect.zw;
 }`;
 
@@ -212,7 +214,7 @@ void main() {
   gl_FragColor = vec4(c.rgb * v_shade * light, c.a);
 }`;
 
-type Mesh = { pos: Float32Array; meta: Float32Array; idx: Uint16Array; n: number };
+type Mesh = { pos: Float32Array; off: Float32Array; meta: Float32Array; idx: Uint16Array; n: number };
 
 function compile(gl: WebGLRenderingContext, type: number, src: string) {
   const sh = gl.createShader(type)!;
@@ -230,7 +232,7 @@ function buildCover(): Mesh {
   const pos = [-LIP, -LIP, 0, BOOK_W + LIP, -LIP, 0, BOOK_W + LIP, BOOK_H + LIP, 0, -LIP, BOOK_H + LIP, 0];
   const meta = [0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0];
   const idx = [0, 1, 2, 0, 2, 3];
-  return { pos: new Float32Array(pos), meta: new Float32Array(meta), idx: new Uint16Array(idx), n: 6 };
+  return { pos: new Float32Array(pos), off: new Float32Array(8), meta: new Float32Array(meta), idx: new Uint16Array(idx), n: 6 };
 }
 
 /** The board's edge: a skirt from the cover's rim down to the table, so the book has a visible thickness at its
@@ -245,13 +247,13 @@ function buildRim(): Mesh {
     const [ax, ay] = corners[i], [bx, by] = corners[(i + 1) % 4];
     quad(push(ax, ay, true, shade[i]), push(bx, by, true, shade[i]), push(bx, by, false, shade[i]), push(ax, ay, false, shade[i]));
   }
-  return { pos: new Float32Array(pos), meta: new Float32Array(meta), idx: new Uint16Array(idx), n: idx.length };
+  return { pos: new Float32Array(pos), off: new Float32Array((pos.length / 3) * 2), meta: new Float32Array(meta), idx: new Uint16Array(idx), n: idx.length };
 }
 
 /** A flat quad in world px, for the table under the book. */
 function buildQuad(x: number, y: number, w: number, h: number): Mesh {
   const pos = [x, y, 0, x + w, y, 0, x + w, y + h, 0, x, y + h, 0];
-  return { pos: new Float32Array(pos), meta: new Float32Array([-1, 1, 0, -1, 1, 0, -1, 1, 0, -1, 1, 0]), idx: new Uint16Array([0, 1, 2, 0, 2, 3]), n: 6 };
+  return { pos: new Float32Array(pos), off: new Float32Array(8), meta: new Float32Array([-1, 1, 0, -1, 1, 0, -1, 1, 0, -1, 1, 0]), idx: new Uint16Array([0, 1, 2, 0, 2, 3]), n: 6 };
 }
 
 function buildPages(): Mesh {
@@ -272,15 +274,17 @@ function buildPages(): Mesh {
       for (let j = 0; j < SEG_Y; j++)
         quad(grid[i][j], grid[i + 1][j], grid[i + 1][j + 1], grid[i][j + 1]);
   }
-  return { pos: new Float32Array(pos), meta: new Float32Array(meta), idx: new Uint16Array(idx), n: idx.length };
+  return { pos: new Float32Array(pos), off: new Float32Array((pos.length / 3) * 2), meta: new Float32Array(meta), idx: new Uint16Array(idx), n: idx.length };
 }
 
 /** The page stack: a skirt from each sheet's rim down to the board. `layer` runs 0..1 across it, which is what
  *  draws the individual sheets in the fragment shader. */
 function buildEdges(): Mesh {
-  const pos: number[] = [], meta: number[] = [], idx: number[] = [];
-  const push = (x: number, y: number, s: number, curve: number, shade: number, layer: number) => {
-    pos.push(x, y, s); meta.push(curve, shade, layer); return pos.length / 3 - 1;
+  const pos: number[] = [], off: number[] = [], meta: number[] = [], idx: number[] = [];
+  // the position is the page's own rim; how far the vertex rolls out from it is kept apart, so the shader can
+  // fold the whole stack back under the page as the book flattens
+  const push = (x: number, y: number, ox: number, oy: number, s: number, curve: number, shade: number, layer: number) => {
+    pos.push(x, y, s); off.push(ox, oy); meta.push(curve, shade, layer); return pos.length / 3 - 1;
   };
   const quad = (a: number, b: number, c: number, d: number) => idx.push(a, b, c, a, c, d);
   const top = COVER, bot = COVER + PAGE_H, spine = BOOK_W / 2;
@@ -296,9 +300,9 @@ function buildEdges(): Mesh {
     // the fore-edge
     for (let k = 0; k < ROLL; k++) {
       const t0 = k / ROLL, t1 = (k + 1) / ROLL;
-      const xa = xo + dir * OVERHANG * out(t0), xb = xo + dir * OVERHANG * out(t1);
-      quad(push(xa, top, 1, 1 - drop(t0), lit(t0), drop(t0)), push(xa, bot, 1, 1 - drop(t0), lit(t0) * 0.98, drop(t0)),
-           push(xb, bot, 1, 1 - drop(t1), lit(t1) * 0.98, drop(t1)), push(xb, top, 1, 1 - drop(t1), lit(t1), drop(t1)));
+      const oa = dir * OVERHANG * out(t0), ob = dir * OVERHANG * out(t1);
+      quad(push(xo, top, oa, 0, 1, 1 - drop(t0), lit(t0), drop(t0)), push(xo, bot, oa, 0, 1, 1 - drop(t0), lit(t0) * 0.98, drop(t0)),
+           push(xo, bot, ob, 0, 1, 1 - drop(t1), lit(t1) * 0.98, drop(t1)), push(xo, top, ob, 0, 1, 1 - drop(t1), lit(t1), drop(t1)));
     }
     // the long edges, top and bottom: they follow the curve along the page, and roll over the same way
     for (const [y, sh, sgn] of [[top, 1.1, -1], [bot, 0.9, 1]] as const) {
@@ -308,16 +312,16 @@ function buildEdges(): Mesh {
         for (let k = 0; k < ROLL; k++) {
           const t0 = k / ROLL, t1 = (k + 1) / ROLL;
           // the roll grows with the stack, so the skirt closes to nothing at the fold instead of flaring there
-          const ya = y + sgn * OVERHANG * out(t0), yb = y + sgn * OVERHANG * out(t1);
-          quad(push(x0, y + (ya - y) * s0, s0, 1 - drop(t0), sh * lit(t0), drop(t0)),
-               push(x1, y + (ya - y) * s1, s1, 1 - drop(t0), sh * lit(t0), drop(t0)),
-               push(x1, y + (yb - y) * s1, s1, 1 - drop(t1), sh * lit(t1), drop(t1)),
-               push(x0, y + (yb - y) * s0, s0, 1 - drop(t1), sh * lit(t1), drop(t1)));
+          const oa = sgn * OVERHANG * out(t0), ob = sgn * OVERHANG * out(t1);
+          quad(push(x0, y, 0, oa * s0, s0, 1 - drop(t0), sh * lit(t0), drop(t0)),
+               push(x1, y, 0, oa * s1, s1, 1 - drop(t0), sh * lit(t0), drop(t0)),
+               push(x1, y, 0, ob * s1, s1, 1 - drop(t1), sh * lit(t1), drop(t1)),
+               push(x0, y, 0, ob * s0, s0, 1 - drop(t1), sh * lit(t1), drop(t1)));
         }
       }
     }
   }
-  return { pos: new Float32Array(pos), meta: new Float32Array(meta), idx: new Uint16Array(idx), n: idx.length };
+  return { pos: new Float32Array(pos), off: new Float32Array(off), meta: new Float32Array(meta), idx: new Uint16Array(idx), n: idx.length };
 }
 
 export type Book3D = {
@@ -363,14 +367,14 @@ export function createBook3D(canvas: HTMLCanvasElement, persp: number): Book3D |
     view: loc("u_view"), scale: loc("u_scale"), origin: loc("u_origin"), trig: loc("u_trig"),
     persp: loc("u_persp"), res: loc("u_res"), tex: loc("u_tex"), flat: loc("u_flat"), img: loc("u_img"),
     book: loc("u_book"), spine: loc("u_spine"), fold: loc("u_foldDark"), sheets: loc("u_sheets"),
-    bow: loc("u_bow"), dip: loc("u_dip"), amp: loc("u_sheetAmp"), shadow: loc("u_shadow"), shadowC: loc("u_shadowC"),
+    bow: loc("u_bow"), dip: loc("u_dip"), amp: loc("u_sheetAmp"), out: loc("u_out"), shadow: loc("u_shadow"), shadowC: loc("u_shadowC"),
     light: loc("u_light"), lightAmt: loc("u_lightAmt"), over: loc("u_over"), hasOver: loc("u_hasOver"), lightRect: loc("u_lightRect"), tone: loc("u_tone"), paper: loc("u_paper"),
     table: loc("u_table"), tableTex: loc("u_tableTex"), tableRect: loc("u_tableRect"), fade: loc("u_fade"),
   };
-  const aPos = gl.getAttribLocation(prog, "a_pos"), aMeta = gl.getAttribLocation(prog, "a_meta");
+  const aPos = gl.getAttribLocation(prog, "a_pos"), aOff = gl.getAttribLocation(prog, "a_off"), aMeta = gl.getAttribLocation(prog, "a_meta");
   /** One set of buffers per mesh, so a frame that changes nothing only binds them. Re-uploading both meshes
    *  every frame cost ~45 ms on roughly every ninth frame of a pinch. */
-  const slot = () => ({ pos: gl.createBuffer()!, meta: gl.createBuffer()!, idx: gl.createBuffer()!, n: 0 });
+  const slot = () => ({ pos: gl.createBuffer()!, off: gl.createBuffer()!, meta: gl.createBuffer()!, idx: gl.createBuffer()!, n: 0 });
   const slots = { cover: slot(), rim: slot(), pages: slot(), edges: slot(), tableFill: slot(), tableImg: slot() };
   const pageTexture = () => {
     const t = gl.createTexture()!;
@@ -413,6 +417,7 @@ export function createBook3D(canvas: HTMLCanvasElement, persp: number): Book3D |
 
   const fill = (sl: typeof slots.pages, m: Mesh) => {
     gl.bindBuffer(gl.ARRAY_BUFFER, sl.pos); gl.bufferData(gl.ARRAY_BUFFER, m.pos, gl.STATIC_DRAW);
+    gl.bindBuffer(gl.ARRAY_BUFFER, sl.off); gl.bufferData(gl.ARRAY_BUFFER, m.off, gl.STATIC_DRAW);
     gl.bindBuffer(gl.ARRAY_BUFFER, sl.meta); gl.bufferData(gl.ARRAY_BUFFER, m.meta, gl.STATIC_DRAW);
     gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, sl.idx); gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, m.idx, gl.STATIC_DRAW);
     sl.n = m.n;
@@ -420,6 +425,8 @@ export function createBook3D(canvas: HTMLCanvasElement, persp: number): Book3D |
   const bind = (sl: typeof slots.pages) => {
     gl.bindBuffer(gl.ARRAY_BUFFER, sl.pos);
     gl.enableVertexAttribArray(aPos); gl.vertexAttribPointer(aPos, 3, gl.FLOAT, false, 0, 0);
+    gl.bindBuffer(gl.ARRAY_BUFFER, sl.off);
+    gl.enableVertexAttribArray(aOff); gl.vertexAttribPointer(aOff, 2, gl.FLOAT, false, 0, 0);
     gl.bindBuffer(gl.ARRAY_BUFFER, sl.meta);
     gl.enableVertexAttribArray(aMeta); gl.vertexAttribPointer(aMeta, 3, gl.FLOAT, false, 0, 0);
     gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, sl.idx);
@@ -520,6 +527,7 @@ export function createBook3D(canvas: HTMLCanvasElement, persp: number): Book3D |
       // the far side of the page outwards by more than a column.
       const shape = (f: number, a: number) => {
         gl.uniform4f(U.book, COVER_T * f, STACK * f, a, PAGE_W);
+        gl.uniform1f(U.out, f); // the page stack folds back under the rim as the book flattens
         gl.uniform2f(U.dip, DIP * (a / ARCH), DIP_FROM);   // fades out with the curve, like everything else
       };
       gl.uniform1f(U.spine, BOOK_W / 2);
@@ -580,7 +588,7 @@ export function createBook3D(canvas: HTMLCanvasElement, persp: number): Book3D |
       drawAll(false);
     },
     dispose() {
-      for (const sl of Object.values(slots)) for (const b of [sl.pos, sl.meta, sl.idx]) gl.deleteBuffer(b);
+      for (const sl of Object.values(slots)) for (const b of [sl.pos, sl.off, sl.meta, sl.idx]) gl.deleteBuffer(b);
       gl.deleteTexture(front.t);
       gl.deleteTexture(back.t);
       gl.deleteTexture(over.t);

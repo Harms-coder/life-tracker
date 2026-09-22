@@ -1,5 +1,5 @@
 import { forwardRef, useImperativeHandle, useLayoutEffect, useRef, type ReactNode } from "react";
-import { BG, BOOK_H, BOOK_W, TABLE } from "./layout";
+import { BG, BOOK_H, BOOK_W, LIP, TABLE } from "./layout";
 import { ARCH, createBook3D, type Book3D } from "./bog3d";
 import type { Plane, Scene, View } from "./draw";
 import type { RenderReply, RenderRequest } from "./draw.worker";
@@ -125,10 +125,13 @@ export const BookCanvas = forwardRef<BookCanvasHandle, {
     const vp: Plane = { x0: -mw, y0: -mh, w: v.clientWidth + 2 * mw, h: v.clientHeight + 2 * mh, k: 1 }; // the screen and a margin around it
     // tipped back you see the whole book, so draw all of it (at a resolution the budget allows)
     const p: Plane = tiltFor(s) > 0 ? { x0: x, y0: y, w: BOOK_W * s, h: BOOK_H * s, k: 1 } : { ...vp };
-    if (tiltFor(s) > 0) { p.x0 -= 4 * s; p.y0 -= 4 * s; p.w += 8 * s; p.h += 8 * s; } // a hair of margin: the mesh samples right up to the edge
+    // the cover board sticks LIP out past the book on every side, and a hair more: the mesh samples right up to
+    // the edge, and anything not drawn there is filled by smearing the outermost pixel out over it
+    if (tiltFor(s) > 0) { const m = (LIP + 4) * s; p.x0 -= m; p.y0 -= m; p.w += 2 * m; p.h += 2 * m; }
     p.k = Math.min(dpr, Math.sqrt(budget / (p.w * p.h)));
     // the book: only the part of the plane it covers
-    const bx0 = Math.max(p.x0, x), by0 = Math.max(p.y0, y), bx1 = Math.min(p.x0 + p.w, x + BOOK_W * s), by1 = Math.min(p.y0 + p.h, y + BOOK_H * s);
+    const bx0 = Math.max(p.x0, x - LIP * s), by0 = Math.max(p.y0, y - LIP * s);
+    const bx1 = Math.min(p.x0 + p.w, x + (BOOK_W + LIP) * s), by1 = Math.min(p.y0 + p.h, y + (BOOK_H + LIP) * s);
     const bp: Plane = { x0: bx0, y0: by0, w: Math.max(1, bx1 - bx0), h: Math.max(1, by1 - by0), k: p.k };
     const req: RenderRequest = { id: 0, view: { x, y, s }, plane: bp, live: budget < PIXEL_BUDGET, scene: scene.current, now: performance.now() };
     inflight.current = { req, plane: p, at: performance.now() };
@@ -186,8 +189,9 @@ export const BookCanvas = forwardRef<BookCanvasHandle, {
   /** The whole spread, coarse, outside the one-at-a-time queue: it stands in wherever the page texture does not
    *  reach, so a fast zoom out or pan never shows a blank page while the next drawing is on its way. */
   const renderOverview = () => {
-    const k = Math.sqrt(OVERVIEW_BUDGET / (BOOK_W * BOOK_H));
-    worker.current?.postMessage({ id: 0, view: { x: 0, y: 0, s: 1 }, plane: { x0: 0, y0: 0, w: BOOK_W, h: BOOK_H, k }, live: false, scene: scene.current, now: performance.now(), overview: true } satisfies RenderRequest);
+    const w = BOOK_W + 2 * LIP, h = BOOK_H + 2 * LIP; // the whole board, lip and all: that is what v_ouv maps onto
+    const k = Math.sqrt(OVERVIEW_BUDGET / (w * h));
+    worker.current?.postMessage({ id: 0, view: { x: 0, y: 0, s: 1 }, plane: { x0: -LIP, y0: -LIP, w, h, k }, live: false, scene: scene.current, now: performance.now(), overview: true } satisfies RenderRequest);
   };
 
   useImperativeHandle(ref, () => ({
