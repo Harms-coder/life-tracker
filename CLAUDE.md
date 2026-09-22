@@ -175,14 +175,21 @@ alle andre steder (X'er, vægt, alle tal).
   egen "•" foran. Skrevet linje = sort prik, den tomme nederst = svag prik (der skriver man det næste).
   Enter hopper til næste linje, backspace på en tom linje sletter den. Et skjult `name="v"` samler linjerne
   med \n, så `submitNote` er uændret. Mål-felterne (goalN) får INGEN prikker – bogen tegner dem uden.
-- **Pennen** (`penWrite` i App.tsx, `penAt`/`reveal` i draw.ts): `scene.writing = {key, start, ms}` gælder nu
-  ALT, ikke kun X'er. `text()` har fået `reveal` (klip der løber fra venstre langs linjen), `noteText` deler
-  rejsen mellem sine linjer (én linje ad gangen), prikgrafens prik toner frem, X'et er som før.
-  ms = 320 + 45 pr. tegn, max 2600. `?pen=6` gør den langsom (til skærmbilleder/tuning).
+- **Pennen** (`penWrite` i App.tsx, `penAt`/`penLines`/`reveal` i draw.ts): `scene.writing = {key, start, ms, lines?}`
+  gælder nu ALT, ikke kun X'er. `text()` har fået `reveal` (klip der løber fra venstre langs linjen), `noteText`
+  deler rejsen mellem de NYE linjer, prikgrafens prik toner frem.
+  KUN DET NYE SKRIVES (Lukas 17.50): `saveNote` sammenligner med det, der stod før, og sender kun de linjer videre,
+  der ikke var der (`lines` i writing; `isNew(i)` i noteText). Ellers blev hele kassen skrevet om hver gang.
+  Tempo (Lukas: for hurtigt): ms = 260 + max(tegn, 5) × 110, max 6000 ≈ ni tegn i sekundet; et X eller et tal ~0,8 s.
+  X'ET SOM TO STREGER (`drawInBox` i glyf.ts): glyfferne er sporede OMRIDS, ikke pennestreger, så hver streg afsløres
+  gennem et smalt bånd lagt langs sin egen diagonal (hw = 0,17 × glyfhøjde); ↘ først (progress 0–0,5), så ↗.
+  Båndet skal være smalt: 0,3 tog den anden streg med.
+  `?pen=6` gør den langsom (til skærmbilleder/tuning).
   Træk i søvnkurven skriver UDEN pen (`write(key, v, false)`) – den følger jo allerede fingeren.
   Hver frame = én tur til workeren, så på telefonen bliver det få, grove trin. UBEKRÆFTET af Lukas.
 - Test: `node tools/writecheck.mjs screenshots/write` (fem billeder lige efter Skriv, med `?pen=6`;
-  målt i Chrome: "7" → "70," → "70,4"). `node tools/sheets.mjs screenshots/sheet` = én flade pr. type.
+  målt i Chrome: "7" → "70," → "70,4"; note-testen tilføjer én linje til en liste med tre og måler, at kun
+  dens pixels ændrer sig). `node tools/sheets.mjs screenshots/sheet` = én flade pr. type.
 
 ## Status 2026-09-22 kl. 17.25 – INPUT-FLADERNE
 
