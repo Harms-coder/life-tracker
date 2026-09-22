@@ -166,6 +166,24 @@ Rækker = dage 1–31 (antal efter måneden). Kolonner = brugerens egne trackere
 - Test-scripts ligger i sessionens scratchpad (`pw/shots.mjs` skærmbilleder, `pw/bench.mjs` frame-tider i WebKit,
   `pw/tapcheck.mjs` tryk). Dev-server: `npm run dev`. I dev sætter BookCanvas `window.__view` (x, y, s) til scripts.
 
+## Status 2026-09-22 kl. 16.10 – VENSTRESIDENS STORE FELT + BILLEDER
+
+- **Det store felt** (mellem overskriftslinjen og den aflange kasse forneden) har nu de seks mål igen, tre i
+  hver spalte, med samme håndtegnede firkant om nummeret, bare større – og under hvert mål en kasse til HVORDAN
+  man kommer i mål. Nye notatfelter `plan0..plan5`. Målets tekst deles med listen foroven (samme `goalN`), så
+  den kun skrives ét sted. Geometri: `PLAN_Y`, `PLAN_ROW_H`, `planBoxes(i)` i layout.ts.
+- Overskrift i den tomme kasse under måneden: `PLAN_LABEL` = "Sådan kommer jeg i mål".
+- **BILLEDER** (nyt): `photoBoxes(days)` = tre langs bunden af venstresiden (b1–b3), `photoBoxRight(columns)` =
+  ét i det tomme hjørne øverst til højre på højresiden (b4 – GÆT på hvad Lukas mente, spørg).
+  Tom plads = svag håndtegnet ramme + "+"; tryk åbner telefonens billedvælger, tryk på et billede giver
+  "Vælg et andet"/"Fjern". Billedet skaleres til 1000 px og gemmes som JPEG-data-URL i localStorage
+  (`photos-<år>-<måned>`), ~56 kB pr. stk. Et telefonfoto på 4 MB ville sprænge kvoten.
+  VIGTIGT: billederne sendes til workeren ÉN gang (`photos` i RenderRequest, kun på første tegning efter en
+  ændring); workeren afkoder til ImageBitmap og beholder dem. Send dem ALDRIG med hver frame – det ville kopiere
+  en halv megabyte pr. knib.
+- Demo-planer flettes ind én gang (`demo-plans-seeded`) UDEN at røre noget, der allerede er skrevet.
+- Kendt: `É` mangler i begge håndskrifter (blev til ingenting i demoteksten – rettet til `E`).
+
 ## Status 2026-09-22 kl. 15.45 – OVERSKRIFTERNE HELT TILBAGE; TRÆK KRÆVER MERE
 
 - **RØR IKKE KOLONNEOVERSKRIFTERNES PLACERING.** Tre forsøg i træk var forkerte (midt i feltet, så løftet 10 px).
