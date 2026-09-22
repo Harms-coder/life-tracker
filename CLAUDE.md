@@ -182,6 +182,13 @@ telefonens egen emoji-skrift midt i skriften (`glyf.ts`):
   telefonens emoji-tastatur virker uden videre.
 - `node tools/emojicheck.mjs screenshots/emoji.png` = mål + plan med emojis, zoomet ind.
 
+## Status 2026-09-22 kl. 21.25 – DE SEKS MÅL I HVER SIN KASSE
+Lukas tegnede et gitter på et foto: de seks mål i det store felt skal stå i hver sin kasse. Tegnet i
+`drawLeftPage`: én lodret `wobbly` ved PLAN_COL_W fra PLAN_Y til bundlinjen + to vandrette ved
+PLAN_Y + r × PLAN_ROW_H, samme streg-tykkelse (1,7) som resten. Geometrien var der i forvejen (planBoxes),
+så det er kun stregerne. `node tools/planshot.mjs screenshots/plan.png` = venstresiden zoomet ind.
+VENTER PÅ LUKAS' JA/NEJ.
+
 ## Status 2026-09-22 kl. 21.10 – OVERSKRIFTERNE: DET VAR DEN LODRETTE LINJE
 
 **Det var aldrig den vandrette linje.** En roteret overskrift skrives langs en LODRET grundlinje, og bogstavernes
