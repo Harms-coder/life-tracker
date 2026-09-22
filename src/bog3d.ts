@@ -70,12 +70,22 @@ const TONE = ((new URLSearchParams(location.search).get("tone") ?? "0.97,0.86,0.
 const LIGHT_MARGIN = 120;   // spread px around the book the light map covers (the shadow and edges reach out there)
 const LIGHT_RES = Number(new URLSearchParams(location.search).get("lr") ?? 10); // texels across: coarse on purpose, that is the blur
 
+/** The share of each side of public/baggrund/bord.webp that its alpha fades out over (see tools/bordplade.py):
+ *  everything inside that is opaque and sharp, and that is all we ever sample. */
+const TABLE_EDGE = 0.15;
 const SEG_X = 56, SEG_Y = 10; // segments per page: across the curve, and along it
 /** How dark the fold goes, and the thinnest a sheet is allowed to look (world px). A book of 150 leaves wants
  *  far finer lines than a handful of thick boards, so this is kept small and only opened up as far as the
  *  screen can still tell two of them apart. */
-const FOLD_DARK = 0.3;
+const FOLD_DARK = Number(new URLSearchParams(location.search).get("fold") ?? 0.85);
+/** ...and how dark it stays when the book lies flat: looking straight down there is no valley, only the soft
+ *  gradient draw.ts paints into the paper. */
+const FOLD_FLAT = 0.3;
 const SHEET_MIN = 0.85;
+/** How light the cut edge of the page stack is. In referencer/bog-maal.jpg it is a warm grey-tan, clearly
+ *  DARKER than the page it belongs to - drawn at full paper brightness it reads as a white rim round the book
+ *  (Lukas, zoomed out). ?kant=N while tuning. */
+const STACK_LIT = Number(new URLSearchParams(location.search).get("kant") ?? 0.78);
 const SHEET_SCREEN = 2.7; // never let two lines come closer than this on screen
 
 /** Height of the page surface above the table, at distance `s` (0 at the spine, 1 at the fore-edge). */
@@ -138,7 +148,7 @@ void main() {
     float slope = (pageZ(s + 0.01) - pageZ(s - 0.01)) / (0.02 * u_book.w);
     float dir = a_pos.x < u_spine ? -1.0 : 1.0;
     float fold = 1.0 - min(1.0, s * 6.0);
-    v_shade = clamp(1.0 + (-dir * slope) * 0.55 - fold * fold * u_foldDark, 0.6, 1.06);
+    v_shade = clamp(1.0 + (-dir * slope) * 0.55 - fold * fold * u_foldDark, 0.08, 1.06);
   }
   // the sheets have a real thickness, so the lines must keep their spacing all the way along the skirt: carry
   // the distance DOWN from the page rim, in world px, not a 0..1 share of a skirt that thins out at the fold
@@ -187,7 +197,16 @@ uniform float u_sheets;    // one sheet every this many world px, widened when z
 uniform float u_sheetAmp;  // fades the lines out when they get too close to resolve, leaving an even tone
 uniform vec4 u_shadowC;    // when a > 0: paint this (premultiplied) and nothing else - the shadow pass
 void main() {
-  if (u_table > 1.5) { vec4 t = texture2D(u_tableTex, v_tuv); gl_FragColor = vec4(t.rgb * u_fade, t.a * u_fade); return; }
+  if (u_table > 1.5) {
+    // The table picture has a soft alpha border (13 % of each side) so it can blend into the photo. Zoomed in
+    // that border is all you can see at the edges of the screen: the sharp wood washes out into flat colour
+    // (Lukas: "det slører i siderne, i toppen og i bunden"). So sample only the picture's sharp middle, and
+    // mirror it out over the whole plane - mirroring joins seamlessly, so the wood simply runs on.
+    vec2 m = abs(mod(v_tuv - 1.0, 2.0) - 1.0);
+    vec4 t = texture2D(u_tableTex, ${TABLE_EDGE} + m * ${1 - 2 * TABLE_EDGE});
+    gl_FragColor = vec4(t.rgb * u_fade, t.a * u_fade);
+    return;
+  }
   if (u_table > 0.5) { gl_FragColor = vec4(u_flat.rgb * u_fade, u_fade); return; }
   if (u_shadowC.a > 0.0) { gl_FragColor = u_shadowC; return; }
   vec3 light = u_tone;
@@ -439,7 +458,7 @@ export function createBook3D(canvas: HTMLCanvasElement, persp: number): Book3D |
   fill(slots.pages, buildPages());
   fill(slots.edges, buildEdges());
   fill(slots.tableFill, buildQuad(TABLE.x - TABLE_PAD, TABLE.y - TABLE_PAD, TABLE.w + 2 * TABLE_PAD, TABLE.h + 2 * TABLE_PAD));
-  fill(slots.tableImg, buildQuad(TABLE.x, TABLE.y, TABLE.w, TABLE.h));
+  fill(slots.tableImg, buildQuad(TABLE.x - TABLE_PAD, TABLE.y - TABLE_PAD, TABLE.w + 2 * TABLE_PAD, TABLE.h + 2 * TABLE_PAD)); // mirrored out past the picture, so there is no edge to see
 
   return {
     setTexture(pixels, w, h, rect, done) { upload = { pixels, w, h, rect, row: 0, done }; },
@@ -532,7 +551,7 @@ export function createBook3D(canvas: HTMLCanvasElement, persp: number): Book3D |
       };
       gl.uniform1f(U.spine, BOOK_W / 2);
       gl.uniform3f(U.bow, BOW, BOW2, WAVE);
-      gl.uniform1f(U.fold, FOLD_DARK);
+      gl.uniform1f(U.fold, FOLD_FLAT + (FOLD_DARK - FOLD_FLAT) * flat); // the valley only exists while the book is tipped back
       gl.uniform4f(U.lightRect, lightRect.x, lightRect.y, lightRect.w, lightRect.h);
       gl.uniform4f(U.lightAmt, lightK ? LIGHT_STRENGTH * flat : 0, ...(lightK ?? [1, 1, 1]));
       gl.uniform3f(U.tone, ...TONE);
@@ -554,7 +573,7 @@ export function createBook3D(canvas: HTMLCanvasElement, persp: number): Book3D |
         if (!shadow) { bind(slots.cover); gl.drawElements(gl.TRIANGLES, slots.cover.n, gl.UNSIGNED_SHORT, 0); }
         gl.uniform4f(U.flat, 0.13, 0.12, 0.11, 1);
         bind(slots.rim); gl.drawElements(gl.TRIANGLES, slots.rim.n, gl.UNSIGNED_SHORT, 0);
-        gl.uniform4f(U.flat, 0.95, 0.92, 0.83, 1);
+        gl.uniform4f(U.flat, 0.95 * STACK_LIT, 0.92 * STACK_LIT, 0.83 * STACK_LIT, 1);
         bind(slots.edges); gl.drawElements(gl.TRIANGLES, slots.edges.n, gl.UNSIGNED_SHORT, 0);
         gl.uniform4f(U.flat, 0, 0, 0, 0);
         gl.uniform4f(U.paper, 0.94, 0.91, 0.83, 1); // draw.ts' PAPER
