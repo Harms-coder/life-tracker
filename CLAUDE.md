@@ -166,6 +166,13 @@ Rækker = dage 1–31 (antal efter måneden). Kolonner = brugerens egne trackere
 - Test-scripts ligger i sessionens scratchpad (`pw/shots.mjs` skærmbilleder, `pw/bench.mjs` frame-tider i WebKit,
   `pw/tapcheck.mjs` tryk). Dev-server: `npm run dev`. I dev sætter BookCanvas `window.__view` (x, y, s) til scripts.
 
+## Status 2026-09-22 kl. 18.55 – OVERSKRIFTERNE LØFTET (tredje gang, nu med måling) + LABEL VÆK
+- Lukas' foto: de lodrette overskrifter STOD på linjen, "Vægt" svævede. `HEADER_LIFT` = 14 i draw.ts (før 8):
+  det roterede ords første glyf begynder ~8 px før ankeret, så 8 = på linjen; 16 gav for stor luft; 14 ≈ samme
+  luft som "Vægt" og skalatallene. Kun DEN tal er ændret – placeringen i x er urørt (se 15.45).
+  `node tools/headcheck.mjs screenshots/head.png` = overskriftsrækken zoomet ind.
+- "Sådan kommer jeg i mål" i kassen under måneden er SLETTET helt (tegning + PLAN_LABEL i layout.ts). Kassen er tom.
+
 ## FALDGRUBE (2026-09-22): Vigorras service worker ejer hele harms-coder.github.io
 Lukas: "linket åbner min træningsapp på telefonen, men Life Tracker på computeren". Vigorra ligger i domænets rod
 (repo `Harms-coder/Harms-coder.github.io`, lokalt `~/Trænings app`), scope "/", workbox `NavigationRoute` uden

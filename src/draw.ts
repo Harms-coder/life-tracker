@@ -3,7 +3,7 @@ import { drawInBox, drawText, setHand, widthOfText, type Hand } from "./glyf";
 import {
   CELL, PAGE_W, PAGE_H, COVER, LIP, BOOK_W, BOOK_H, LEFT_PAGE, RIGHT_PAGE, HEADER_Y, TABLE_LEFT, DAY_COL_W,
   TITLE_BOX_X, TITLE_BOX_Y, GOALS, goalPos, goalTextBox, widthOf, dotX, columnXs, bottomY, noteBoxes, NOTE_LABEL,
-  PLAN_LABEL, PLAN_Y, PLAN_ROW_H, planBoxes, photoBoxes, photoBoxRight, PHOTO_RIGHT,
+  PLAN_Y, PLAN_ROW_H, planBoxes, photoBoxes, photoBoxRight, PHOTO_RIGHT,
   type Column, type NoteField, type Rect,
 } from "./layout";
 
@@ -35,6 +35,10 @@ export type View = { x: number; y: number; s: number };
  *  vertically - the whole-spread stand-in is drawn into a power-of-two canvas so WebGL can mipmap it) */
 export type Plane = { x0: number; y0: number; w: number; h: number; k: number; ky?: number };
 
+/** How far above the line the upright column headers start. "Vægt" floats clear of its line; the rest sat on
+ *  theirs (Lukas, twice). Measured on the page: 8 put the first letter ON the line, since the rotated text's
+ *  first glyph starts a few px before its anchor. */
+const HEADER_LIFT = 14;
 const INK = "#1e2233", PAPER = "#efe9d4", GRID = "rgba(120,150,130,.42)";
 export const WEEKDAY = "SMTOTFL"; // indexed by Date.getDay()
 
@@ -328,11 +332,6 @@ function drawLeftPage(ctx: Ctx, scene: Scene, vis: Rect, now: number, assets: As
     // on the line at 3 cells, small enough to stay clear of the one above: drawn bigger, the digits sat across it
     text(ctx, scene.monthLabel, 0.6 * CELL, 3 * CELL, { size: 31, weight: 500, seed: "title" });
     labelled(ctx, "Mål denne måned", 12.6 * CELL, CELL + 19, "subtitle");
-    // the heading for the big field below, in the box under the month
-    // no underline here (Lukas): "Mål denne måned" has one, this one is not to
-    wrap(ctx, PLAN_LABEL, TITLE_BOX_X - 2 * CELL, 17).forEach((line, i) => {
-      text(ctx, line, 0.6 * CELL, TITLE_BOX_Y + 28 + i * 24, { size: 17, weight: 500, seed: "plabel" + i });
-    });
     for (let i = 0; i < GOALS; i++) {
       const p = goalPos(i);
       handBox(ctx, { x: p.x, y: p.y, w: CELL, h: CELL }, "sq" + i);
@@ -386,7 +385,7 @@ function drawRightPage(ctx: Ctx, scene: Scene, vis: Rect, now: number, assets: A
         text(ctx, c.name, left + w / 2, HEADER_Y - 7, { size: c.name.length > 5 ? 11 : 14, seed: "h" + c.id, align: "center", tilt: 0 });
       } else {
         // reads bottom→top, letter bottoms facing right ("A")
-        text(ctx, c.name, left + w / 2 + 5, HEADER_Y - 8, { size: 16.5, seed: "h" + c.id, rotate: -Math.PI / 2, baseline: "middle" });
+        text(ctx, c.name, left + w / 2 + 5, HEADER_Y - HEADER_LIFT, { size: 16.5, seed: "h" + c.id, rotate: -Math.PI / 2, baseline: "middle" });
       }
     });
     text(ctx, "+", right + CELL / 2, HEADER_Y - 6, { size: 20, seed: "plus", align: "center", alpha: 0.35 });

@@ -34,8 +34,6 @@ export const NOTE_LABEL: Record<string, string> = {
 for (let i = 0; i < GOALS; i++) NOTE_LABEL["goal" + i] = `Mål ${i + 1}`;
 for (let i = 0; i < GOALS; i++) NOTE_LABEL["plan" + i] = `Sådan kommer jeg i mål med ${i + 1}`;
 
-/** The heading over the big field, in the empty box under the month. */
-export const PLAN_LABEL = "Sådan kommer jeg i mål";
 /** The big field on the left page: the six goals again, larger, three in each column, each with room to write
  *  how it is going to happen. Rows are whole cells so the writing still sits on the grid. */
 export const PLAN_Y = HEADER_Y + CELL, PLAN_ROW_H = 10 * CELL, PLAN_COL_W = PAGE_W / 2;
