@@ -4,6 +4,7 @@ import { Backdrop } from "./Backdrop";
 import type { Scene } from "./draw";
 import { BOOK_H, BOOK_W, dotX, hitTest, NOTE_LABEL, widthOf, CELL, type ColType, type Column, type NoteField } from "./layout";
 import { seededRandom } from "./random";
+import { HANDS, type Hand } from "./glyf";
 
 declare const __BUILD__: string; // set in vite.config.ts
 
@@ -30,6 +31,7 @@ const DAYS = new Date(MONTH.year, MONTH.month, 0).getDate();
 const VALUES_KEY = `values-${MONTH.year}-${MONTH.month}`;
 const COLUMNS_KEY = "columns";
 const NOTES_KEY = `notes-${MONTH.year}-${MONTH.month}`;
+const HAND_KEY = "hand";
 const generateId = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
 
 type Values = Record<string, string>; // "x" for checks, "71,5" / "8" for numbers, "7.5" for dots
@@ -78,20 +80,22 @@ function seedOnce<T>(flag: string, key: string, make: () => T, fallback: T): T {
 
 type ValuePrompt = { kind: "value"; key: string; label: string; value: string };
 type ColumnPrompt = { kind: "column"; index: number; column: Column }; // index -1 = new
+type HandPrompt = { kind: "hand" };
 type NotePrompt = { kind: "note"; field: NoteField; label: string; value: string };
-type Prompt = ValuePrompt | ColumnPrompt | NotePrompt;
+type Prompt = ValuePrompt | ColumnPrompt | NotePrompt | HandPrompt;
 
 export default function App() {
   const [columns, setColumns] = useState<Column[]>(() => load(COLUMNS_KEY, DEFAULT_COLUMNS));
   const [values, setValues] = useState<Values>(() => seedOnce("demo-seeded-2", VALUES_KEY, () => demoValues(load(COLUMNS_KEY, DEFAULT_COLUMNS)), {}));
   const [notes, setNotes] = useState<Notes>(() => seedOnce("demo-notes-seeded-2", NOTES_KEY, () => DEMO_NOTES, {}));
+  const [hand, setHandState] = useState<Hand>(() => (localStorage.getItem(HAND_KEY) as Hand) in HANDS ? (localStorage.getItem(HAND_KEY) as Hand) : "lukas");
   const [prompt, setPrompt] = useState<Prompt | null>(null);
   const book = useRef<BookCanvasHandle>(null);
-  const scene = useRef<Scene>({ ...MONTH, monthLabel: MONTH.label, days: DAYS, columns, values, notes, writing: null });
-  scene.current = { ...scene.current, columns, values, notes };
+  const scene = useRef<Scene>({ ...MONTH, monthLabel: MONTH.label, days: DAYS, columns, values, notes, writing: null, hand });
+  scene.current = { ...scene.current, columns, values, notes, hand };
 
   const redraw = () => book.current?.redraw();
-  useEffect(() => { book.current?.refresh(); }, [columns, values, notes]);
+  useEffect(() => { book.current?.refresh(); }, [columns, values, notes, hand]);
 
   const write = (key: string, value: string | null) => {
     const next = { ...values };
@@ -157,6 +161,21 @@ export default function App() {
     <>
       <BookCanvas ref={book} width={BOOK_W} height={BOOK_H} scene={scene} onTap={onTap} backdrop={<Backdrop />} />
       <span className="build">{__BUILD__}</span>
+      <button className="hand-pick" onClick={() => setPrompt({ kind: "hand" })} aria-label="Vælg håndskrift">✎</button>
+
+      {prompt?.kind === "hand" && (
+        <div className="sheet-backdrop" onClick={() => setPrompt(null)}>
+          <div className="sheet" onClick={(e) => e.stopPropagation()}>
+            <label>Håndskrift</label>
+            {(Object.keys(HANDS) as Hand[]).map((h) => (
+              <button key={h} className={h === hand ? "" : "danger"} style={{ gridColumn: "1 / -1" }}
+                      onClick={() => { setHandState(h); localStorage.setItem(HAND_KEY, h); setPrompt(null); }}>
+                {HANDS[h]}{h === hand ? " ✓" : ""}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       {prompt?.kind === "value" && (
         <div className="sheet-backdrop" onClick={() => setPrompt(null)}>

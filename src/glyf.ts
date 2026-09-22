@@ -1,4 +1,5 @@
-import glyffer from "./glyffer.json";
+import lukasGlyffer from "./glyffer.json";
+import louiseGlyffer from "./glyffer-louise.json";
 import { seededRandom } from "./random";
 
 /**
@@ -10,7 +11,17 @@ import { seededRandom } from "./random";
  * x-height on the page, so every call site's numbers still hold.
  */
 type Variant = { d: string; k: number; w: number; t: number; tr: number[] };
-const GLYPHS = glyffer as unknown as Record<string, Variant[]>;
+type Set = Record<string, Variant[]>;
+/** The handwritings on the shelf: one filled-in set of template sheets each (tools/glyffer.py). */
+export const HANDS = { lukas: "Lukas", louise: "Louise" } as const;
+export type Hand = keyof typeof HANDS;
+const SETS: Record<Hand, Set> = {
+  lukas: lukasGlyffer as unknown as Set,
+  louise: louiseGlyffer as unknown as Set,
+};
+let GLYPHS: Set = SETS.lukas;
+/** Which handwriting everything below is drawn in. drawScene sets it from the scene, so the worker follows. */
+export const setHand = (h: Hand) => { GLYPHS = SETS[h] ?? SETS.lukas; };
 
 const EM = 1.42;   // box heights per nominal font size
 const SPACE = 0.2; // a word space, in box heights

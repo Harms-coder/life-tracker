@@ -1,5 +1,5 @@
 import { seededRandom } from "./random";
-import { drawInBox, drawText, widthOfText } from "./glyf";
+import { drawInBox, drawText, setHand, widthOfText, type Hand } from "./glyf";
 import {
   CELL, PAGE_W, PAGE_H, COVER, LIP, BOOK_W, BOOK_H, LEFT_PAGE, RIGHT_PAGE, HEADER_Y, TABLE_LEFT, DAY_COL_W,
   TITLE_BOX_X, TITLE_BOX_Y, HEADER_H, GOALS, goalPos, goalTextBox, widthOf, dotX, columnXs, bottomY, noteBoxes, NOTE_LABEL,
@@ -18,6 +18,8 @@ export type Scene = {
   notes: Partial<Record<NoteField, string>>;
   /** an X being written right now: key + start time, drawn with a pen-stroke animation */
   writing: { key: string; start: number } | null;
+  /** whose handwriting the page is written in */
+  hand: Hand;
 };
 export type Assets = { paper?: ImageBitmap; leather?: ImageBitmap };
 /** world -> plane: plane = world * s + (x, y) */
@@ -142,6 +144,7 @@ export function drawScene(ctx: Ctx, view: View, plane: Plane, scene: Scene, asse
   ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
   ctx.setTransform(s * k, 0, 0, s * k, (view.x - plane.x0) * k, (view.y - plane.y0) * k);
   const vis: Rect = { x: (plane.x0 - view.x) / s, y: (plane.y0 - view.y) / s, w: plane.w / s, h: plane.h / s };
+  setHand(scene.hand);
   drawBackground(ctx, vis, assets);
   drawGrid(ctx, vis, LEFT_PAGE);
   drawGrid(ctx, vis, RIGHT_PAGE);

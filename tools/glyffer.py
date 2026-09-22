@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
-"""haandskrift/fotos/*.jpg  ->  src/glyffer.json  (Lukas' own handwriting as SVG paths)
+"""haandskrift/<saet>/*.jpg  ->  src/glyffer[-<saet>].json  (a handwriting as SVG paths)
 
 For each photo: find the four black corner squares, rectify the sheet onto the template's own geometry
 (haandskrift/skabelon.json), work out which of the three sheets it is, cut out all 5 x 29 boxes, drop the
 template's light blue printing, keep only the pen, and trace what is left into an SVG path.
 
-Run: python3 tools/glyffer.py [--debug]   (--debug also writes arbejde/ with the rectified sheets and cut-outs)
+Run: python3 tools/glyffer.py [--fotos DIR] [--ud FIL] [--krads N] [--debug]
+     (--debug also writes arbejde/ with the rectified sheets and cut-outs)
 """
 import json, subprocess, sys
 from pathlib import Path
@@ -15,7 +16,14 @@ import numpy as np
 
 ROOT = Path(__file__).resolve().parent.parent
 SKAB = json.loads((ROOT / "haandskrift/skabelon.json").read_text())
-OUT = ROOT / "src/glyffer.json"
+def _arg(name, fallback):
+    return sys.argv[sys.argv.index(name) + 1] if name in sys.argv else fallback
+FOTOS = ROOT / _arg("--fotos", "haandskrift/fotos")
+OUT = ROOT / _arg("--ud", "src/glyffer.json")
+# How solid a box has to be before it counts as scribbled out rather than written. It depends on the PEN: a fine
+# pen leaves a real letter at 0.37 and a crossed-out one at 0.54 (Lukas' sheets), a thick one puts a plain "0" at
+# 0.59 and the crossings-out at 0.66-0.68 (Louise's). So it is a knob, not a constant: --krads N.
+KRADS = float(_arg("--krads", 0.45))
 WORK = ROOT / "haandskrift/arbejde"
 DEBUG = "--debug" in sys.argv
 PAGE_W, PAGE_H = 1654, 2339  # the template rendered at 200 dpi; the photos are rectified onto this
@@ -131,7 +139,7 @@ def trace(mask, baseline):
     bw, bh = xs.max() - xs.min() + 1, ys.max() - ys.min() + 1
     # a scribbled-out box: ink covering most of a large area (the crossed-out AE came out at 0.54, the most
     # solid real letter, a B, at 0.37). A full stop is just as solid but far too small to be caught.
-    if mask.sum() > 0.45 * bw * bh and bw > 0.25 * W and bh > 0.25 * H: return None
+    if mask.sum() > KRADS * bw * bh and bw > 0.25 * W and bh > 0.25 * H: return None
     pad = 2
     sub = mask[max(0, ys.min() - pad):ys.max() + 1 + pad, max(0, xs.min() - pad):xs.max() + 1 + pad]
     tmp = Path("/tmp/glyf.pbm")
@@ -157,14 +165,14 @@ def trace(mask, baseline):
 
 def main():
     if DEBUG: WORK.mkdir(exist_ok=True)
-    for h in list((ROOT / "haandskrift/fotos").glob("*.heic")) + list((ROOT / "haandskrift/fotos").glob("*.HEIC")):
+    for h in list(FOTOS.glob("*.heic")) + list(FOTOS.glob("*.HEIC")):
         jpg = h.with_suffix(".jpg")
         if not jpg.exists():
             subprocess.run(["sips", "-s", "format", "jpeg", str(h), "--out", str(jpg)],
                            check=True, capture_output=True)
             print(f"{h.name} -> {jpg.name}", file=sys.stderr)
     glyphs, report = {}, []
-    for f in sorted((ROOT / "haandskrift/fotos").glob("*.jpg")):
+    for f in sorted(FOTOS.glob("*.jpg")):
         img = cv2.imread(str(f))
         flat = rectify(img)
         page, score = which_page(flat)
