@@ -166,7 +166,44 @@ Rækker = dage 1–31 (antal efter måneden). Kolonner = brugerens egne trackere
 - Test-scripts ligger i sessionens scratchpad (`pw/shots.mjs` skærmbilleder, `pw/bench.mjs` frame-tider i WebKit,
   `pw/tapcheck.mjs` tryk). Dev-server: `npm run dev`. I dev sætter BookCanvas `window.__view` (x, y, s) til scripts.
 
-## Status 2026-09-22 kl. 16.25 – SESSIONEN LUKKET NED, ALT ER PUSHET
+## Status 2026-09-22 kl. 16.05 – BLADRING MELLEM MÅNEDER (roadmap trin 2, første udgave)
+
+**Live:** https://harms-coder.github.io/life-tracker/ · **Galleri:** https://claude.ai/artifact/S914mdZ2Tq4gAuqWUrxLYb
+Pushet (1670a14). IKKE SET AF LUKAS PÅ TELEFONEN ENDNU – første skridt: hans dom på bladringen (udseende, føling,
+og om den hakker). Hans valg mellem finger og pile: begge er lavet, han kan skære den ene væk.
+
+### Sådan virker det
+- **Bladet er ægte geometri i `bog3d.ts`**: `slots.leaf` = højresidens mesh (24 rækker langs siden), spejlet i shaderen
+  når det er venstresiden der vendes (`u_turn.x` = retning). Vinklen `u_turn.y` 0..π. Bladet er ikke en stiv plade:
+  tangentvinklen vokser lineært fra hængslet ved ryggen til hængsel + `BEND` (0,65 rad, `?bend=`) ved forkanten, ganget
+  med sin(vinkel), så det er fladt i begge ender. `twist` (u_turn.w) lader det hjørne fingeren holder føre an (pil = 0,6
+  = nederste hjørne). Lukket form: r = (sin(θ+cu) − sin θ)/c, z = (cos θ − cos(θ+cu))/c.
+- **For/bagside**: `gl_FrontFacing == (u_turn.x > 0)` = bagsiden (opslaget tegnes med uret på skærmen, så en side der
+  ligger rigtigt er back-facing i GL; spejlet for den anden retning). Bagsiden samples `u_next` ved `v_buv` (spejlet om
+  ryggen). Den side af opslaget bladet forlader viser allerede `u_next` (`u_turnSide`).
+- **`u_next` (unit 4)** = oversigtstekstur af den anden måned, bestilt af workeren med `slot: "next"` når vendingen
+  begynder (`beginTurn` → `renderOverview(otherScene(dir))`). Workeren holder billeder pr. sæt (`sets.current/next`).
+  Ved landing: `commitTurn()` bytter over/next, smider detaljeteksturen (texRect langt væk) → den grove oversigt af den
+  nye måned står i, til App's refresh har tegnet skarpt. `gen` i BookCanvas tæller op ved landing; svar fra workeren
+  med gammelt `id` smides væk (ellers dukkede den gamle måned op et øjeblik).
+- **Skygge**: bladets eget mesh lagt ned på siden under (samme SHADOW_DIR, `LEAF_SHADOW_LEN` 0,35 × SHADOW_LEN, mørke
+  0,3; `?ls=` `?ld=`), tegnet efter siderne og før bladet.
+- **Betjening** (BookCanvas): vippet (zoomet ud) tager en finger på bogen fat i et blad (`turnGrab`, via `unproject` =
+  invers af shaderens projektion i højde 0). Første 10 px afgør: vandret = vend (venstre = frem), lodret = panorér.
+  Forkanten følger fingerens vandrette bevægelse (acos). Slip: svirp > 0,3 px/ms afgør, ellers nærmeste side.
+  `turn(dir)` (pilene, `.turn.prev/.next` i App) : er vippet væk (zoomet ind) animeres kameraet først til fit-visningen
+  (420 ms), for et blad der rejser sig lige under kameraet ville gå igennem det (`u_persp*0.1`-clamp i shaderen som
+  sikkerhedsnet). `busy()` = ingen fingre mens noget bevæger sig selv.
+- **Måneder i App**: `Month {year, month}`, nøgler `values-/notes-/photos-<år>-<måned>` som før; kolonner er fælles.
+  Startmåned = sidst åbne (`month` i localStorage) ellers dags dato. Demo-data sås KUN i 2026-9 (`DEMO_MONTH`).
+  `otherScene(dir)` læser nabomåneden direkte fra localStorage; `onTurned(dir)` skifter alle fire states.
+- Test: `node tools/turncheck.mjs screenshots/turn` (stillbilleder ved faste vinkler via `window.__turnTo(dir,p)` +
+  rigtig vending via `__turn(dir)`), `node tools/dragturn.mjs` (simuleret finger: vend, lodret træk = pan, kort træk
+  falder tilbage). Kun målt i headless Chrome – ydelsen på telefonen er ukendt (6 ekstra tegnepas pr. frame under
+  vendingen, ellers intet).
+- Åbent: stadig localStorage (IndexedDB er ikke lavet). Ingen stak af sider der bliver tyndere/tykkere med måneden.
+
+## Status 2026-09-22 kl. 16.25 (tidligere samme dag) – SESSIONEN LUKKET NED, ALT ER PUSHET
 
 **Live:** https://harms-coder.github.io/life-tracker/ · **Galleri:** https://claude.ai/artifact/S914mdZ2Tq4gAuqWUrxLYb
 Arbejdstræet er rent, alt er på `main`. Lukas' sidste ord i dag: "okay, det ser godt ud."
@@ -594,7 +631,7 @@ Alt er committet og pushet. Galleriet til Lukas: https://claude.ai/artifact/S914
 ## Roadmap
 1. ~~Prototype af ét opslag: bog på bord, ternede sider, pinch-zoom, afkrydsning med håndskrevne X-varianter.~~ ✅ 2026-09-16
 ~~1b. Fuldstændig glat zoom på iPhone: 2D-tegningen i en Worker, upload i skiver, oversigtstekstur.~~ ✅ 2026-09-18 (godkendt af Lukas)
-2. Sidevending mellem måneder + datamodel (måneder, trackere, værdier) med lokal lagring.
+2. Sidevending mellem måneder + datamodel (måneder, trackere, værdier) med lokal lagring. – bladring + måneder i localStorage lavet 2026-09-22 (ikke set af Lukas); IndexedDB mangler.
 3. Venstre side (mål/undermål/plan) med tekst i håndskrift.
 4. Lukas' egen håndskrift som glyffer.
 5. Finpudsning: papirtekstur, skygger, animation af skrift.
