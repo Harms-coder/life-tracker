@@ -3,7 +3,7 @@ import { drawInBox, drawText, setHand, widthOfText, vExtentOfText, type Hand } f
 import {
   CELL, PAGE_W, PAGE_H, COVER, LIP, BOOK_W, BOOK_H, LEFT_PAGE, RIGHT_PAGE, HEADER_Y, TABLE_LEFT, DAY_COL_W,
   TITLE_BOX_X, TITLE_BOX_Y, GOALS, goalPos, goalTextBox, widthOf, dotX, columnXs, bottomY, noteBoxes, NOTE_LABEL,
-  PLAN_Y, PLAN_ROW_H, PLAN_COL_W, planBoxes, photoBoxes, photoBoxesRight, wrapText, NOTE_SIZE, NOTE_INDENT,
+  PLAN_Y, PLAN_ROW_H, planBoxes, photoBoxes, photoBoxesRight, wrapText, NOTE_SIZE, NOTE_INDENT,
   type Column, type NoteField, type Rect,
 } from "./layout";
 
@@ -391,11 +391,6 @@ function drawLeftPage(ctx: Ctx, scene: Scene, vis: Rect, now: number, assets: As
 
   // the big field: the six goals again, larger, and under each one how it is going to happen
   if (overlaps(vis, { x: 0, y: PLAN_Y, w: PAGE_W, h: GOALS / 2 * PLAN_ROW_H })) {
-    // each goal in its own box: one line down the middle and two across, drawn by hand like the rest (Lukas)
-    ctx.beginPath();
-    wobbly(ctx, PLAN_COL_W, PLAN_Y, PLAN_COL_W, by, "pv");
-    for (let r = 1; r < GOALS / 2; r++) wobbly(ctx, 0, PLAN_Y + r * PLAN_ROW_H, PAGE_W, PLAN_Y + r * PLAN_ROW_H, "ph" + r);
-    strokeInk(ctx, 1.7);
     for (let i = 0; i < GOALS; i++) {
       const { num, goal, plan } = planBoxes(i);
       handBox(ctx, num, "pq" + i);

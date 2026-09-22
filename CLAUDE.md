@@ -182,12 +182,48 @@ telefonens egen emoji-skrift midt i skriften (`glyf.ts`):
   telefonens emoji-tastatur virker uden videre.
 - `node tools/emojicheck.mjs screenshots/emoji.png` = mål + plan med emojis, zoomet ind.
 
-## Status 2026-09-22 kl. 21.25 – DE SEKS MÅL I HVER SIN KASSE
-Lukas tegnede et gitter på et foto: de seks mål i det store felt skal stå i hver sin kasse. Tegnet i
-`drawLeftPage`: én lodret `wobbly` ved PLAN_COL_W fra PLAN_Y til bundlinjen + to vandrette ved
-PLAN_Y + r × PLAN_ROW_H, samme streg-tykkelse (1,7) som resten. Geometrien var der i forvejen (planBoxes),
-så det er kun stregerne. `node tools/planshot.mjs screenshots/plan.png` = venstresiden zoomet ind.
-VENTER PÅ LUKAS' JA/NEJ.
+## Status 2026-09-22 kl. 21.25 – DE SEKS MÅL I KASSER: PRØVET OG FJERNET IGEN
+Lukas tegnede et gitter på et foto og bad om at se de seks mål i hver sin kasse. Lavet (lodret wobbly ved
+PLAN_COL_W + to vandrette ved PLAN_Y + r × PLAN_ROW_H) – hans dom: "det kan jeg ikke lide". FJERNET igen, siden
+er ordret som før. BYG DET IKKE IGEN uden at han beder om det. `node tools/planshot.mjs screenshots/plan.png`
+= venstresiden zoomet ind (den blev lavet til det her og er god til alt på venstresiden).
+
+## Status 2026-09-22 kl. 21.40 – SESSIONEN LUKKET NED, ALT ER PUSHET
+
+**Live:** https://harms-coder.github.io/life-tracker/ · **Galleri:** https://claude.ai/artifact/S914mdZ2Tq4gAuqWUrxLYb
+Arbejdstræet er rent. Alt nedenfor er pushet til main.
+
+### Det blev lavet i aften (nyeste først)
+1. Seks mål i kasser: prøvet, forkastet af Lukas, fjernet igen.
+2. Overskrifterne løftet fri af den LODRETTE linje (den rigtige forståelse – se 21.10).
+3. Markøren starter i den tomme linje nederst i skriveflader.
+4. Pennen: kun de ændrede tegn skrives, det fjernede viskes ud, X'et som to streger. Billedkassen under
+   måneden delt i to.
+5. Billedpladsen i "Hvad gik godt" forsvinder, når teksten når ned til den.
+6. Emojis kan bruges alle steder, man skriver.
+7. Tre billedpladser mere (b5/b8 under måneden, b6 over søvnkurven, b7 i "Hvad gik godt"), sorte rammer.
+8. Input-fladerne: ternet papir, håndskrift, tal-knapper til rating, én linje pr. punkt med prik foran.
+9. Ydelse: skarp under pinch, ingen sort bog ved start, færre tegnepas zoomet ind, fotolaget skjules.
+10. Vigorras service worker fangede /life-tracker/ på telefonen – rettet i det ANDET repo.
+
+### FØRSTE SKRIDT NÆSTE GANG
+- **Bed om Lukas' dom på telefonen** på: panoreringen zoomet ind (hakker den stadig?), skrive/viske-animationen
+  (tempo, og om den er for trinvis på telefonen), og emojis (virker de overhovedet i iOS Safari? UBEKRÆFTET).
+- Hvis panoreringen stadig hakker: `?maal`-tallene, og prøv `?aa=0` (MSAA ved 3× DPR er den største
+  tilbageværende GPU-post – kan slås fra netop zoomet ind, hvor den ikke ses).
+- Åbent fra roadmap: IndexedDB i stedet for localStorage (trin 2), finpudsning (trin 5).
+
+### LÆRT I AFTEN – LÆS DET FØR DU RETTER NOGET VISUELT
+1. **"Det ligger på linjen" – find ud af HVILKEN linje.** En roteret overskrift har sin grundlinje LODRET.
+   Jeg brugte tre runder og tre forkastede varianter på at flytte den lodret, før han sagde "det er den linje i
+   højre side, der er lodret". Spørg hvilken linje, når noget er drejet.
+2. **Hans "mockup"-billeder kan være redigerede.** Billedet af overskrifterne havde skriften drejet modsat af
+   alt, appen nogensinde har tegnet – det var ikke et skærmbillede. Tjek om billedet overhovedet KAN være appen,
+   før du måler på det.
+3. **Mål på det rigtige.** Håndtegnede streger bølger ±1,4 px, så "yderste mørke pixel" måler stregen, ikke
+   blækket; brug tyngdepunkt med margen. Og X'er i første række stikker op over linjen og forurener lodrette mål.
+4. **draw.ts kører i en worker og kan ikke læse `?knapper=` i adressen.** Nye knapper skal på scenen (som `hand`,
+   `headPos`), ellers gør de ingenting – og man tror, man ser en forskel, der ikke er der.
 
 ## Status 2026-09-22 kl. 21.10 – OVERSKRIFTERNE: DET VAR DEN LODRETTE LINJE
 
