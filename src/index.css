@@ -136,3 +136,9 @@ body { font-family: var(--font-hand); -webkit-user-select: none; user-select: no
 }
 .turn.prev { left: 10px; }
 .turn.next { right: 10px; }
+
+/* the settings sheet: headings over each group, and a quiet line under the backup buttons for what just happened */
+.sheet-label { margin: 14px 0 8px; font: 600 15px/1.2 system-ui, sans-serif; letter-spacing: .02em; opacity: .62; text-transform: uppercase; }
+.sheet-label:first-of-type { margin-top: 4px; }
+.sheet-note { margin: 8px 2px 0; font: 400 14px/1.35 system-ui, sans-serif; opacity: .6; min-height: 19px; }
+.sheet button.danger { width: 100%; }

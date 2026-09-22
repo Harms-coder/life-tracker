@@ -166,6 +166,16 @@ Rækker = dage 1–31 (antal efter måneden). Kolonner = brugerens egne trackere
 - BEKRÆFTET PÅ TELEFONEN 2026-09-22: emojis VIRKER i iOS Safari. Skrive-/viskeanimationen er god (tempo og
   trinvished). Billedpladsen b4 øverst til højre ligger rigtigt. Billederne overlevede flytningen til IndexedDB.
   Hakkeriet zoomet ind er væk efter scissor-klipningen. Bladring med fingeren er fjernet efter Lukas' ønske.
+- SIKKERHEDSKOPI + RYD MÅNED (2026-09-22, `src/backup.ts`, i blyantsfladen som nu hedder "Indstillinger"):
+  ÅRSAGEN er vigtig: **en app på iPhones hjemmeskærm og den samme app i Safari er TO ADSKILTE lagre på iOS** –
+  intet deles. Lukas lagde appen på hjemmeskærmen, fik en tom bog, og appen såede sine demo-data i den; han
+  troede billederne var forsvundet. De lå i Safari. Der er heller ingen anden sikkerhedskopi: ryddes Safaris
+  webdata, er bogen væk. "Gem en kopi" samler ALLE måneder (values + notes fra localStorage, photos fra
+  IndexedDB) + kolonner + håndskrift i én JSON; deler via `navigator.share` (i en hjemmeskærms-app går et
+  almindeligt download ofte ingen steder – share-arket tilbyder "Gem i Filer"), ellers download. "Hent en kopi
+  ind" skriver dem tilbage og genindlæser. "Ryd <måned>" tømmer begge sider (spørger to gange) og sætter
+  demo-flagene, så demoen IKKE kommer igen. `node tools/backupcheck.mjs <photos.json>` = gem → ryd → hent ind,
+  og sammenligner bit for bit (målt: 300 værdier, 16 tekstfelter, 8 billeder, 74 kB, alt uændret tilbage).
 - Læsebåndet er fjernet (Lukas' ønske).
 - iPhone først, hele opslaget synligt + pinch-zoom.
 - Venstre side = månedens mål, undermål og plan. Højre side = daglig tracking.

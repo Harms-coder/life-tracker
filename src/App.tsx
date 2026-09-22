@@ -8,6 +8,7 @@ import { BOOK_H, BOOK_W, columnXs, dotX, hitTest, NOTE_LABEL, RIGHT_PAGE, widthO
 import { seededRandom } from "./random";
 import { HANDS, setHand, type Hand } from "./glyf";
 import { migrate as migratePhotos, photosNow, save as savePhotosTo, warm as warmPhotos } from "./photos";
+import { clearMonth, download as downloadBackup, restore as restoreBackup } from "./backup";
 
 declare const __BUILD__: string; // set in vite.config.ts
 
@@ -132,10 +133,10 @@ function diffLines(before: string[], after: string[]) {
 
 type ValuePrompt = { kind: "value"; key: string; label: string; value: string; rating: boolean };
 type ColumnPrompt = { kind: "column"; index: number; column: Column }; // index -1 = new
-type HandPrompt = { kind: "hand" };
+type SettingsPrompt = { kind: "settings" };
 type PhotoPrompt = { kind: "photo"; slot: string };
 type NotePrompt = { kind: "note"; field: NoteField; label: string; value: string; bullets: boolean };
-type Prompt = ValuePrompt | ColumnPrompt | NotePrompt | HandPrompt | PhotoPrompt;
+type Prompt = ValuePrompt | ColumnPrompt | NotePrompt | SettingsPrompt | PhotoPrompt;
 
 /** The text you write is a list of points, one line each - the same lines the book draws, with the same dot in
  *  front. A written line has a black dot, the empty one at the end a faint one: that is where the next point goes. */
@@ -220,7 +221,10 @@ export default function App() {
     localStorage.setItem(MONTH_KEY, JSON.stringify(m));
   };
   const [prompt, setPrompt] = useState<Prompt | null>(null);
-  const close = () => setPrompt(null);
+  const [busyNote, setBusyNote] = useState("");   // what the backup buttons are doing, shown in the sheet
+  const [confirmWipe, setConfirmWipe] = useState(false); // "Ryd" asks twice: it cannot be undone
+  const backupInput = useRef<HTMLInputElement>(null);
+  const close = () => { setPrompt(null); setBusyNote(""); setConfirmWipe(false); };
   const fileInput = useRef<HTMLInputElement>(null);
   const fileSlot = useRef("");
   const book = useRef<BookCanvasHandle>(null);
@@ -332,6 +336,31 @@ export default function App() {
     savePhotosTo(PHOTOS_KEY, next).catch(() => alert("Der er ikke plads til flere billeder på telefonen. Fjern et af dem først."));
   };
   const pickPhoto = (slot: string) => { fileSlot.current = slot; fileInput.current?.click(); };
+
+  /** Save the whole book to a file, read one back, or empty this month. The book lives only on this phone. */
+  const saveCopy = async () => {
+    setBusyNote("Samler bogen …");
+    try { setBusyNote((await downloadBackup()) === "delt" ? "Kopien er klar – vælg hvor den skal gemmes." : "Kopien er hentet."); }
+    catch (e) { setBusyNote((e as Error).name === "AbortError" ? "" : "Kunne ikke gemme kopien."); }
+  };
+  const onBackupFile = async (e: FormEvent<HTMLInputElement>) => {
+    const file = (e.currentTarget.files ?? [])[0];
+    e.currentTarget.value = "";
+    if (!file) return;
+    setBusyNote("Læser kopien …");
+    try {
+      const n = await restoreBackup(file);
+      setBusyNote(`${n} ${n === 1 ? "måned" : "måneder"} hentet ind. Åbner bogen igen …`);
+      setTimeout(() => location.reload(), 900); // every month's state was replaced under us: start clean
+    } catch (err) { setBusyNote((err as Error).message || "Kunne ikke læse filen."); }
+  };
+  const wipeMonth = async () => {
+    if (!confirmWipe) { setConfirmWipe(true); setTimeout(() => setConfirmWipe(false), 4000); return; }
+    setConfirmWipe(false);
+    await clearMonth(month.year, month.month);
+    setValues({}); setNotes({}); setPhotos({});
+    setPrompt(null);
+  };
   const onFile = async (e: FormEvent<HTMLInputElement>) => {
     const file = (e.currentTarget.files ?? [])[0];
     e.currentTarget.value = ""; // so the same picture can be chosen again
@@ -385,7 +414,8 @@ export default function App() {
       <button className="turn prev" onClick={() => book.current?.turn(-1)} aria-label="Forrige måned">‹</button>
       <button className="turn next" onClick={() => book.current?.turn(1)} aria-label="Næste måned">›</button>
       <input ref={fileInput} type="file" accept="image/*" hidden onInput={onFile} />
-      <button className="hand-pick" onClick={() => setPrompt({ kind: "hand" })} aria-label="Vælg håndskrift">✎</button>
+      <input ref={backupInput} type="file" accept="application/json,.json" hidden onInput={onBackupFile} />
+      <button className="hand-pick" onClick={() => setPrompt({ kind: "settings" })} aria-label="Indstillinger">✎</button>
 
       {prompt?.kind === "photo" && (
         <Sheet title="Billede" onClose={close}>
@@ -395,14 +425,28 @@ export default function App() {
           </div>
         </Sheet>
       )}
-      {prompt?.kind === "hand" && (
-        <Sheet title="Håndskrift" onClose={close}>
+      {prompt?.kind === "settings" && (
+        <Sheet title="Indstillinger" onClose={close}>
+          <p className="sheet-label">Håndskrift</p>
           <div className="chips wide">
             {(Object.keys(HANDS) as Hand[]).map((h) => (
               <button type="button" key={h} className={"chip" + (h === hand ? " on" : "")}
-                      onClick={() => { setHandState(h); localStorage.setItem(HAND_KEY, h); close(); }}>{HANDS[h]}</button>
+                      onClick={() => { setHandState(h); localStorage.setItem(HAND_KEY, h); }}>{HANDS[h]}</button>
             ))}
           </div>
+          {/* The only copy of the book there is: an app on the home screen and the same book in Safari are two
+              separate stores on iOS, and nothing backs either of them up. */}
+          <p className="sheet-label">Sikkerhedskopi</p>
+          <div className="sheet-row">
+            <button type="button" className="ghost" onClick={saveCopy}>Gem en kopi</button>
+            <button type="button" className="ghost" onClick={() => backupInput.current?.click()}>Hent en kopi ind</button>
+          </div>
+          <p className="sheet-note">{busyNote || "Kopien indeholder alle måneder, også billederne. Gem den i Filer eller iCloud."}</p>
+          <p className="sheet-label">Denne måned</p>
+          <button type="button" className="danger" onClick={wipeMonth}>
+            {confirmWipe ? `Tryk igen for at rydde ${labelOf(month).toLowerCase()}` : "Ryd " + labelOf(month).toLowerCase()}
+          </button>
+          <p className="sheet-note">Sletter alt på begge sider i denne måned. Gem en kopi først.</p>
         </Sheet>
       )}
 
