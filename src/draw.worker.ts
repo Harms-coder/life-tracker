@@ -63,7 +63,12 @@ onmessage = async (e: MessageEvent<RenderRequest>) => {
   if (canvas.width < pw || canvas.height < ph) { canvas.width = Math.max(canvas.width, pw); canvas.height = Math.max(canvas.height, ph); }
   void live;
   drawScene(ctx, view, p, scene, assets, now);
-  const { data } = ctx.getImageData(0, 0, canvas.width, canvas.height);
-  port.postMessage({ id, pixels: data.buffer, w: canvas.width, h: canvas.height, k: p.k }, [data.buffer]);
+  // Read back only the part just DRAWN, not the whole (grow-only) canvas. Zoomed in, the canvas has grown to
+  // the budget and stays there, while the plane - the screen crossed with what is left of the book - can be a
+  // sliver once a pan reaches a page edge: 400x3 px drawn, 1638x3498 px (23 MB) copied, handed over and
+  // uploaded to the GPU in slices. That was the pan stuttering worse the further in you were (Lukas).
+  const uw = Math.min(canvas.width, Math.max(1, pw)), uh = Math.min(canvas.height, Math.max(1, ph));
+  const { data } = ctx.getImageData(0, 0, uw, uh);
+  port.postMessage({ id, pixels: data.buffer, w: uw, h: uh, k: p.k }, [data.buffer]);
   } catch (err) { port.postMessage({ id, error: String(err) }, []); } // the main thread must hear back either way, or it waits for ever
 };
