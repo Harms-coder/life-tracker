@@ -210,6 +210,10 @@ og om den hakker). Hans valg mellem finger og pile: begge er lavet, han kan skæ
 - Lukas: hvidt glimt ned gennem ryggen ved højre pil, halvt zoomet ind. Årsag: siden under bladet viste `u_next`
   FØR den var nået frem → rent papir uden ryggens skygge. Nu: siden beholder sin tegning til u_next er oppe, og
   pilen venter på u_next (`awaitNext`, højst 600 ms) før bladet går. Bladets bagside er rent papir indtil da.
+- Lukas (16.20): teksten "glimter og hopper" ved landing (overskrifterne nederst til højre, venstresiden). Årsag:
+  efter landing står oversigten (1,3 px/verdens-px) i, til detaljen (skærmopløsning) er tegnet; de to er tegnet i
+  forskellig opløsning, og skiftet på ét frame = hop. Nu: `u_mix` i shaderen – detaljen tones ind over oversigten
+  på 220 ms (`detailMix`/`fadeFrom` i bog3d.ts, `pending()` holder paint-løkken kørende imens). UBEKRÆFTET.
 - Kendt: zoomet langt ind ses bladets skygge som 5 trin (SHADOW_PASSES) på siden under.
 - Åbent: stadig localStorage (IndexedDB er ikke lavet). Ingen stak af sider der bliver tyndere/tykkere med måneden.
 

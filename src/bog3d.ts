@@ -218,6 +218,7 @@ varying float v_side;
 uniform sampler2D u_img;
 uniform sampler2D u_over;     // the whole spread, coarser: stands in wherever u_img does not reach
 uniform float u_hasOver;
+uniform float u_mix;          // how far the sharp drawing has faded in over the coarse one (1 = fully)
 uniform sampler2D u_next;     // the spread being turned to, coarse: the leaf's back, and the page it uncovers
 uniform float u_hasNext;
 uniform float u_turnSide;     // mid-turn: which page of the spread (-1 left, +1 right) already shows u_next
@@ -272,7 +273,13 @@ void main() {
   else {
     bool outside = v_uv.x < 0.0 || v_uv.x > 1.0 || v_uv.y < 0.0 || v_uv.y > 1.0;
     c = outside ? vec4(0.0) : texture2D(u_img, v_uv);
-    if (c.a < 0.01 && u_hasOver > 0.5) c = texture2D(u_over, v_ouv);
+    if (u_hasOver > 0.5) {
+      // After a leaf has landed the coarse picture stands in until the sharp one is drawn; the two are drawn at
+      // different resolutions, and swapping them in one frame made thin strokes jump (Lukas). So the sharp one
+      // fades in over it instead.
+      vec4 o = texture2D(u_over, v_ouv);
+      c = c.a < 0.01 ? o : (o.a < 0.01 ? c : mix(o, c, u_mix));
+    }
   }
   if (c.a < 0.01) { // the board's rounded corners - or nothing drawn there yet: paper
     if (u_paper.a <= 0.0) discard;
@@ -454,7 +461,7 @@ export function createBook3D(canvas: HTMLCanvasElement, persp: number): Book3D |
     bow: loc("u_bow"), dip: loc("u_dip"), amp: loc("u_sheetAmp"), out: loc("u_out"), shadow: loc("u_shadow"), shadowC: loc("u_shadowC"),
     light: loc("u_light"), lightAmt: loc("u_lightAmt"), over: loc("u_over"), hasOver: loc("u_hasOver"), lightRect: loc("u_lightRect"), tone: loc("u_tone"), paper: loc("u_paper"),
     table: loc("u_table"), tableTex: loc("u_tableTex"), tableRect: loc("u_tableRect"), fade: loc("u_fade"),
-    next: loc("u_next"), hasNext: loc("u_hasNext"), turnSide: loc("u_turnSide"), leaf: loc("u_leaf"), turn: loc("u_turn"),
+    next: loc("u_next"), hasNext: loc("u_hasNext"), turnSide: loc("u_turnSide"), leaf: loc("u_leaf"), turn: loc("u_turn"), mix: loc("u_mix"),
   };
   const aPos = gl.getAttribLocation(prog, "a_pos"), aOff = gl.getAttribLocation(prog, "a_off"), aMeta = gl.getAttribLocation(prog, "a_meta");
   /** One set of buffers per mesh, so a frame that changes nothing only binds them. Re-uploading both meshes
@@ -512,6 +519,10 @@ export function createBook3D(canvas: HTMLCanvasElement, persp: number): Book3D |
 
 
   let texRect = { x: 0, y: 0, w: BOOK_W, h: BOOK_H };
+  /** After a turn the sharp drawing fades in over the coarse one: 0 = coarse only, 1 = sharp. `fadeFrom` is when
+   *  the first sharp drawing of the new spread landed (0 = still waiting for it). */
+  let detailMix = 1, fadeFrom = 0;
+  const FADE_MS = 220;
 
 
   const fill = (sl: typeof slots.pages, m: Mesh) => {
@@ -553,8 +564,9 @@ export function createBook3D(canvas: HTMLCanvasElement, persp: number): Book3D |
       gl.uniform1f(U.hasOver, over.w ? 1 : 0); // what was "next" is the spread now - if it ever arrived
       gl.uniform1f(U.hasNext, 0);
       texRect = { x: -1e6, y: -1e6, w: 1, h: 1 }; // the sharp drawing shows the month just left: nothing samples it until a new one is up
+      detailMix = 0; fadeFrom = 0;
     },
-    pending() { return !!upload; },
+    pending() { return !!upload || detailMix < 1; },
     setTable(img) {
       gl.activeTexture(gl.TEXTURE2);
       gl.bindTexture(gl.TEXTURE_2D, tableTex);
@@ -611,8 +623,10 @@ export function createBook3D(canvas: HTMLCanvasElement, persp: number): Book3D |
         const rows = Math.min(u.h - u.row, Math.max(1, Math.floor(STRIP_BYTES / (u.w * 4))));
         gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, u.row, u.w, rows, gl.RGBA, gl.UNSIGNED_BYTE, u.pixels.subarray(u.row * u.w * 4, (u.row + rows) * u.w * 4));
         u.row += rows;
-        if (u.row >= u.h) { [front, back] = [back, front]; texRect = u.rect; upload = null; u.done(); }
+        if (u.row >= u.h) { [front, back] = [back, front]; texRect = u.rect; upload = null; if (detailMix < 1 && !fadeFrom) fadeFrom = performance.now(); u.done(); }
       }
+      if (fadeFrom) { detailMix = Math.min(1, (performance.now() - fadeFrom) / FADE_MS); if (detailMix >= 1) fadeFrom = 0; }
+      gl.uniform1f(U.mix, detailMix);
       if (canvas.width !== w || canvas.height !== h) { canvas.width = w; canvas.height = h; }
       gl.viewport(0, 0, w, h);
       gl.clearColor(0, 0, 0, 0);
