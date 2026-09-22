@@ -166,6 +166,24 @@ Rækker = dage 1–31 (antal efter måneden). Kolonner = brugerens egne trackere
 - Test-scripts ligger i sessionens scratchpad (`pw/shots.mjs` skærmbilleder, `pw/bench.mjs` frame-tider i WebKit,
   `pw/tapcheck.mjs` tryk). Dev-server: `npm run dev`. I dev sætter BookCanvas `window.__view` (x, y, s) til scripts.
 
+## Status 2026-09-22 kl. 17.45 – PRIKKER I SKRIVEFLADEN + PENNEN SKRIVER ALT
+
+Lukas' to ønsker efter input-fladerne: (1) man skal kunne se prikkerne foran linjerne, når man skriver,
+(2) når man trykker Skriv, skal det skrives ind i bogen, som om nogen sidder og skriver det – og det samme
+alle andre steder (X'er, vægt, alle tal).
+- **Linjer med prik** (`Lines` i App.tsx): tekstfeltet er væk; i stedet én `<input>` pr. punkt med bogens
+  egen "•" foran. Skrevet linje = sort prik, den tomme nederst = svag prik (der skriver man det næste).
+  Enter hopper til næste linje, backspace på en tom linje sletter den. Et skjult `name="v"` samler linjerne
+  med \n, så `submitNote` er uændret. Mål-felterne (goalN) får INGEN prikker – bogen tegner dem uden.
+- **Pennen** (`penWrite` i App.tsx, `penAt`/`reveal` i draw.ts): `scene.writing = {key, start, ms}` gælder nu
+  ALT, ikke kun X'er. `text()` har fået `reveal` (klip der løber fra venstre langs linjen), `noteText` deler
+  rejsen mellem sine linjer (én linje ad gangen), prikgrafens prik toner frem, X'et er som før.
+  ms = 320 + 45 pr. tegn, max 2600. `?pen=6` gør den langsom (til skærmbilleder/tuning).
+  Træk i søvnkurven skriver UDEN pen (`write(key, v, false)`) – den følger jo allerede fingeren.
+  Hver frame = én tur til workeren, så på telefonen bliver det få, grove trin. UBEKRÆFTET af Lukas.
+- Test: `node tools/writecheck.mjs screenshots/write` (fem billeder lige efter Skriv, med `?pen=6`;
+  målt i Chrome: "7" → "70," → "70,4"). `node tools/sheets.mjs screenshots/sheet` = én flade pr. type.
+
 ## Status 2026-09-22 kl. 17.25 – INPUT-FLADERNE
 
 Lukas: "en utrolig grim hvid boks med standardtekst" når man trykker for at skrive. Alle fem flader
