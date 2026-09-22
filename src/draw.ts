@@ -3,7 +3,7 @@ import { drawInBox, drawText, setHand, widthOfText, type Hand } from "./glyf";
 import {
   CELL, PAGE_W, PAGE_H, COVER, LIP, BOOK_W, BOOK_H, LEFT_PAGE, RIGHT_PAGE, HEADER_Y, TABLE_LEFT, DAY_COL_W,
   TITLE_BOX_X, TITLE_BOX_Y, GOALS, goalPos, goalTextBox, widthOf, dotX, columnXs, bottomY, noteBoxes, NOTE_LABEL,
-  PLAN_Y, PLAN_ROW_H, planBoxes, photoBoxes, photoBoxRight, PHOTO_RIGHT,
+  PLAN_Y, PLAN_ROW_H, planBoxes, photoBoxes, photoBoxesRight,
   type Column, type NoteField, type Rect,
 } from "./layout";
 
@@ -181,7 +181,7 @@ function photo(ctx: Ctx, box: Rect, img: ImageBitmap | undefined, seed: string) 
   ctx.translate(box.x + box.w / 2, box.y + box.h / 2);
   ctx.rotate((r() - 0.5) * 0.055);
   ctx.fillStyle = "rgba(40,30,15,.20)"; ctx.fillRect(-box.w / 2 + 3, -box.h / 2 + 4, box.w, box.h);
-  ctx.fillStyle = "#fdfaf0"; ctx.fillRect(-box.w / 2, -box.h / 2, box.w, box.h);
+  ctx.fillStyle = "#161616"; ctx.fillRect(-box.w / 2, -box.h / 2, box.w, box.h);
   ctx.save();
   ctx.beginPath(); ctx.rect(-box.w / 2 + B, -box.h / 2 + B, box.w - 2 * B, box.h - 2 * B); ctx.clip();
   const sc = Math.max((box.w - 2 * B) / img.width, (box.h - 2 * B) / img.height); // fill the frame, crop the overhang
@@ -389,8 +389,9 @@ function drawRightPage(ctx: Ctx, scene: Scene, vis: Rect, now: number, assets: A
       }
     });
     text(ctx, "+", right + CELL / 2, HEADER_Y - 6, { size: 20, seed: "plus", align: "center", alpha: 0.35 });
-    photo(ctx, photoBoxRight(columns), assets.photos?.[PHOTO_RIGHT], PHOTO_RIGHT); // the empty corner
   }
+
+  for (const { slot, box } of photoBoxesRight(columns, days)) if (overlaps(vis, box)) photo(ctx, box, assets.photos?.[slot], slot);
 
   // day rows (only the visible ones)
   const first = Math.max(1, Math.floor((vis.y - HEADER_Y) / CELL) + 1), last = Math.min(days, Math.ceil((vis.y + vis.h - HEADER_Y) / CELL));

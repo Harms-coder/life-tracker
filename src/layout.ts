@@ -47,20 +47,25 @@ export function planBoxes(i: number): { num: Rect; goal: Rect; plan: Rect } {
   };
 }
 
-/** Somewhere to tape a photo in: three along the bottom of the left page, one in the top right corner of the
- *  right page. Slots are named, so what is in them survives a change of layout. */
+/** Somewhere to tape a photo in. Left page: three along the bottom and one in the box under the month. Right
+ *  page: the top right corner, the space over the sleep graph's heading, and the foot of the "what went well"
+ *  box. Slots are named, so what is in them survives a change of layout. */
 export const PHOTOS_LEFT = ["b1", "b2", "b3"] as const;
-export const PHOTO_RIGHT = "b4";
 export function photoBoxes(days: number): { slot: string; box: Rect }[] {
   const top = bottomY(days) + CELL, h = PAGE_H - CELL - top, m = CELL, w = (PAGE_W - 4 * m) / 3;
-  return PHOTOS_LEFT.map((slot, i) => ({ slot, box: { x: m + i * (w + m), y: top, w, h } }));
+  const out: { slot: string; box: Rect }[] = PHOTOS_LEFT.map((slot, i) => ({ slot, box: { x: m + i * (w + m), y: top, w, h } }));
+  out.push({ slot: "b5", box: { x: 8, y: TITLE_BOX_Y + 8, w: TITLE_BOX_X - 16, h: HEADER_Y - TITLE_BOX_Y - 16 } });
+  return out;
 }
-/** The empty corner on the right page, right of the last column and above the notes. */
-export function photoBoxRight(columns: Column[]): Rect {
+export function photoBoxesRight(columns: Column[], days: number): { slot: string; box: Rect }[] {
   const xs = columnXs(columns), right = xs[xs.length - 1];
-  return { x: right + 1.5 * CELL, y: CELL, w: PAGE_W - right - 2.5 * CELL, h: HEADER_Y - 2 * CELL };
+  const out: { slot: string; box: Rect }[] = [{ slot: "b4", box: { x: right + 1.5 * CELL, y: CELL, w: PAGE_W - right - 2.5 * CELL, h: HEADER_Y - 2 * CELL } }];
+  const dots = columns.findIndex((c) => c.type === "dots");
+  if (dots >= 0) out.push({ slot: "b6", box: { x: xs[dots + 1] + 4, y: CELL + 4, w: widthOf("dots") * CELL - 8, h: HEADER_Y - 50 - CELL - 4 } }); // above "Søvn score"
+  const g = noteBoxes(columns, days).good;
+  out.push({ slot: "b7", box: { x: g.x + 4, y: g.y + g.h - 7 * CELL, w: g.w - 8, h: 7 * CELL - 6 } });
+  return out;
 }
-
 export const widthOf = (t: ColType) => (t === "number" ? 2 : t === "dots" ? 6 : 1); // in cells
 /** x-position of a 0..10 value inside the 6-cell dots column; 0 and 10 sit mid-cell in the outer cells */
 export const dotX = (v: number) => CELL / 2 + (v / 10) * (5 * CELL);
@@ -117,6 +122,7 @@ export function hitTest(wx: number, wy: number, columns: Column[], days: number)
   const x = wx - RIGHT_PAGE.x, y = wy - RIGHT_PAGE.y;
   if (x < 0 || x >= PAGE_W || y < 0 || y >= PAGE_H) return null;
   const xs = columnXs(columns), right = xs[xs.length - 1];
+  for (const { slot, box } of photoBoxesRight(columns, days)) if (inRect(box, x, y)) return { kind: "photo", slot }; // before the headers: one sits in the header band
   if (y >= CELL && y < HEADER_Y) {
     if (x >= right && x < right + CELL) return { kind: "add" };
     for (let i = 0; i < columns.length; i++) if (x >= xs[i + 1] && x < xs[i + 2]) return { kind: "header", index: i };
@@ -125,7 +131,6 @@ export function hitTest(wx: number, wy: number, columns: Column[], days: number)
     const day = Math.floor((y - HEADER_Y) / CELL) + 1;
     for (let i = 0; i < columns.length; i++) if (x >= xs[i + 1] && x < xs[i + 2]) return { kind: "cell", day, col: columns[i], fx: (x - xs[i + 1]) / (xs[i + 2] - xs[i + 1]) };
   }
-  if (inRect(photoBoxRight(columns), x, y)) return { kind: "photo", slot: PHOTO_RIGHT };
   const boxes = noteBoxes(columns, days);
   for (const f of ["good", "better", "change", "learned"] as const) if (inRect(boxes[f], x, y)) return { kind: "note", field: f };
   return null;

@@ -166,6 +166,15 @@ Rækker = dage 1–31 (antal efter måneden). Kolonner = brugerens egne trackere
 - Test-scripts ligger i sessionens scratchpad (`pw/shots.mjs` skærmbilleder, `pw/bench.mjs` frame-tider i WebKit,
   `pw/tapcheck.mjs` tryk). Dev-server: `npm run dev`. I dev sætter BookCanvas `window.__view` (x, y, s) til scripts.
 
+## Status 2026-09-22 kl. 19.10 – TRE BILLEDPLADSER MERE + SORTE KANTER
+- Lukas' tre cirkler: b5 = kassen under måneden (venstre), b6 = over "Søvn score" i prikgrafens overskriftsfelt,
+  b7 = de nederste 7 tern af "Hvad gik godt"-kassen. `photoBoxes(days)` (venstre, nu 4) og `photoBoxesRight(columns,
+  days)` (højre, 3) i layout.ts; `photoBoxRight`/`PHOTO_RIGHT` er væk. Højresidens billeder hit-testes FØR
+  overskrifterne (b6 ligger i overskriftsbåndet). Samme flow som før (vælg/skift/fjern), samme localStorage-nøgle.
+- Rammen om billeder er sort (#161616) i `photo()` i draw.ts (før hvid).
+- `node tools/photocheck.mjs <photos.json> screenshots/photos.png` = startvisning med testbilleder i alle pladser.
+- b7 kan kollidere med en meget lang "godt"-tekst (teksten skrives hen over billedet). Ikke håndteret.
+
 ## Status 2026-09-22 kl. 18.55 – OVERSKRIFTERNE LØFTET (tredje gang, nu med måling) + LABEL VÆK
 - Lukas' foto: de lodrette overskrifter STOD på linjen, "Vægt" svævede. `HEADER_LIFT` = 14 i draw.ts (før 8):
   det roterede ords første glyf begynder ~8 px før ankeret, så 8 = på linjen; 16 gav for stor luft; 14 ≈ samme
