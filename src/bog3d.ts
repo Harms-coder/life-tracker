@@ -77,15 +77,8 @@ const SEG_X = 56, SEG_Y = 10; // segments per page: across the curve, and along 
 /** How dark the fold goes, and the thinnest a sheet is allowed to look (world px). A book of 150 leaves wants
  *  far finer lines than a handful of thick boards, so this is kept small and only opened up as far as the
  *  screen can still tell two of them apart. */
-const FOLD_DARK = Number(new URLSearchParams(location.search).get("fold") ?? 0.85);
-/** ...and how dark it stays when the book lies flat: looking straight down there is no valley, only the soft
- *  gradient draw.ts paints into the paper. */
-const FOLD_FLAT = 0.3;
+const FOLD_DARK = 0.3;
 const SHEET_MIN = 0.85;
-/** How light the cut edge of the page stack is. In referencer/bog-maal.jpg it is a warm grey-tan, clearly
- *  DARKER than the page it belongs to - drawn at full paper brightness it reads as a white rim round the book
- *  (Lukas, zoomed out). ?kant=N while tuning. */
-const STACK_LIT = Number(new URLSearchParams(location.search).get("kant") ?? 0.78);
 const SHEET_SCREEN = 2.7; // never let two lines come closer than this on screen
 
 /** Height of the page surface above the table, at distance `s` (0 at the spine, 1 at the fore-edge). */
@@ -148,7 +141,7 @@ void main() {
     float slope = (pageZ(s + 0.01) - pageZ(s - 0.01)) / (0.02 * u_book.w);
     float dir = a_pos.x < u_spine ? -1.0 : 1.0;
     float fold = 1.0 - min(1.0, s * 6.0);
-    v_shade = clamp(1.0 + (-dir * slope) * 0.55 - fold * fold * u_foldDark, 0.08, 1.06);
+    v_shade = clamp(1.0 + (-dir * slope) * 0.55 - fold * fold * u_foldDark, 0.6, 1.06);
   }
   // the sheets have a real thickness, so the lines must keep their spacing all the way along the skirt: carry
   // the distance DOWN from the page rim, in world px, not a 0..1 share of a skirt that thins out at the fold
@@ -551,7 +544,7 @@ export function createBook3D(canvas: HTMLCanvasElement, persp: number): Book3D |
       };
       gl.uniform1f(U.spine, BOOK_W / 2);
       gl.uniform3f(U.bow, BOW, BOW2, WAVE);
-      gl.uniform1f(U.fold, FOLD_FLAT + (FOLD_DARK - FOLD_FLAT) * flat); // the valley only exists while the book is tipped back
+      gl.uniform1f(U.fold, FOLD_DARK);
       gl.uniform4f(U.lightRect, lightRect.x, lightRect.y, lightRect.w, lightRect.h);
       gl.uniform4f(U.lightAmt, lightK ? LIGHT_STRENGTH * flat : 0, ...(lightK ?? [1, 1, 1]));
       gl.uniform3f(U.tone, ...TONE);
@@ -573,7 +566,7 @@ export function createBook3D(canvas: HTMLCanvasElement, persp: number): Book3D |
         if (!shadow) { bind(slots.cover); gl.drawElements(gl.TRIANGLES, slots.cover.n, gl.UNSIGNED_SHORT, 0); }
         gl.uniform4f(U.flat, 0.13, 0.12, 0.11, 1);
         bind(slots.rim); gl.drawElements(gl.TRIANGLES, slots.rim.n, gl.UNSIGNED_SHORT, 0);
-        gl.uniform4f(U.flat, 0.95 * STACK_LIT, 0.92 * STACK_LIT, 0.83 * STACK_LIT, 1);
+        gl.uniform4f(U.flat, 0.95, 0.92, 0.83, 1);
         bind(slots.edges); gl.drawElements(gl.TRIANGLES, slots.edges.n, gl.UNSIGNED_SHORT, 0);
         gl.uniform4f(U.flat, 0, 0, 0, 0);
         gl.uniform4f(U.paper, 0.94, 0.91, 0.83, 1); // draw.ts' PAPER
