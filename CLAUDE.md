@@ -166,6 +166,13 @@ Rækker = dage 1–31 (antal efter måneden). Kolonner = brugerens egne trackere
 - Test-scripts ligger i sessionens scratchpad (`pw/shots.mjs` skærmbilleder, `pw/bench.mjs` frame-tider i WebKit,
   `pw/tapcheck.mjs` tryk). Dev-server: `npm run dev`. I dev sætter BookCanvas `window.__view` (x, y, s) til scripts.
 
+## FALDGRUBE (2026-09-22): Vigorras service worker ejer hele harms-coder.github.io
+Lukas: "linket åbner min træningsapp på telefonen, men Life Tracker på computeren". Vigorra ligger i domænets rod
+(repo `Harms-coder/Harms-coder.github.io`, lokalt `~/Trænings app`), scope "/", workbox `NavigationRoute` uden
+denylist → på en telefon der har brugt Vigorra svarer dens SW med Vigorras index.html på ALLE navigationer, også
+/life-tracker/. Rettet i Vigorras vite.config.ts: `navigateFallbackDenylist: [/^\/life-tracker\//]` (pushet, deploy
+via Actions). Nye apps på domænet skal på den liste. Telefonen skal åbne Vigorra én gang, før den nye SW er inde.
+
 ## Status 2026-09-22 kl. 18.35 – PANORERING ZOOMET IND ("hakker meget")
 
 Lukas: zoomet ind og med fingeren rundt på siden hakker det. Kan ikke måles herfra (headless = ingen GPU), så
