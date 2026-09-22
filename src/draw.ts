@@ -304,10 +304,9 @@ function drawLeftPage(ctx: Ctx, scene: Scene, vis: Rect, assets: Assets) {
     text(ctx, scene.monthLabel, 0.6 * CELL, 3 * CELL, { size: 31, weight: 500, seed: "title" });
     labelled(ctx, "Mål denne måned", 12.6 * CELL, CELL + 19, "subtitle");
     // the heading for the big field below, in the box under the month
-    wrap(ctx, PLAN_LABEL, TITLE_BOX_X - 2 * CELL, 17).forEach((line, i, all) => {
-      const y = TITLE_BOX_Y + 28 + i * 24;
-      text(ctx, line, 0.6 * CELL, y, { size: 17, weight: 500, seed: "plabel" + i });
-      if (i === all.length - 1) { ctx.beginPath(); wobbly(ctx, 0.6 * CELL, y + 5, 0.6 * CELL + widthOfText(line, 17, "plabel" + i), y + 5, "pu"); strokeInk(ctx, 1.4); }
+    // no underline here (Lukas): "Mål denne måned" has one, this one is not to
+    wrap(ctx, PLAN_LABEL, TITLE_BOX_X - 2 * CELL, 17).forEach((line, i) => {
+      text(ctx, line, 0.6 * CELL, TITLE_BOX_Y + 28 + i * 24, { size: 17, weight: 500, seed: "plabel" + i });
     });
     for (let i = 0; i < GOALS; i++) {
       const p = goalPos(i);
