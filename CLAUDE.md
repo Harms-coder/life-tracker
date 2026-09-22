@@ -199,6 +199,56 @@ Rækker = dage 1–31 (antal efter måneden). Kolonner = brugerens egne trackere
 - Test-scripts ligger i sessionens scratchpad (`pw/shots.mjs` skærmbilleder, `pw/bench.mjs` frame-tider i WebKit,
   `pw/tapcheck.mjs` tryk). Dev-server: `npm run dev`. I dev sætter BookCanvas `window.__view` (x, y, s) til scripts.
 
+## Status 2026-09-22 kl. 22.15 – SESSIONEN LUKKET NED, ALT ER PUSHET
+
+**Live:** https://harms-coder.github.io/life-tracker/ · **Galleri:** https://claude.ai/artifact/S914mdZ2Tq4gAuqWUrxLYb
+Arbejdstræet er rent. Alt nedenfor er pushet til main. Lukas har appen på hjemmeskærmen nu.
+
+### Det blev lavet i aften (nyeste først)
+1. **Sikkerhedskopi af hele bogen + "Ryd måned".** Blyantsknappen åbner nu "Indstillinger": håndskrift,
+   "Gem en kopi" (alle måneder + billeder i én fil, delt via iOS' del-ark), "Hent en kopi ind", og
+   "Ryd <måned>" der tømmer begge sider. Lukas skal bruge den sidste for at komme af med demo-data.
+2. **App-ikon på hjemmeskærmen** – Lukas' eget genererede ikon (åben bog + sol). Han har set det: "det ser fint ud".
+3. **Bladring med fingeren FJERNET** efter hans ønske. Kun pilene bladrer; en finger på bogen panorerer altid.
+4. **Billederne flyttet til IndexedDB.** localStorage kunne kun rumme ca. et års månedsbøger med billeder, og
+   var så holdt op med at gemme midt i en indtastning. Flytter selv det gamle over. Lukas har bekræftet, at
+   hans billeder overlevede.
+5. **Panorering zoomet ind: 10× mindre for grafikkortet at male** ude ved sidekanterne (bord, skygge, stak blev
+   malet over hele skærmen og så dækket af siderne). **GODKENDT af Lukas: "hakkeriet ser ud til at være fint nu".**
+6. Workeren sender kun det, den har tegnet, i stedet for hele sit arbejdsark (op til 23 MB pr. omtegning).
+7. Lukas' svar på alle de gamle åbne spørgsmål skrevet ind under "Åbne spørgsmål".
+
+### GODKENDT PÅ TELEFONEN I AFTEN – spørg ikke om det igen
+Emojis VIRKER i iOS Safari. Skrive-/viskeanimationen er god (tempo og trinvished). Billedpladsen b4 øverst til
+højre ligger rigtigt. Billederne overlevede flytningen til IndexedDB. Hakkeriet zoomet ind er væk. Ikonet er fint.
+
+### FØRSTE SKRIDT NÆSTE GANG
+- **IKKE SET AF LUKAS: hele indstillingsfladen** (Gem en kopi / Hent en kopi ind / Ryd måned). Det vigtigste
+  enkeltspørgsmål: **virker `navigator.share` i appen på hjemmeskærmen på iOS?** Hele "Gem en kopi" hænger på
+  det, og det er UBEKRÆFTET – kun testet i Chrome, hvor den falder tilbage til et almindeligt download.
+  Virker det ikke, er knappen at gemme filen et andet sted (fx vise JSON'en til at kopiere, eller en blob-URL
+  man holder fingeren på).
+- **UBEKRÆFTET: at swipe ikke længere bladrer.** Han bad om det, men har ikke prøvet det på telefonen.
+- **Spørg hvordan det gik med at komme i gang.** Hans plan: ryd september 2026 i hjemmeskærms-appen og skriv
+  sit eget. Gik "Ryd" som forventet? Kom demoen igen? (Den må ikke – flagene sættes.)
+- Åbne spørgsmål (se sektionen): kuglepen vs. blyant, morgen/middag/nat, og **opsummeringsbogen** (hans nye idé).
+
+### LÆRT I AFTEN – LÆS DET FØR DU RØRER NOGET MED DATA
+1. **En app på iPhones hjemmeskærm og den samme app i Safari er TO ADSKILTE lagre.** Intet deles. Lukas lagde
+   appen på hjemmeskærmen og troede, billederne var væk – de lå i Safari. **Og det var værre end som så: fordi
+   hjemmeskærms-appen startede tom, såede appen sine DEMO-data i den.** Siden så fyldt og rigtig ud, så det
+   lignede ikke en fejl; kun billederne manglede, fordi der ikke findes demo-billeder. Kendetegnet på demo-data
+   er mål 1 "Finde ro i hverdagen og stresse mindre" og mål 5 "Ringe til mormor hver søndag".
+   Generelt om iOS-lagring og app-ikoner: `~/.claude/playbook/mobile-pwa.md`.
+2. **Skærer du GPU-arbejde væk, så mål AREAL, ikke antal tegnekald.** Efter scissor-klipningen var antallet af
+   `drawElements` uændret (21 pr. frame), og det så ud, som om rettelsen ikke virkede – det, der var skåret væk,
+   var fladen. Summér det scissorede rektangels areal pr. frame. Detaljer: `~/.claude/playbook/verifikation.md`.
+3. **chrome-devtools' `emulate` nulstiller alt, du ikke sender med.** En hel runde målinger lå på et 1200×702
+   skrivebordsvindue, mens værktøjet blev ved med at rapportere "390x844x3". Også i playbooken.
+4. **Jeg gættede forkert på hakkeriet to gange, før jeg målte det rigtige.** Hypotesen "hver omtegning bliver
+   dyrere jo mere zoomet ind" var forkert (rundturen FALDT, 39 → 26 ms). Det, der var galt, fandtes kun ved at
+   tælle arbejde pr. frame ved syv zoom-niveauer. Mål før du retter – også når hypotesen lyder rigtig.
+
 ## Status 2026-09-22 kl. 20.40 – SESSIONEN LUKKET NED, ALT ER PUSHET (værktøj, ikke appen)
 
 **Live:** https://harms-coder.github.io/life-tracker/ · **Galleri:** https://claude.ai/artifact/S914mdZ2Tq4gAuqWUrxLYb
@@ -989,6 +1039,13 @@ Alt er committet og pushet. Galleriet til Lukas: https://claude.ai/artifact/S914
 1. ~~Prototype af ét opslag: bog på bord, ternede sider, pinch-zoom, afkrydsning med håndskrevne X-varianter.~~ ✅ 2026-09-16
 ~~1b. Fuldstændig glat zoom på iPhone: 2D-tegningen i en Worker, upload i skiver, oversigtstekstur.~~ ✅ 2026-09-18 (godkendt af Lukas)
 2. ~~Sidevending mellem måneder + datamodel (måneder, trackere, værdier) med lokal lagring.~~ ✅ 2026-09-22 – bladring + måneder lavet; billederne flyttet til IndexedDB (`src/photos.ts`, migrerer selv fra localStorage). Tal/tekst/kolonner bliver i localStorage med vilje: de fylder få kB, og det holder tegningen synkron.
-3. Venstre side (mål/undermål/plan) med tekst i håndskrift.
-4. Lukas' egen håndskrift som glyffer.
-5. Finpudsning: papirtekstur, skygger, animation af skrift.
+3. ~~Venstre side (mål/undermål/plan) med tekst i håndskrift.~~ ✅ 2026-09-22 – seks mål med plan under hvert,
+   fire tekstkasser, billedpladser. Lukas har godkendt siden og billedpladsen b4.
+4. ~~Lukas' egen håndskrift som glyffer.~~ ✅ 2026-09-22 – 424 glyffer fra hans egne ark, plus Louises (428).
+   `&` og `É` mangler og laves IKKE (hans beslutning).
+5. Finpudsning: papirtekstur, skygger, animation af skrift. – papir, skygger og skriveanimation er lavet og
+   godkendt 2026-09-22 ("skrive- og viskeanimationen er rigtig god"). Står åben, fordi finpudsning aldrig
+   er "færdig"; ikke noget udestående, Lukas har peget på.
+
+**Roadmappen er kørt til ende.** Det, der er tilbage, står under "Åbne spørgsmål" – største post er
+opsummeringsbogen (AI koger 3/6/12 måneder ned).
