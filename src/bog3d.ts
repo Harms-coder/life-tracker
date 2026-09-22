@@ -710,7 +710,9 @@ export function createBook3D(canvas: HTMLCanvasElement, persp: number): Book3D |
       // mid-turn the page the leaf is leaving behind already shows the spread it is turning to
       gl.uniform1f(U.turnSide, turn ? turn.dir : 0);
       drawAll(false);
-      if (turn && turn.p > 0 && turn.p < 1) {
+      // Drawn from the moment the leaf is taken hold of, lying flat (p = 0) included: the page under it already
+      // shows the other spread, and a frame without the leaf over it was a blink of the whole page (Lukas).
+      if (turn && turn.p < 1) {
         // the leaf: its shadow on the page under it first, then the sheet itself, over everything
         gl.uniform1f(U.leaf, 1);
         gl.uniform4f(U.turn, turn.dir, turn.p * Math.PI, BEND, turn.twist);

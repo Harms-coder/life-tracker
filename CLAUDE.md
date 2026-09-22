@@ -219,6 +219,10 @@ og om den hakker). Hans valg mellem finger og pile: begge er lavet, han kan skæ
   blækstreger næsten forsvinder i de ~150 ms den står i. Nu tegnes oversigten i 2048×1024 (potens af to, `OVERVIEW_W/H`,
   `plane.ky` = lodret opløsning for sig) og `putWhole` laver mipmaps + LINEAR_MIPMAP_LINEAR. Hukommelse: 8 MB + 2,7
   pr. stk. (over + next) ≈ som før. UBEKRÆFTET af Lukas. Headless Chrome viste aldrig blinket – kun telefonen.
+- Lukas (16.35): blinker STADIG, og "lige idet jeg trykker på pilen". DET var den: ved tryk hentes u_next; når den
+  er oppe viser siden under bladet allerede næste måned, men bladet blev først tegnet ved p > 0 – så i frames mellem
+  svar og første bevægelse så man den tomme side UDEN blad. Nu tegnes bladet fra p = 0 (`turn.p < 1`). Mipmaps og
+  fade (ovenfor) er bevaret – de gør skiftet ved landing blødere – men var ikke årsagen.
 - Kendt: zoomet langt ind ses bladets skygge som 5 trin (SHADOW_PASSES) på siden under.
 - Åbent: stadig localStorage (IndexedDB er ikke lavet). Ingen stak af sider der bliver tyndere/tykkere med måneden.
 
