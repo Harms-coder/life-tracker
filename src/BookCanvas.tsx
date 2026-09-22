@@ -20,9 +20,13 @@ const PERSPECTIVE = 700; // px, camera distance for the tilt (smaller = stronger
 const TILT_RANGE = 0.7; // tilt is gone at fit * (1 + TILT_RANGE)
 const MARGIN = 0.2; // canvas overdraw around the viewport, share of its size
 const PIXEL_BUDGET = 6e6; // max canvas pixels: iOS Safari kills the page ("gentagne problemer") when canvases eat its memory
-const LIVE_BUDGET = 2e6; // budget for the quick redraws in the middle of a pinch
-const LIVE_RATIO = 1.5; // redraw mid-pinch once the page texture is stretched this much
-const LIVE_GAP = 260;   // ms between such redraws
+/** Mid-pinch the writing is redrawn as often as the worker keeps up, at two thirds of the full budget: with 2e6
+ *  every 260 ms once stretched 1.5x it was soft until the fingers let go (Lukas). The canvas never grows for
+ *  these, so they cost drawing time, not memory. */
+const LIVE_BUDGET = 4e6;
+const LIVE_RATIO = 1.25; // redraw mid-pinch once the page texture is stretched this much
+const LIVE_GAP = 140;    // ms between such redraws
+const STILL_MS = 160;    // fingers down but not moving for this long: a full, sharp drawing
 /** The whole-spread stand-in is drawn into this many pixels: a power of two each way, so WebGL can mipmap it.
  *  Without mipmaps it was minified with a plain 2x2 filter on the phone's screen, and the thin ink strokes all
  *  but vanished for the moment it stood in after a page turn (Lukas: "teksten blinker væk"). 8 MB + mipmaps. */
@@ -85,6 +89,7 @@ export const BookCanvas = forwardRef<BookCanvasHandle, {
   const glide = useRef(0);
   const frame = useRef(0);
   const commitTimer = useRef(0);
+  const stillTimer = useRef(0);
   const overTimer = useRef(0);
   const photos = useRef<Record<string, string> | null>(null); // waiting to be sent to the worker
   const lastRender = useRef(0);
@@ -359,7 +364,7 @@ export const BookCanvas = forwardRef<BookCanvasHandle, {
     ro.observe(view.current!);
     return () => {
       worker.current?.terminate(); worker.current = null; inflight.current = null; queued.current = null;
-      book3d.current?.dispose(); book3d.current = null; ro.disconnect(); clearTimeout(overTimer.current); cancelAnimationFrame(glide.current); cancelAnimationFrame(frame.current); clearTimeout(commitTimer.current);
+      book3d.current?.dispose(); book3d.current = null; ro.disconnect(); clearTimeout(overTimer.current); cancelAnimationFrame(glide.current); cancelAnimationFrame(frame.current); clearTimeout(commitTimer.current); clearTimeout(stillTimer.current);
       cancelAnimationFrame(turn.current?.anim ?? 0); turn.current = null; clearTimeout(awaitNext.current); awaitNext.current = 0;
     };
   }, [width, height]);
@@ -430,6 +435,9 @@ export const BookCanvas = forwardRef<BookCanvasHandle, {
       t.current = { x: mx - p.wx * s, y: my - p.wy * s, s };
       apply();
       renderLive();
+      // fingers holding still mid-pinch: draw it sharp where it stands, rather than waiting for them to let go
+      clearTimeout(stillTimer.current);
+      stillTimer.current = window.setTimeout(() => { if (pointers.current.size === 2) render(); }, STILL_MS);
     } else if (turn.current?.drag && pointers.current.size === 1) {
       // the fore-edge follows the finger's sideways travel: from lying flat, out at PAGE_W from the spine, over
       // to the other page. The book itself stays put.

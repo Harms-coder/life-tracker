@@ -166,6 +166,23 @@ Rækker = dage 1–31 (antal efter måneden). Kolonner = brugerens egne trackere
 - Test-scripts ligger i sessionens scratchpad (`pw/shots.mjs` skærmbilleder, `pw/bench.mjs` frame-tider i WebKit,
   `pw/tapcheck.mjs` tryk). Dev-server: `npm run dev`. I dev sætter BookCanvas `window.__view` (x, y, s) til scripts.
 
+## Status 2026-09-22 kl. 18.10 – SKARP MIDT I PINCHEN + INGEN SORT BOG VED START
+
+Lukas: sløret mens fingrene er på skærmen; bogen sort et splitsekund ved load; "optimér en sidste gang".
+- **Sort bog ved start** (rodårsag, ikke set i Chrome – for kort): en WebGL-tekstur uden indhold samples som
+  UIGENNEMSIGTIG SORT, og `texRect` starter som hele bogen, så `img` var sort til den første tegning var oppe.
+  `pageTexture()` i bog3d.ts lægger nu én gennemsigtig texel ind ved oprettelsen → shaderen falder igennem til
+  papir. Gælder front/back/over/next. Lyskortet var allerede sikret (`u_lightAmt.x` = 0 til det er oppe).
+- **Skarp under pinch**: tre knapper. LIVE_BUDGET 2e6 → 4e6, LIVE_RATIO 1,5 → 1,25, LIVE_GAP 260 → 140 ms.
+  OG workeren må nu VOKSE canvas'et også ved live-tegninger (draw.worker.ts): grow-only betød, at live-tegningen
+  blev skaleret ned til det gamle canvas – derfor blev den ved med at være blød, uanset hvor tit den tegnede.
+  Vækst sker i workeren og kun op til budgettet, så spidsforbruget er som før (24 MB).
+  Plus `STILL_MS` = 160: står fingrene stille midt i en pinch, tegnes der FULDT (render()) der hvor de står.
+  Målt (tools/startcheck.mjs, kantskarphed i bogens område): mid-pinch 1,29 → 3,35 = det samme som efter slip.
+- Bench (WebKit, ingen GPU): 2–3 frames > 33 ms pr. pinch – som før live-tegningerne kom til (17/9). zoomcheck OK.
+- `node tools/startcheck.mjs screenshots/start` = 8 billeder lige efter load + pinch holdt ved 2,5× + efter slip.
+- IKKE SET AF LUKAS PÅ TELEFONEN. Hvis det hakker: LIVE_GAP op (200), LIVE_BUDGET ned (3e6), STILL_MS op.
+
 ## Status 2026-09-22 kl. 17.45 – PRIKKER I SKRIVEFLADEN + PENNEN SKRIVER ALT
 
 Lukas' to ønsker efter input-fladerne: (1) man skal kunne se prikkerne foran linjerne, når man skriver,

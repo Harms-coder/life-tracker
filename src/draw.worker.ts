@@ -56,14 +56,12 @@ onmessage = async (e: MessageEvent<RenderRequest>) => {
     return;
   }
   // The bitmap only ever GROWS: shrinking and regrowing it on every zoom meant a fresh 20-30 MB buffer each
-  // time, and the iPhone's memory did not keep up. Mid-gesture (`live`) it is kept whatever its size and the
-  // plane's resolution is adapted to it. The part beyond the drawn plane stays transparent; the shader shows
-  // plain paper there.
-  if (live && canvas.width > 1) p.k = Math.min(p.k, canvas.width / p.w, canvas.height / p.h);
-  else {
-    const pw = Math.round(p.w * p.k), ph = Math.round(p.h * p.k);
-    if (canvas.width < pw || canvas.height < ph) { canvas.width = Math.max(canvas.width, pw); canvas.height = Math.max(canvas.height, ph); }
-  }
+  // time, and the iPhone's memory did not keep up. Growing happens here, off the main thread, and only up to the
+  // budget - so a mid-gesture (`live`) drawing may grow it too; kept at its old size it stayed soft however often
+  // it was redrawn (Lukas). The part beyond the drawn plane stays transparent; the shader shows plain paper there.
+  const pw = Math.round(p.w * p.k), ph = Math.round(p.h * p.k);
+  if (canvas.width < pw || canvas.height < ph) { canvas.width = Math.max(canvas.width, pw); canvas.height = Math.max(canvas.height, ph); }
+  void live;
   drawScene(ctx, view, p, scene, assets, now);
   const { data } = ctx.getImageData(0, 0, canvas.width, canvas.height);
   port.postMessage({ id, pixels: data.buffer, w: canvas.width, h: canvas.height, k: p.k }, [data.buffer]);

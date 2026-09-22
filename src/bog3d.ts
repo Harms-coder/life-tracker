@@ -489,6 +489,9 @@ export function createBook3D(canvas: HTMLCanvasElement, persp: number): Book3D |
     gl.bindTexture(gl.TEXTURE_2D, t);
     for (const p of [gl.TEXTURE_WRAP_S, gl.TEXTURE_WRAP_T]) gl.texParameteri(gl.TEXTURE_2D, p, gl.CLAMP_TO_EDGE);
     for (const p of [gl.TEXTURE_MIN_FILTER, gl.TEXTURE_MAG_FILTER]) gl.texParameteri(gl.TEXTURE_2D, p, gl.LINEAR);
+    // one clear texel until the first drawing lands: a texture with nothing in it samples as opaque BLACK, and
+    // that was the black book for a split second at start-up (Lukas). Clear, the shader falls through to paper.
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array(4));
     return { t, w: 0, h: 0 };
   };
   // front = what is drawn, back = what is being uploaded; they swap when the upload is complete
