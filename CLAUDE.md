@@ -166,6 +166,35 @@ Rækker = dage 1–31 (antal efter måneden). Kolonner = brugerens egne trackere
 - Test-scripts ligger i sessionens scratchpad (`pw/shots.mjs` skærmbilleder, `pw/bench.mjs` frame-tider i WebKit,
   `pw/tapcheck.mjs` tryk). Dev-server: `npm run dev`. I dev sætter BookCanvas `window.__view` (x, y, s) til scripts.
 
+## Status 2026-09-22 kl. 17.15 – SESSIONEN LUKKET NED, ALT ER PUSHET
+
+**Live:** https://harms-coder.github.io/life-tracker/ · **Galleri:** https://claude.ai/artifact/S914mdZ2Tq4gAuqWUrxLYb
+Arbejdstræet er rent. Lukas' sidste ord: "det er godt arbejde". Bladringen er GODKENDT på telefonen: udseende,
+lys der følger bladet, ingen hak, ingen blink, ingen streger. Detaljerne står i afsnittet lige under.
+
+### Det blev lavet i dag (nyeste først)
+1. Finger-bladring kun helt zoomet ud og kun fra sidens yderste halvdel; ellers panorerer man. Pile altid.
+2. Alle teksturopslag i fragment-shaderen ubetinget (tynd streg på telefonen under vending).
+3. Kanten: mørkt omslag under siderne, skørterne mødes i hjørnet, kanten bygget på omslagets egen kant.
+4. Bladring: bladet tegnes fra p = 0 (blink ved tryk), oversigt 2048×1024 m. mipmaps, fade ved landing,
+   ingen zoom-ud ved pil (kameraet står længere væk for bladet), lyset følger bladet, bagside rigtig begge veje.
+5. Måneder gemt hver for sig i localStorage (`values-/notes-/photos-<år>-<måned>`), sidst åbne måned huskes.
+
+### FØRSTE SKRIDT NÆSTE GANG
+- Spørg, om finger-bladringen nu er for svær at ramme (GRAB_ZOOM 1,08 / GRAB_OUTER 0,5 i BookCanvas.tsx).
+- Roadmap trin 2 rest: IndexedDB i stedet for localStorage (billederne fylder). Trin 5: finpudsning.
+- Kendt: zoomet langt ind ses bladets skygge på siden under som 5 trin (SHADOW_PASSES).
+- Ubesvaret fra 22/9 formiddag: billedpladsen b4 øverst til højre på højresiden – ligger den rigtigt?
+
+### LÆRT I DAG
+1. **Når Lukas siger PRÆCIS hvornår noget sker ("idet jeg trykker på pilen"), så er det svaret.** Jeg brugte to
+   runder på landingen (fade, mipmaps), før jeg tog "idet jeg trykker" bogstaveligt og fandt den manglende
+   frame (bladet ikke tegnet ved p = 0). Find den frame, gæt ikke.
+2. **Telefon-only fejl (streger, blink) = GPU-forskelle.** Headless Chrome viser dem aldrig. Regel: ingen
+   texture2D inde i per-fragment-grene; ingen mipmap-løse teksturer der formindskes.
+3. **Skær tegnepas fra ét ad gangen (`?skip=`) og MÅL i pixels** i stedet for at ræsonnere om geometri i
+   hovedet – ternstriben under stakken tog 40 min at forstå og 5 at rette.
+
 ## Status 2026-09-22 kl. 16.05 – BLADRING MELLEM MÅNEDER (roadmap trin 2, første udgave)
 
 **Live:** https://harms-coder.github.io/life-tracker/ · **Galleri:** https://claude.ai/artifact/S914mdZ2Tq4gAuqWUrxLYb
