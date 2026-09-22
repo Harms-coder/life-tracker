@@ -7,6 +7,7 @@ type Writing = NonNullable<Scene["writing"]>;
 import { BOOK_H, BOOK_W, columnXs, dotX, hitTest, NOTE_LABEL, RIGHT_PAGE, widthOf, CELL, type ColType, type Column, type NoteField } from "./layout";
 import { seededRandom } from "./random";
 import { HANDS, setHand, type Hand } from "./glyf";
+import { migrate as migratePhotos, photosNow, save as savePhotosTo, warm as warmPhotos } from "./photos";
 
 declare const __BUILD__: string; // set in vite.config.ts
 
@@ -48,7 +49,7 @@ const generateId = () => Date.now().toString(36) + Math.random().toString(36).sl
 
 type Values = Record<string, string>; // "x" for checks, "71,5" / "8" for numbers, "7.5" for dots
 type Notes = Partial<Record<NoteField, string>>;
-type Photos = Record<string, string>; // slot -> a small JPEG as a data URL
+import type { Photos } from "./photos"; // slot -> a small JPEG as a data URL, kept in IndexedDB
 
 // ponytail: example text/values so the layout can be judged; seeded once, then Lukas' own data takes over
 const DEMO_NOTES: Notes = {
@@ -204,18 +205,18 @@ export default function App() {
   const [values, setValues] = useState<Values>(() => load(keyOf("values", month), {}));
   const [notes, setNotes] = useState<Notes>(() => load(keyOf("notes", month), {}));
   const [hand, setHandState] = useState<Hand>(() => (localStorage.getItem(HAND_KEY) as Hand) in HANDS ? (localStorage.getItem(HAND_KEY) as Hand) : "lukas");
-  const [photos, setPhotos] = useState<Photos>(() => load(keyOf("photos", month), {}));
+  const [photos, setPhotos] = useState<Photos>(() => photosNow(keyOf("photos", month)));
   const DAYS = daysOf(month), VALUES_KEY = keyOf("values", month), NOTES_KEY = keyOf("notes", month), PHOTOS_KEY = keyOf("photos", month);
   const sceneOf = (m: Month, v: Values, n: Notes): Scene => ({ ...m, monthLabel: labelOf(m), days: daysOf(m), columns, values: v, notes: n, writing: null, hand, headPos: HEAD_POS || undefined });
   /** The spread on the other side of a leaf turned in `dir`, read straight from storage. */
   const otherScene = (dir: 1 | -1) => {
     const m = stepMonth(month, dir);
-    return { scene: sceneOf(m, load(keyOf("values", m), {}), load(keyOf("notes", m), {})), photos: load<Photos>(keyOf("photos", m), {}) };
+    return { scene: sceneOf(m, load(keyOf("values", m), {}), load(keyOf("notes", m), {})), photos: photosNow(keyOf("photos", m)) };
   };
   /** The leaf has landed: the book is open at that month now. */
   const onTurned = (dir: 1 | -1) => {
     const m = stepMonth(month, dir);
-    setMonth(m); setValues(load(keyOf("values", m), {})); setNotes(load(keyOf("notes", m), {})); setPhotos(load(keyOf("photos", m), {}));
+    setMonth(m); setValues(load(keyOf("values", m), {})); setNotes(load(keyOf("notes", m), {})); setPhotos(photosNow(keyOf("photos", m)));
     localStorage.setItem(MONTH_KEY, JSON.stringify(m));
   };
   const [prompt, setPrompt] = useState<Prompt | null>(null);
@@ -229,6 +230,18 @@ export default function App() {
   setHand(hand); // the hit-test measures text here too, and the widths differ between the two hands
   const redraw = () => book.current?.redraw();
   useEffect(() => { book.current?.setPhotos(photos); book.current?.refresh(); }, [month, columns, values, notes, hand, photos]);
+  // The pictures come out of IndexedDB, which cannot be read on the spot: the month on screen is read first and
+  // shown as soon as it is there, then its neighbours, so a leaf taken hold of already has theirs in hand.
+  useEffect(() => {
+    let live = true;
+    (async () => {
+      await migratePhotos();
+      const mine = await warmPhotos(keyOf("photos", month));
+      if (live) setPhotos(mine);
+      for (const dir of [1, -1] as const) await warmPhotos(keyOf("photos", stepMonth(month, dir)));
+    })();
+    return () => { live = false; };
+  }, [month]);
 
   /** Write it in the book the way a hand would: the rubber first goes over what was taken away, then the pen
    *  writes what was added - and only that. Adding a question mark writes the question mark, not the sentence. */
@@ -316,8 +329,7 @@ export default function App() {
   const savePhotos = (next: Photos) => {
     setPhotos(next);
     setPrompt(null);
-    try { localStorage.setItem(PHOTOS_KEY, JSON.stringify(next)); }
-    catch { alert("Der er ikke plads til flere billeder på telefonen. Fjern et af dem først."); }
+    savePhotosTo(PHOTOS_KEY, next).catch(() => alert("Der er ikke plads til flere billeder på telefonen. Fjern et af dem først."));
   };
   const pickPhoto = (slot: string) => { fileSlot.current = slot; fileInput.current?.click(); };
   const onFile = async (e: FormEvent<HTMLInputElement>) => {
