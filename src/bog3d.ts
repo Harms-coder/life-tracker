@@ -690,14 +690,34 @@ export function createBook3D(canvas: HTMLCanvasElement, persp: number): Book3D |
       // are all painted and then painted over: ten full-screen passes a frame for nothing, and the pan stuttered
       // on the phone (Lukas). Then only the pages are drawn. Flat only: tipped, the projection moves the edges.
       const m = COVER * view.s;
-      const covered = flat === 0 && !turn && view.x + m < 0 && view.y + m < 0 && view.x + BOOK_W * view.s - m > w && view.y + BOOK_H * view.s - m > h;
+      // Everything under the pages - the table, the shadow's five passes, the board, the page stack - can only be
+      // seen OUTSIDE the pages' footprint. Zoomed in that is a strip along one edge of the screen, or nothing at
+      // all, so they are scissored to it. Before, it was all-or-nothing: the moment a pan reached a page edge the
+      // whole screen was painted 21 times over a frame, and fill rate at 3x DPR is what a pan costs on the phone
+      // (Lukas: "hakker meget"). Flat only - tipped, the projection moves the edges off this flat rectangle.
+      const px0 = view.x + m, py0 = view.y + m, px1 = view.x + BOOK_W * view.s - m, py1 = view.y + BOOK_H * view.s - m;
+      let cx0 = 0, cy0 = 0, cx1 = w, cy1 = h;
+      if (flat === 0 && !turn) {
+        // a strip is only left over along the axis the pages do NOT span; spanning both leaves nothing at all
+        if (py0 <= 0 && py1 >= h) { if (px0 <= 0) cx0 = Math.min(w, px1); if (px1 >= w) cx1 = Math.max(0, px0); }
+        if (px0 <= 0 && px1 >= w) { if (py0 <= 0) cy0 = Math.min(h, py1); if (py1 >= h) cy1 = Math.max(0, py0); }
+      }
+      const covered = cx1 <= cx0 || cy1 <= cy0;
+      const clipped = !covered && (cx0 > 0 || cy0 > 0 || cx1 < w || cy1 < h);
+      const clip = (on: boolean) => {
+        if (!clipped) return;
+        if (on) { gl.enable(gl.SCISSOR_TEST); gl.scissor(Math.floor(cx0), Math.floor(h - cy1), Math.ceil(cx1 - cx0), Math.ceil(cy1 - cy0)); }
+        else gl.disable(gl.SCISSOR_TEST);
+      };
       const drawAll = (shadow: boolean) => {
         if (covered) {
+          if (shadow) return;
           gl.uniform4f(U.flat, 0, 0, 0, 0);
           gl.uniform4f(U.paper, 0.94, 0.91, 0.83, 1);
           bind(slots.pages); gl.drawElements(gl.TRIANGLES, slots.pages.n, gl.UNSIGNED_SHORT, 0);
           return;
         }
+        clip(true);
         // board, then the page stack standing on it, then the pages on top: the board is wider than the stack,
         // so drawn later it would paint right over it. The board mesh is LIP wider than the book (its texture
         // ends there anyway), so it stays out of the shadow: painted dark it was a frame all round the flat book.
@@ -710,17 +730,21 @@ export function createBook3D(canvas: HTMLCanvasElement, persp: number): Book3D |
         if (!SKIP.includes("edges")) { bind(slots.edges); gl.drawElements(gl.TRIANGLES, slots.edges.n, gl.UNSIGNED_SHORT, 0); }
         gl.uniform4f(U.flat, 0, 0, 0, 0);
         gl.uniform4f(U.paper, 0.94, 0.91, 0.83, 1); // draw.ts' PAPER
+        if (!shadow) clip(false); // the pages are the thing itself, not something lying under them
         if (!SKIP.includes("pages")) { bind(slots.pages); gl.drawElements(gl.TRIANGLES, slots.pages.n, gl.UNSIGNED_SHORT, 0); }
+        clip(false);
       };
       // the table under everything: its colour out to the padding, then the picture, both faded in as the camera
       // goes overhead. Drawn here rather than as an <img> in the page: a picture this size under a scale that
       // changes every frame had Safari on the iPhone re-rasterising it over and over, until it gave the page up.
       if (fade > 0 && !covered) {
+        clip(true);
         gl.uniform1f(U.fade, fade);
         gl.uniform1f(U.table, 1); gl.uniform4f(U.flat, 0.706, 0.498, 0.318, 1); // #b47f51, the wood's own colour
         bind(slots.tableFill); gl.drawElements(gl.TRIANGLES, slots.tableFill.n, gl.UNSIGNED_SHORT, 0);
         if (hasTable) { gl.uniform1f(U.table, 2); bind(slots.tableImg); gl.drawElements(gl.TRIANGLES, slots.tableImg.n, gl.UNSIGNED_SHORT, 0); }
         gl.uniform1f(U.table, 0);
+        clip(false);
       }
       // the shadow, under the book: passes of growing length add up to a penumbra - dark at the foot, fading out.
       // Where the laid-down mesh overlaps itself a pixel darkens twice; that strip lies along the book's edge and

@@ -8,3 +8,5 @@ haandskrift/arbejde
 haandskrift/fotos/*.heic
 haandskrift/fotos/*.HEIC
 screenshots/*/
+screenshots/*.json
+screenshots/*.jpeg
