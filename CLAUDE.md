@@ -232,6 +232,11 @@ og om den hakker). Hans valg mellem finger og pile: begge er lavet, han kan skæ
   `buildRim` var bygget på BOOK-hjørnerne (30 px inde i pladen), så dens sideflade stak op som en mørk kile i
   hjørnet; nu bygges den på LIP-kassen = pladens egen kant. `?skip=cover,rim,edges,pages` udelader tegnepas
   (fejlsøgning). `node tools/edgecheck.mjs <mappe>` = fit-visning + hjørne ved s=0,28/0,31. UBEKRÆFTET af Lukas.
+- Lukas (17.00): en tynd lys lodret streg på omslagets kant over/under højresiden, KUN mens et blad vender,
+  kun på telefonen (aldrig i Chrome). Diagnose: teksturopslag (texture2D) inde i per-fragment-grene → udefinerede
+  afledte → Apple-GPU'en vælger forkert mipmap-niveau langs grenens kant → 1-px streg. Nu læses ALLE teksturer
+  (u_img, u_over, u_next) ubetinget øverst i fragment-shaderen, og grenene vælger kun mellem resultaterne.
+  REGEL: aldrig texture2D inde i en if der afhænger af fragmentet. UBEKRÆFTET af Lukas.
 - Kendt: zoomet langt ind ses bladets skygge som 5 trin (SHADOW_PASSES) på siden under.
 - Åbent: stadig localStorage (IndexedDB er ikke lavet). Ingen stak af sider der bliver tyndere/tykkere med måneden.
 

@@ -259,10 +259,20 @@ void main() {
     gl_FragColor = vec4(u_flat.rgb * v_shade * sheet * light, 1.0);
     return;
   }
-  // zoomed in, the texture holds only the visible slice of the spread. A fast pan or zoom out runs off it before
-  // the next drawing is back (~150 ms on the phone): there, and wherever that drawing did not reach, the coarser
-  // whole-spread overview stands in, so the book never goes blank.
-  vec4 c;
+  // EVERY texture read happens here, before any per-fragment branch. Read inside a branch, the GPU cannot tell
+  // how fast the coordinates change across the pixels next to it, and on the iPhone it then picked a wrong
+  // mipmap level along the branch's edge: a thin pale line across the board while a leaf was turning (Lukas).
+  // zoomed in, the sharp texture holds only the visible slice of the spread. A fast pan or zoom out runs off it
+  // before the next drawing is back (~150 ms on the phone): there, and wherever that drawing did not reach, the
+  // coarser whole-spread overview stands in, so the book never goes blank.
+  bool outside = v_uv.x < 0.0 || v_uv.x > 1.0 || v_uv.y < 0.0 || v_uv.y > 1.0;
+  vec4 img = texture2D(u_img, clamp(v_uv, 0.0, 1.0)) * (outside ? 0.0 : 1.0);
+  vec4 over = texture2D(u_over, v_ouv) * (u_hasOver > 0.5 ? 1.0 : 0.0);
+  // The flat spread is drawn clockwise on screen, so a page lying the right way up is back-facing to GL (mirrored
+  // for the other direction, so front-facing); once the leaf has swung past upright its winding flips, and that
+  // is its back: the other spread, mirrored about the spine.
+  bool leafBack = u_leaf > 0.0 && gl_FrontFacing == (u_turn.x > 0.0);
+  vec4 nxt = texture2D(u_next, leafBack ? v_buv : v_ouv) * (u_hasNext > 0.5 ? 1.0 : 0.0);
   // The board carries the same flat picture as the pages (they are one drawing), so any sliver of it that shows
   // between the page stack and the board's edge came out as paper with a grid on it (Lukas). Under the pages
   // the board is dark, like its rim: a sliver there now reads as the shadow under the page block.
@@ -270,24 +280,16 @@ void main() {
     vec2 sp = v_ouv * vec2(${BOOK_W + 2 * LIP}.0, ${BOOK_H + 2 * LIP}.0) - ${LIP}.0;
     if (sp.x > ${COVER}.0 && sp.x < ${BOOK_W - COVER}.0 && sp.y > ${COVER}.0 && sp.y < ${BOOK_H - COVER}.0) { gl_FragColor = vec4(vec3(0.10, 0.09, 0.08) * v_shade * light, 1.0); return; }
   }
-  // The flat spread is drawn clockwise on screen, so a page lying the right way up is back-facing to GL (mirrored
-  // for the other direction, so front-facing); once the leaf has swung past upright its winding flips, and that
-  // is its back: the other spread, mirrored about the spine.
+  vec4 c;
   // Until the other spread's picture has arrived (it is drawn when the turn begins), the page under the leaf keeps
   // what it showed: plain paper there lost the fold's shadow and flashed white down the spine (Lukas).
-  bool leafBack = u_leaf > 0.0 && gl_FrontFacing == (u_turn.x > 0.0);
-  if (leafBack) c = u_hasNext > 0.5 ? texture2D(u_next, v_buv) : vec4(0.0);
-  else if (u_leaf < 0.5 && u_turnSide * v_side > 0.5 && u_hasNext > 0.5) c = texture2D(u_next, v_ouv);
+  if (leafBack) c = nxt;
+  else if (u_leaf < 0.5 && u_turnSide * v_side > 0.5 && u_hasNext > 0.5) c = nxt;
   else {
-    bool outside = v_uv.x < 0.0 || v_uv.x > 1.0 || v_uv.y < 0.0 || v_uv.y > 1.0;
-    c = outside ? vec4(0.0) : texture2D(u_img, v_uv);
-    if (u_hasOver > 0.5) {
-      // After a leaf has landed the coarse picture stands in until the sharp one is drawn; the two are drawn at
-      // different resolutions, and swapping them in one frame made thin strokes jump (Lukas). So the sharp one
-      // fades in over it instead.
-      vec4 o = texture2D(u_over, v_ouv);
-      c = c.a < 0.01 ? o : (o.a < 0.01 ? c : mix(o, c, u_mix));
-    }
+    // After a leaf has landed the coarse picture stands in until the sharp one is drawn; the two are drawn at
+    // different resolutions, and swapping them in one frame made thin strokes jump (Lukas). So the sharp one
+    // fades in over it instead.
+    c = img.a < 0.01 ? over : (over.a < 0.01 ? img : mix(over, img, u_mix));
   }
   if (c.a < 0.01) { // the board's rounded corners - or nothing drawn there yet: paper
     if (u_paper.a <= 0.0) discard;
