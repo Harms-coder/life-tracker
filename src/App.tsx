@@ -161,7 +161,9 @@ function Lines({ value, bullets }: { value: string; bullets: boolean }) {
       {rows.map((r, i) => (
         <div className="line" key={i}>
           {bullets && <span className={r.trim() ? "dot" : "dot empty"}>•</span>}
-          <input value={r} autoFocus={i === 0} enterKeyHint="next" onKeyDown={(e) => onKey(e, i)} onChange={(e) => set(i, e.target.value)} />
+          {/* the caret starts on the empty line at the BOTTOM: opening a box is nearly always to add a point,
+              not to edit the first one (Lukas) */}
+          <input value={r} autoFocus={i === rows.length - 1} enterKeyHint="next" onKeyDown={(e) => onKey(e, i)} onChange={(e) => set(i, e.target.value)} />
         </div>
       ))}
     </div>

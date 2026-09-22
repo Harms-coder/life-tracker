@@ -182,6 +182,13 @@ telefonens egen emoji-skrift midt i skriften (`glyf.ts`):
   telefonens emoji-tastatur virker uden videre.
 - `node tools/emojicheck.mjs screenshots/emoji.png` = mål + plan med emojis, zoomet ind.
 
+## Status 2026-09-22 kl. 20.15 – MARKØREN STARTER NEDERST
+Lukas: åbner man en skriveflade, sad markøren i den ØVERSTE linje – den skal stå i den tomme linje nederst, for
+man åbner næsten altid en kasse for at tilføje et punkt. `autoFocus={i === rows.length - 1}` i `Lines` (App.tsx).
+Gælder alle skriveflader med linjer (mål, planer, de fire kasser); tal/rating/kolonnenavn har kun ét felt.
+`node tools/focuscheck.mjs` siger hvilken linje markøren lander i, om den er tom, og om den er synlig i fladen.
+Målt: mål 1 (2 linjer) → linje 1, planer (4) → linje 3, Gør bedre (4) → 3, Hvad gik godt (9) → 8, alle tomme og synlige.
+
 ## Status 2026-09-22 kl. 20.05 – KUN DET ÆNDREDE SKRIVES, OG DET FJERNEDE VISKES UD
 
 Lukas: sætter man et spørgsmålstegn på en sætning, skal KUN spørgsmålstegnet skrives; fjerner man det igen, skal
