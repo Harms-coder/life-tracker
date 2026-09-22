@@ -166,6 +166,19 @@ Rækker = dage 1–31 (antal efter måneden). Kolonner = brugerens egne trackere
 - Test-scripts ligger i sessionens scratchpad (`pw/shots.mjs` skærmbilleder, `pw/bench.mjs` frame-tider i WebKit,
   `pw/tapcheck.mjs` tryk). Dev-server: `npm run dev`. I dev sætter BookCanvas `window.__view` (x, y, s) til scripts.
 
+## Status 2026-09-22 kl. 17.25 – INPUT-FLADERNE
+
+Lukas: "en utrolig grim hvid boks med standardtekst" når man trykker for at skrive. Alle fem flader
+(tal, rating, tekst, kolonne, håndskrift) er nu ÉN komponent, `Sheet` i App.tsx: ternet papir i bogens
+farver, overskrift + værdier i Caveat, ✕ til højre, glider op nedefra, baggrunden dæmpes og sløres let.
+- Rating vælges med ti knapper (`.chips`) i stedet for tastaturet; det tal der står i forvejen er fremhævet
+  (halve tal fra demo-data rundes, når der sammenlignes). Kolonnetypen er fire knapper i stedet for `<select>`.
+- Tekstfeltet har ingen egne linjer – papirets tern ER linjerne (line-height 40 px = 2 tern).
+- CSS'en ligger samlet under "input sheets" i index.css; farverne er bogens (--paper/--ink/grid).
+- `window.__tap(wx, wy)` i dev (BookCanvas) åbner en flade direkte fra et testscript.
+  `node tools/sheets.mjs screenshots/sheet` = ét billede pr. flade i Chrome 390×844@3.
+- IKKE SET AF LUKAS PÅ TELEFONEN ENDNU. Galleri: https://claude.ai/artifact/S914mdZ2Tq4gAuqWUrxLYb
+
 ## Status 2026-09-22 kl. 17.15 – SESSIONEN LUKKET NED, ALT ER PUSHET
 
 **Live:** https://harms-coder.github.io/life-tracker/ · **Galleri:** https://claude.ai/artifact/S914mdZ2Tq4gAuqWUrxLYb
