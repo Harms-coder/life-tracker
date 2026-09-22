@@ -19,7 +19,10 @@ const PIXEL_BUDGET = 6e6; // max canvas pixels: iOS Safari kills the page ("gent
 const LIVE_BUDGET = 2e6; // budget for the quick redraws in the middle of a pinch
 const LIVE_RATIO = 1.5; // redraw mid-pinch once the page texture is stretched this much
 const LIVE_GAP = 260;   // ms between such redraws
-const OVERVIEW_BUDGET = 2.5e6; // pixels for the whole-spread stand-in (~1.3 px per world px, 10 MB)
+/** The whole-spread stand-in is drawn into this many pixels: a power of two each way, so WebGL can mipmap it.
+ *  Without mipmaps it was minified with a plain 2x2 filter on the phone's screen, and the thin ink strokes all
+ *  but vanished for the moment it stood in after a page turn (Lukas: "teksten blinker væk"). 8 MB + mipmaps. */
+const OVERVIEW_W = 2048, OVERVIEW_H = 1024;
 
 export type BookCanvasHandle = {
   /** draw the visible part again (the pen-stroke animation calls this every frame) */
@@ -248,8 +251,7 @@ export const BookCanvas = forwardRef<BookCanvasHandle, {
    *  reach, so a fast zoom out or pan never shows a blank page while the next drawing is on its way. */
   const renderOverview = (of?: { scene: Scene; photos: Record<string, string> }) => {
     const w = BOOK_W + 2 * LIP, h = BOOK_H + 2 * LIP; // the whole board, lip and all: that is what v_ouv maps onto
-    const k = Math.sqrt(OVERVIEW_BUDGET / (w * h));
-    const req: RenderRequest = { id: gen.current, view: { x: 0, y: 0, s: 1 }, plane: { x0: -LIP, y0: -LIP, w, h, k }, live: false, scene: of?.scene ?? scene.current, now: performance.now(), overview: true };
+    const req: RenderRequest = { id: gen.current, view: { x: 0, y: 0, s: 1 }, plane: { x0: -LIP, y0: -LIP, w, h, k: OVERVIEW_W / w, ky: OVERVIEW_H / h }, live: false, scene: of?.scene ?? scene.current, now: performance.now(), overview: true };
     if (of) { req.slot = "next"; req.photos = of.photos; }
     worker.current?.postMessage(req);
   };

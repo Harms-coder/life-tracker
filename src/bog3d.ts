@@ -501,13 +501,18 @@ export function createBook3D(canvas: HTMLCanvasElement, persp: number): Book3D |
   gl.uniform1f(U.hasNext, 0);
   gl.uniform1f(U.turnSide, 0);
   gl.uniform1f(U.leaf, 0);
-  /** A coarse whole-spread picture, in one go (they only change when something is written, never mid-gesture). */
+  /** A coarse whole-spread picture, in one go (they only change when something is written, never mid-gesture).
+   *  It is a power of two each way (BookCanvas draws it so), which is what lets WebGL 1 mipmap it: shown smaller
+   *  than it is, a plain 2x2 filter dropped most of every thin ink stroke, and the writing all but vanished for
+   *  the moment the picture stood in after a page turn. */
   const putWhole = (unit: number, tex: { t: WebGLTexture; w: number; h: number }, pixels: Uint8Array, w: number, h: number) => {
     gl.activeTexture(gl.TEXTURE0 + unit);
     gl.bindTexture(gl.TEXTURE_2D, tex.t);
     gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, 0);
     if (tex.w === w && tex.h === h) gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, w, h, gl.RGBA, gl.UNSIGNED_BYTE, pixels);
     else { gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, w, h, 0, gl.RGBA, gl.UNSIGNED_BYTE, pixels); tex.w = w; tex.h = h; }
+    const pot = (n: number) => (n & (n - 1)) === 0;
+    if (pot(w) && pot(h)) { gl.generateMipmap(gl.TEXTURE_2D); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR); }
     gl.activeTexture(gl.TEXTURE0);
   };
   gl.uniform4f(U.tableRect, TABLE.x, TABLE.y, TABLE.w, TABLE.h);

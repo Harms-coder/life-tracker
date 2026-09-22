@@ -47,7 +47,7 @@ onmessage = async (e: MessageEvent<RenderRequest>) => {
   }
   assets.photos = Object.fromEntries([...set].map(([ps, { bm }]) => [ps, bm]));
   if (overview) {
-    const w = Math.round(p.w * p.k), h = Math.round(p.h * p.k);
+    const w = Math.round(p.w * p.k), h = Math.round(p.h * (p.ky ?? p.k));
     if (overCanvas.width !== w || overCanvas.height !== h) { overCanvas.width = w; overCanvas.height = h; }
     const oc = overCanvas.getContext("2d")!;
     drawScene(oc, view, p, { ...scene, writing: null }, assets, now);

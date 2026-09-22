@@ -214,6 +214,11 @@ og om den hakker). Hans valg mellem finger og pile: begge er lavet, han kan skæ
   efter landing står oversigten (1,3 px/verdens-px) i, til detaljen (skærmopløsning) er tegnet; de to er tegnet i
   forskellig opløsning, og skiftet på ét frame = hop. Nu: `u_mix` i shaderen – detaljen tones ind over oversigten
   på 220 ms (`detailMix`/`fadeFrom` i bog3d.ts, `pending()` holder paint-løkken kørende imens). UBEKRÆFTET.
+- Lukas (16.30): blinkede STADIG – "al teksten på siden blinker væk og kommer tilbage på et splitsekund". Årsag:
+  oversigten (1,3 px/verdens-px) vises på telefonen formindsket ~1,7× UDEN mipmaps (2×2-filter), så tynde
+  blækstreger næsten forsvinder i de ~150 ms den står i. Nu tegnes oversigten i 2048×1024 (potens af to, `OVERVIEW_W/H`,
+  `plane.ky` = lodret opløsning for sig) og `putWhole` laver mipmaps + LINEAR_MIPMAP_LINEAR. Hukommelse: 8 MB + 2,7
+  pr. stk. (over + next) ≈ som før. UBEKRÆFTET af Lukas. Headless Chrome viste aldrig blinket – kun telefonen.
 - Kendt: zoomet langt ind ses bladets skygge som 5 trin (SHADOW_PASSES) på siden under.
 - Åbent: stadig localStorage (IndexedDB er ikke lavet). Ingen stak af sider der bliver tyndere/tykkere med måneden.
 

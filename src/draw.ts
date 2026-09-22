@@ -29,8 +29,9 @@ export type Assets = {
 };
 /** world -> plane: plane = world * s + (x, y) */
 export type View = { x: number; y: number; s: number };
-/** the part of the plane the canvas covers, and its resolution (device px per plane px) */
-export type Plane = { x0: number; y0: number; w: number; h: number; k: number };
+/** the part of the plane the canvas covers, and its resolution (device px per plane px; `ky` when it differs
+ *  vertically - the whole-spread stand-in is drawn into a power-of-two canvas so WebGL can mipmap it) */
+export type Plane = { x0: number; y0: number; w: number; h: number; k: number; ky?: number };
 
 const INK = "#1e2233", PAPER = "#efe9d4", GRID = "rgba(120,150,130,.42)";
 export const WEEKDAY = "SMTOTFL"; // indexed by Date.getDay()
@@ -177,10 +178,10 @@ const count = (values: Record<string, string>, col: Column) => Object.keys(value
 // ---------------------------------------------------------------------------------------------
 
 export function drawScene(ctx: Ctx, view: View, plane: Plane, scene: Scene, assets: Assets, now: number) {
-  const { s } = view, k = plane.k;
+  const { s } = view, k = plane.k, ky = plane.ky ?? plane.k;
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
-  ctx.setTransform(s * k, 0, 0, s * k, (view.x - plane.x0) * k, (view.y - plane.y0) * k);
+  ctx.setTransform(s * k, 0, 0, s * ky, (view.x - plane.x0) * k, (view.y - plane.y0) * ky);
   const vis: Rect = { x: (plane.x0 - view.x) / s, y: (plane.y0 - view.y) / s, w: plane.w / s, h: plane.h / s };
   setHand(scene.hand);
   drawBackground(ctx, vis, assets);
