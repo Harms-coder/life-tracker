@@ -83,8 +83,9 @@ export function drawText(ctx: OffscreenCanvasRenderingContext2D, str: string, x:
 }
 
 /**
- * One character drawn to fill a cell (used for the X's in the table). `progress` 0..1 reveals it left to
- * right, which is what gives the written-just-now stroke when a box is ticked.
+ * One character drawn to fill a cell (used for the X's in the table). `progress` 0..1 draws it the way a hand
+ * does: the first stroke is pulled from one corner to the other, then the second one crosses it. The glyph is a
+ * traced outline, not a pen path, so each stroke is revealed through a narrow band laid along its own line.
  */
 export function drawInBox(ctx: OffscreenCanvasRenderingContext2D, ch: string, x: number, y: number,
                           w: number, h: number, seed: string, progress = 1) {
@@ -97,7 +98,21 @@ export function drawInBox(ctx: OffscreenCanvasRenderingContext2D, ch: string, x:
   ctx.save();
   ctx.translate(x + (w - gw) / 2 + (r() - 0.5) * w * 0.07, y + (h - gh) / 2 + (r() - 0.5) * h * 0.07);
   ctx.rotate((r() - 0.5) * 0.14);
-  if (progress < 1) { ctx.beginPath(); ctx.rect(-gw * 0.2, -gh * 0.3, gw * (0.4 + 1.2 * progress), gh * 1.6); ctx.clip(); }
+  if (progress < 1) {
+    // \ first, then /, each growing from its starting corner
+    const hw = 0.17 * Math.min(gw, gh);
+    const band = (x1: number, y1: number, x2: number, y2: number, p: number) => {
+      const len = Math.hypot(x2 - x1, y2 - y1);
+      const ux = (x2 - x1) / len, uy = (y2 - y1) / len, nx = -uy * hw, ny = ux * hw;
+      const ex = x1 + ux * len * p + ux * hw, ey = y1 + uy * len * p + uy * hw;
+      const sx = x1 - ux * hw, sy = y1 - uy * hw;
+      ctx.moveTo(sx + nx, sy + ny); ctx.lineTo(ex + nx, ey + ny); ctx.lineTo(ex - nx, ey - ny); ctx.lineTo(sx - nx, sy - ny); ctx.closePath();
+    };
+    ctx.beginPath();
+    band(0, 0, gw, gh, Math.min(1, progress * 2));
+    if (progress > 0.5) band(gw, 0, 0, gh, progress * 2 - 1);
+    ctx.clip();
+  }
   ctx.scale(s, s);
   ctx.translate(0, v.t > 0 ? 0 : v.t);
   ctx.scale(v.k, v.k);

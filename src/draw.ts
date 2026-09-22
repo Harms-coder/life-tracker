@@ -18,8 +18,9 @@ export type Scene = {
   values: Record<string, string>;
   notes: Partial<Record<NoteField, string>>;
   /** what the pen is writing right now: the value key ("5:loeb") or note field, when it started, how long it
-   *  takes. Everything written in the book comes in this way, stroke by stroke, as if by hand. */
-  writing: { key: string; start: number; ms: number } | null;
+   *  takes, and - for a list of points - WHICH lines are new. Only those are written; what was already on the
+   *  page stays where it is (Lukas: it must not rewrite the whole box). */
+  writing: { key: string; start: number; ms: number; lines?: number[] } | null;
   /** whose handwriting the page is written in */
   hand: Hand;
 };
@@ -42,6 +43,8 @@ type Ctx = OffscreenCanvasRenderingContext2D;
 /** How far the pen has got on `key`: 1 when nothing is being written there. */
 const penAt = (scene: Scene, key: string, now: number) =>
   scene.writing?.key === key ? Math.max(0, Math.min(1, (now - scene.writing.start) / scene.writing.ms)) : 1;
+/** Which lines of that note are being written (undefined = all of it, or nothing is). */
+const penLines = (scene: Scene, key: string) => (scene.writing?.key === key ? scene.writing.lines : undefined);
 
 const overlaps = (a: Rect, b: Rect) => a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
 
@@ -126,7 +129,7 @@ function wrap(_ctx: Ctx, str: string, width: number, size: number): string[] {
 }
 
 /** Free text written line by line on the grid; `bullets` puts a dot in front of each paragraph. */
-function noteText(ctx: Ctx, str: string, box: Rect, seed: string, o: { bullets?: boolean; minRows?: number; top?: number; reveal?: number }) {
+function noteText(ctx: Ctx, str: string, box: Rect, seed: string, o: { bullets?: boolean; minRows?: number; top?: number; reveal?: number; lines?: number[] }) {
   const indent = o.bullets ? 14 : 0, size = 15.5;
   const paras = str.split("\n").filter((p) => p.trim());
   while (paras.length < (o.minRows ?? 0)) paras.push("");
@@ -137,14 +140,16 @@ function noteText(ctx: Ctx, str: string, box: Rect, seed: string, o: { bullets?:
     const lines = para ? wrap(ctx, para, box.w - 10 - indent, size) : [""];
     lines.forEach((line, j) => rows.push({ bullet: !!o.bullets && j === 0, line, i, j, row: row++ }));
   });
-  const written = rows.filter((r) => r.line).length;
+  // only the new points are written; the rest is already on the page
+  const isNew = (i: number) => o.reveal !== undefined && (!o.lines || o.lines.includes(i));
+  const written = rows.filter((r) => r.line && isNew(r.i)).length;
   let done = 0;
   for (const r of rows) {
     const y = box.y + (o.top ?? 0) + r.row * CELL + 15;
-    // each written line takes its turn: the pen finishes one before it starts the next
-    const p = o.reveal === undefined ? 1 : Math.max(0, Math.min(1, o.reveal * written - done));
+    // each new line takes its turn: the pen finishes one before it starts the next
+    const p = !r.line || !isNew(r.i) ? 1 : Math.max(0, Math.min(1, o.reveal! * written - done));
     if (r.bullet && p > 0) text(ctx, "•", box.x + 6, y, { size: 22, weight: 700, seed: seed + "b" + r.i, tilt: 0 });
-    if (r.line) { text(ctx, r.line, box.x + 6 + indent, y, { size, seed: seed + r.i + "-" + r.j, tilt: 0.25, reveal: p }); done++; }
+    if (r.line) { text(ctx, r.line, box.x + 6 + indent, y, { size, seed: seed + r.i + "-" + r.j, tilt: 0.25, reveal: p }); if (isNew(r.i)) done++; }
   }
 }
 
@@ -333,7 +338,7 @@ function drawLeftPage(ctx: Ctx, scene: Scene, vis: Rect, now: number, assets: As
       handBox(ctx, { x: p.x, y: p.y, w: CELL, h: CELL }, "sq" + i);
       text(ctx, String(i + 1), p.x + CELL / 2, p.y + CELL / 2, { size: 18, weight: 700, seed: "gn" + i, align: "center", baseline: "middle" });
       const g = notes[`goal${i}`];
-      if (g) noteText(ctx, g, goalTextBox(i), "goal" + i, { reveal: penAt(scene, `goal${i}`, now) });
+      if (g) noteText(ctx, g, goalTextBox(i), "goal" + i, { reveal: penAt(scene, `goal${i}`, now), lines: penLines(scene, `goal${i}`) });
     }
   }
 
@@ -349,7 +354,7 @@ function drawLeftPage(ctx: Ctx, scene: Scene, vis: Rect, now: number, assets: As
         lines.forEach((line, j) => text(ctx, line, goal.x, goal.y + 19 + j * 21, { size: 18, seed: "pg" + i + j, tilt: 0.25, reveal: Math.max(0, Math.min(1, gp * lines.length - j)) }));
       }
       const pl = notes[`plan${i}`];
-      if (pl) noteText(ctx, pl, plan, "plan" + i, { bullets: true, reveal: penAt(scene, `plan${i}`, now) });
+      if (pl) noteText(ctx, pl, plan, "plan" + i, { bullets: true, reveal: penAt(scene, `plan${i}`, now), lines: penLines(scene, `plan${i}`) });
     }
   }
 
@@ -439,6 +444,6 @@ function drawRightPage(ctx: Ctx, scene: Scene, vis: Rect, now: number, assets: A
     const b = boxes[f];
     if (!overlaps(vis, b)) return;
     labelled(ctx, NOTE_LABEL[f], b.x + 6, b.y + 16, "n" + f);
-    noteText(ctx, notes[f] ?? "", b, f, { bullets: true, minRows: f === "good" ? 0 : 3, top: CELL, reveal: penAt(scene, f, now) });
+    noteText(ctx, notes[f] ?? "", b, f, { bullets: true, minRows: f === "good" ? 0 : 3, top: CELL, reveal: penAt(scene, f, now), lines: penLines(scene, f) });
   });
 }

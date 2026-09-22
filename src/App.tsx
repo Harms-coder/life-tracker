@@ -196,8 +196,9 @@ export default function App() {
 
   /** Write it in the book the way a hand would: the pen runs along the line while the book redraws.
    *  Everything goes through here - X's, weights, ratings and the text on both pages. */
-  const penWrite = (key: string, chars: number) => {
-    const w = { key, start: performance.now(), ms: Math.min(2600, 320 + chars * 45) * PEN_K };
+  const penWrite = (key: string, chars: number, lines?: number[]) => {
+    // a hand's pace: about nine characters a second, and never less than a moment (an X is two strokes)
+    const w = { key, start: performance.now(), ms: Math.min(6000, 260 + Math.max(chars, 5) * 110) * PEN_K, lines };
     scene.current.writing = w;
     const step = () => {
       if (scene.current.writing !== w) return; // something else is being written now
@@ -220,11 +221,15 @@ export default function App() {
     setPrompt(null);
   };
   const saveNote = (field: NoteField, text: string) => {
+    const before = (notes[field] ?? "").split("\n").filter((l) => l.trim());
     const next = { ...notes, [field]: text };
     setNotes(next);
     localStorage.setItem(NOTES_KEY, JSON.stringify(next));
     setPrompt(null);
-    if (text) penWrite(field, text.length);
+    // only what is new gets written: the lines that were not there before (Lukas)
+    const after = text.split("\n").filter((l) => l.trim());
+    const fresh = after.map((l, i) => (before.includes(l) ? -1 : i)).filter((i) => i >= 0);
+    if (fresh.length) penWrite(field, fresh.reduce((n, i) => n + after[i].length, 0), fresh);
   };
 
   /** How near the dot the finger has to land before it can slide it, in world px (a cell is 20). */
