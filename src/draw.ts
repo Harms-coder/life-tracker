@@ -2,7 +2,7 @@ import { seededRandom } from "./random";
 import { drawInBox, drawText, setHand, widthOfText, type Hand } from "./glyf";
 import {
   CELL, PAGE_W, PAGE_H, COVER, LIP, BOOK_W, BOOK_H, LEFT_PAGE, RIGHT_PAGE, HEADER_Y, TABLE_LEFT, DAY_COL_W,
-  TITLE_BOX_X, TITLE_BOX_Y, HEADER_H, GOALS, goalPos, goalTextBox, widthOf, dotX, columnXs, bottomY, noteBoxes, NOTE_LABEL,
+  TITLE_BOX_X, TITLE_BOX_Y, GOALS, goalPos, goalTextBox, widthOf, dotX, columnXs, bottomY, noteBoxes, NOTE_LABEL,
   type Column, type NoteField, type Rect,
 } from "./layout";
 
@@ -289,28 +289,24 @@ function drawRightPage(ctx: Ctx, scene: Scene, vis: Rect, now: number) {
   wobbly(ctx, TABLE_LEFT, HEADER_Y + days * CELL, right, HEADER_Y + days * CELL, "h2");
   strokeInk(ctx, 1.7);
 
-  // headers: centred in the header field. Hung off its bottom line they read as written ON the line (Lukas).
+  // headers: where they have always been, only lifted clear of the line they sit on (Lukas: the underside of
+  // the word must not be written down on it). LIFT is the whole change - do not move them about instead.
   if (overlaps(vis, { x: 0, y: 0, w: PAGE_W, h: HEADER_Y })) {
-    const mid = CELL + HEADER_H / 2;
-    /** shrink a name that would otherwise run out of the field */
-    const fit = (name: string, size: number, room: number, seed: string) => {
-      const w = widthOfText(name, size, seed);
-      return w > room ? (size * room) / w : size;
-    };
+    const LIFT = 10;
+    const hy = HEADER_Y - LIFT;
     columns.forEach((c, i) => {
       const left = xs[i + 1], w = widthOf(c.type) * CELL, seed = "h" + c.id;
       if (c.type === "dots") {
-        // the 0..10 scale stays down by the line it labels; the name sits in the middle of what is left
-        text(ctx, c.name, left + w / 2, (CELL + HEADER_Y - 22) / 2, { size: 16.5, seed, align: "center", baseline: "middle" });
-        for (const n of [0, 2, 4, 6, 8, 10]) text(ctx, String(n), left + dotX(n), HEADER_Y - 5, { size: 12, seed: "s" + n, align: "center" });
+        text(ctx, c.name, left + w / 2, hy - 30, { size: 16.5, seed, align: "center" });
+        for (const n of [0, 2, 4, 6, 8, 10]) text(ctx, String(n), left + dotX(n), hy - 5, { size: 12, seed: "s" + n, align: "center" });
       } else if (c.type === "number") {
-        text(ctx, c.name, left + w / 2, mid, { size: c.name.length > 5 ? 11 : 14, seed, align: "center", baseline: "middle", tilt: 0 });
+        text(ctx, c.name, left + w / 2, hy - 7, { size: c.name.length > 5 ? 11 : 14, seed, align: "center", tilt: 0 });
       } else {
         // reads bottom→top, letter bottoms facing right ("A")
-        text(ctx, c.name, left + w / 2 + 5, mid, { size: fit(c.name, 16.5, HEADER_H - 12, seed), seed, rotate: -Math.PI / 2, align: "center", baseline: "middle" });
+        text(ctx, c.name, left + w / 2 + 5, hy - 8, { size: 16.5, seed, rotate: -Math.PI / 2, baseline: "middle" });
       }
     });
-    text(ctx, "+", right + CELL / 2, mid, { size: 20, seed: "plus", align: "center", baseline: "middle", alpha: 0.35 });
+    text(ctx, "+", right + CELL / 2, hy - 6, { size: 20, seed: "plus", align: "center", alpha: 0.35 });
   }
 
   // day rows (only the visible ones)

@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type FormEvent } from "react";
 import { BookCanvas, type BookCanvasHandle } from "./BookCanvas";
 import { Backdrop } from "./Backdrop";
 import type { Scene } from "./draw";
-import { BOOK_H, BOOK_W, dotX, hitTest, NOTE_LABEL, widthOf, CELL, type ColType, type Column, type NoteField } from "./layout";
+import { BOOK_H, BOOK_W, columnXs, dotX, hitTest, NOTE_LABEL, RIGHT_PAGE, widthOf, CELL, type ColType, type Column, type NoteField } from "./layout";
 import { seededRandom } from "./random";
 import { HANDS, type Hand } from "./glyf";
 
@@ -120,6 +120,25 @@ export default function App() {
     setPrompt(null);
   };
 
+  /** Where in a dots column the finger is, as a whole 0..10 (Lukas: no halves). `x` is measured from its left edge. */
+  const dotValue = (x: number) => Math.min(10, Math.max(0, Math.round(((x - dotX(0)) / (dotX(10) - dotX(0))) * 10)));
+
+  /** A finger on a dot in the sleep graph slides it, rather than panning the book. The day is fixed when the
+   *  finger goes down, so a drag that wanders up or down still moves the dot it started on. */
+  const grab = (wx: number, wy: number) => {
+    const hit = hitTest(wx, wy, columns, DAYS);
+    if (!hit || hit.kind !== "cell" || hit.col.type !== "dots") return null;
+    const key = `${hit.day}:${hit.col.id}`;
+    const left = RIGHT_PAGE.x + columnXs(columns)[columns.indexOf(hit.col) + 1];
+    let last = values[key];
+    return (mx: number) => {
+      const v = String(dotValue(mx - left));
+      if (v === last) return; // one redraw per step, not one per frame
+      last = v;
+      write(key, v);
+    };
+  };
+
   const onTap = (wx: number, wy: number) => {
     const hit = hitTest(wx, wy, columns, DAYS);
     if (!hit) return;
@@ -127,7 +146,7 @@ export default function App() {
       const { day, col } = hit, key = `${day}:${col.id}`;
       if (col.type === "check") return write(key, values[key] ? null : "x");
       if (col.type === "dots") {
-        const v = Math.min(10, Math.max(0, Math.round(((hit.fx * widthOf("dots") * CELL - dotX(0)) / (dotX(10) - dotX(0))) * 20) / 2)); // 0..10 in halves
+        const v = dotValue(hit.fx * widthOf("dots") * CELL);
         return write(key, values[key] === String(v) ? null : String(v));
       }
       return setPrompt({ kind: "value", key, label: `${col.name} · ${day}. ${MONTH.label.split(" ")[0].toLowerCase()}`, value: values[key] ?? "" });
@@ -159,7 +178,7 @@ export default function App() {
 
   return (
     <>
-      <BookCanvas ref={book} width={BOOK_W} height={BOOK_H} scene={scene} onTap={onTap} backdrop={<Backdrop />} />
+      <BookCanvas ref={book} width={BOOK_W} height={BOOK_H} scene={scene} onTap={onTap} grab={grab} backdrop={<Backdrop />} />
       <span className="build">{__BUILD__}</span>
       <button className="hand-pick" onClick={() => setPrompt({ kind: "hand" })} aria-label="Vælg håndskrift">✎</button>
 

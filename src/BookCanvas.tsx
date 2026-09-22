@@ -36,8 +36,11 @@ export const BookCanvas = forwardRef<BookCanvasHandle, {
   width: number; height: number;
   scene: { readonly current: Scene };
   onTap: (wx: number, wy: number) => void;
+  /** Does anything at this world point follow the finger? Return a handler and the drag moves that instead of
+   *  the book (the dot in the sleep graph); return null and the finger pans as usual. */
+  grab?: (wx: number, wy: number) => ((wx: number, wy: number) => void) | null;
   backdrop?: ReactNode;
-}>(function BookCanvas({ width, height, scene, onTap, backdrop }, ref) {
+}>(function BookCanvas({ width, height, scene, onTap, grab, backdrop }, ref) {
   const view = useRef<HTMLDivElement>(null);
   const scene2d = useRef<HTMLDivElement>(null); // the room: pans and zooms with the world, never tilts
   const worker = useRef<Worker | null>(null); // draws the flat spread (draw.ts) off the main thread
@@ -54,6 +57,7 @@ export const BookCanvas = forwardRef<BookCanvasHandle, {
   const pinch = useRef<{ dist: number; s: number; wx: number; wy: number } | null>(null);
   const down = useRef({ x: 0, y: 0 });
   const dragged = useRef(false);
+  const scrub = useRef<((wx: number, wy: number) => void) | null>(null); // set while a finger is dragging something on the page
   const velocity = useRef({ x: 0, y: 0, at: 0 });
   const glide = useRef(0);
   const frame = useRef(0);
@@ -273,9 +277,15 @@ export const BookCanvas = forwardRef<BookCanvasHandle, {
     try { view.current!.setPointerCapture(e.pointerId); } catch { /* synthetic event in tests */ }
     stopGlide();
     clearTimeout(commitTimer.current);
-    if (pointers.current.size === 0) { dragged.current = false; down.current = { x: e.clientX, y: e.clientY }; velocity.current = { x: 0, y: 0, at: 0 }; }
+    if (pointers.current.size === 0) {
+      dragged.current = false; down.current = { x: e.clientX, y: e.clientY }; velocity.current = { x: 0, y: 0, at: 0 };
+      // like a tap, this only means anything looking straight down - the tilt would bend the mapping
+      const { x, y, s } = t.current;
+      scrub.current = tiltFor(s) === 0 ? (grab?.((e.clientX - x) / s, (e.clientY - y) / s) ?? null) : null;
+    }
     pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
     if (pointers.current.size === 2) {
+      scrub.current = null; // a second finger means a pinch, whatever the first one was on
       const [a, b] = [...pointers.current.values()];
       const { x, y, s } = t.current;
       const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
@@ -298,6 +308,9 @@ export const BookCanvas = forwardRef<BookCanvasHandle, {
       t.current = { x: mx - p.wx * s, y: my - p.wy * s, s };
       apply();
       renderLive();
+    } else if (scrub.current && pointers.current.size === 1) {
+      const { x, y, s } = t.current;
+      scrub.current((e.clientX - x) / s, (e.clientY - y) / s); // the book stays put: the finger is moving what is on it
     } else if (pointers.current.size === 1) {
       const now = performance.now(), dt = Math.max(1, now - (velocity.current.at || now - 16));
       const dx = e.clientX - prev.x, dy = e.clientY - prev.y;
@@ -314,12 +327,14 @@ export const BookCanvas = forwardRef<BookCanvasHandle, {
     pointers.current.delete(e.pointerId);
     if (pointers.current.size < 2) pinch.current = null;
     if (pointers.current.size === 0) {
+      const scrubbed = !!scrub.current && dragged.current;
+      scrub.current = null;
       if (!dragged.current) {
         // a tap: only meaningful when looking straight down (the tilt would bend the mapping)
         const { x, y, s } = t.current;
         if (tiltFor(s) === 0) onTap((e.clientX - x) / s, (e.clientY - y) / s);
       }
-      const gliding = !wasPinching && dragged.current && startGlide();
+      const gliding = !wasPinching && !scrubbed && dragged.current && startGlide();
       if (!gliding) commitSoon();
     }
   };
