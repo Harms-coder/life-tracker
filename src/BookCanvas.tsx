@@ -11,6 +11,10 @@ const TAP_SLOP = 8;
  *  page to pan crosses that distance in a few ms and takes the dots it passes with it (Lukas). */
 const SCRUB_SLOP = 10;
 const SCRUB_SPEED = 0.35; // px per ms, averaged from the moment the finger went down
+/** A finger turns a leaf only with the book zoomed out to at most this many times the "whole spread" scale, and
+ *  only when it lands further than this share of a page's width from the spine (the outer half). */
+const GRAB_ZOOM = 1.08;
+const GRAB_OUTER = 0.5;
 const TILT_MAX = (window as unknown as { __tiltMax?: number }).__tiltMax ?? 58; // degrees when fully zoomed out: matches the photo's camera
 const PERSPECTIVE = 700; // px, camera distance for the tilt (smaller = stronger convergence)
 const TILT_RANGE = 0.7; // tilt is gone at fit * (1 + TILT_RANGE)
@@ -390,11 +394,13 @@ export const BookCanvas = forwardRef<BookCanvasHandle, {
       const { x, y, s } = t.current;
       scrub.current = null;
       pending.current = tiltFor(s) === 0 ? (grab?.((e.clientX - x) / s, (e.clientY - y) / s) ?? null) : null;
-      // tipped back, a finger on the book takes hold of a leaf (which one depends on the way it then moves)
+      // Zoomed right out (the whole spread on the table), a finger on the OUTER half of a page takes hold of the
+      // leaf. Any nearer than that, or nearer the spine, and the finger pans: with the book half zoomed in, every
+      // sideways drag turned a leaf and the book could not be moved at all (Lukas).
       turnGrab.current = null;
-      if (tiltFor(s) > 0) {
+      if (s <= fitScale.current * GRAB_ZOOM) {
         const w = unproject(e.clientX, e.clientY);
-        if (w.wx > 0 && w.wx < BOOK_W && w.wy > 0 && w.wy < BOOK_H) turnGrab.current = { wx: w.wx, fy: (w.wy - COVER) / PAGE_H };
+        if (Math.abs(w.wx - BOOK_W / 2) > PAGE_W * GRAB_OUTER && w.wx > 0 && w.wx < BOOK_W && w.wy > 0 && w.wy < BOOK_H) turnGrab.current = { wx: w.wx, fy: (w.wy - COVER) / PAGE_H };
       }
     }
     pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });

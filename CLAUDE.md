@@ -237,6 +237,9 @@ og om den hakker). Hans valg mellem finger og pile: begge er lavet, han kan skæ
   afledte → Apple-GPU'en vælger forkert mipmap-niveau langs grenens kant → 1-px streg. Nu læses ALLE teksturer
   (u_img, u_over, u_next) ubetinget øverst i fragment-shaderen, og grenene vælger kun mellem resultaterne.
   REGEL: aldrig texture2D inde i en if der afhænger af fragmentet. UBEKRÆFTET af Lukas.
+- Lukas (17.10): "man bladrer for nemt med fingeren" – halvt zoomet ind kunne bogen slet ikke panoreres. Nu
+  tager fingeren kun et blad når s ≤ fit·GRAB_ZOOM (1,08 = hele opslaget synligt) OG fingeren lander på den
+  yderste halvdel af en side (GRAB_OUTER 0,5 fra ryggen). Alt andet panorerer. Pilene virker altid.
 - Kendt: zoomet langt ind ses bladets skygge som 5 trin (SHADOW_PASSES) på siden under.
 - Åbent: stadig localStorage (IndexedDB er ikke lavet). Ingen stak af sider der bliver tyndere/tykkere med måneden.
 

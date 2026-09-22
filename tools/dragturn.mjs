@@ -22,6 +22,11 @@ await withServer(async () => {
   await page.waitForTimeout(1500);
   await page.screenshot({ path: `${OUT}/drag-after.png` });
   console.log("month after drag:", await page.evaluate(() => localStorage.getItem("month")), "busy mid:", p);
+  // a sideways drag near the spine must pan, not turn
+  const b0 = await page.evaluate(() => ({ ...window.__view }));
+  await touch("touchStart", 215, 430); for (let i = 1; i <= 15; i++) { await touch("touchMove", 215 - i * 8, 430); await page.waitForTimeout(25); } await touch("touchEnd");
+  await page.waitForTimeout(1500);
+  console.log("near-spine drag: pan dx", (await page.evaluate(() => window.__view.x) - b0.x).toFixed(0), "month:", await page.evaluate(() => localStorage.getItem("month")));
   // a vertical drag on the book must pan, not turn
   const before = await page.evaluate(() => ({ ...window.__view }));
   await touch("touchStart", 200, 400); for (let i = 1; i <= 10; i++) { await touch("touchMove", 200, 400 + i * 8); await page.waitForTimeout(20); } await touch("touchEnd");
