@@ -1,5 +1,5 @@
 import { forwardRef, useImperativeHandle, useLayoutEffect, useRef, type ReactNode } from "react";
-import { BG, BOOK_H, BOOK_W, COVER, LIP, PAGE_H, PAGE_W, TABLE } from "./layout";
+import { BG, BOOK_H, BOOK_W, LIP, PAGE_W, TABLE } from "./layout";
 import { ARCH, createBook3D, type Book3D, type Turn } from "./bog3d";
 import type { Plane, Scene, View } from "./draw";
 import type { RenderReply, RenderRequest } from "./draw.worker";
@@ -11,10 +11,6 @@ const TAP_SLOP = 8;
  *  page to pan crosses that distance in a few ms and takes the dots it passes with it (Lukas). */
 const SCRUB_SLOP = 10;
 const SCRUB_SPEED = 0.35; // px per ms, averaged from the moment the finger went down
-/** A finger turns a leaf only with the book zoomed out to at most this many times the "whole spread" scale, and
- *  only when it lands further than this share of a page's width from the spine (the outer half). */
-const GRAB_ZOOM = 1.08;
-const GRAB_OUTER = 0.5;
 const TILT_MAX = (window as unknown as { __tiltMax?: number }).__tiltMax ?? 58; // degrees when fully zoomed out: matches the photo's camera
 const PERSPECTIVE = 700; // px, camera distance for the tilt (smaller = stronger convergence)
 const TILT_RANGE = 0.7; // tilt is gone at fit * (1 + TILT_RANGE)
@@ -97,9 +93,8 @@ export const BookCanvas = forwardRef<BookCanvasHandle, {
   const meter = useRef<HTMLDivElement>(null); // ?maal: redraw times in the corner, for reading off the phone
   const worst = useRef({ main: 0, trip: 0 });
   const uploadFrame = useRef({ max: 0, n: 0 }); // ?maal: the slowest frame while a texture went up, and how many it took
-  /** A leaf mid-turn. `anim` while it settles on its own, `drag` while a finger holds its fore-edge. */
-  const turn = useRef<(Turn & { anim: number; drag: { wx0: number } | null }) | null>(null);
-  const turnGrab = useRef<{ wx: number; fy: number } | null>(null); // the finger went down on the tipped-back book: a sideways drag turns a leaf
+  /** A leaf mid-turn, always on its own: only the arrows turn pages. `anim` while it settles. */
+  const turn = useRef<(Turn & { anim: number }) | null>(null);
   const awaitNext = useRef(0); // an arrow turn waits (briefly) for the other spread's picture before the leaf goes
   /** Bumped when the book opens at another spread: drawings asked for before that show the old month and are dropped. */
   const gen = useRef(0);
@@ -110,18 +105,6 @@ export const BookCanvas = forwardRef<BookCanvasHandle, {
   const maxScale = () => fitScale.current * MAX_OVER_FIT;
   /** Something is moving on its own (a leaf settling, or about to): fingers wait. */
   const busy = () => !!(turn.current?.anim || awaitNext.current);
-
-  /** Screen point -> world point on the book's plane, tilt and all: the inverse of the vertex shader's projection
-   *  at height 0 (CSS px throughout; the shader works in device px, but the ratio is the same). */
-  const unproject = (sx: number, sy: number) => {
-    const { x, y, s } = t.current;
-    const th = (tiltFor(s) * Math.PI) / 180, P = PERSPECTIVE;
-    const ox = x + (BOOK_W / 2) * s, oy = y + (BOOK_H / 2) * s;
-    const q = sy - oy;
-    const dy = (q * P) / (Math.cos(th) * P + q * Math.sin(th));
-    const dx = (sx - ox) * (P - dy * Math.sin(th)) / P;
-    return { wx: (ox + dx - x) / s, wy: (oy + dy - y) / s };
-  };
 
   /** Zoomed out you can pan to the edge of the photo (it always covers the screen); looking straight down only
    *  over the table in it, never up to the window. In between the limit slides from one to the other, so nothing jumps. */
@@ -280,12 +263,11 @@ export const BookCanvas = forwardRef<BookCanvasHandle, {
   /** A leaf starts to turn: ask for the spread on its other side, so its back has something to show. */
   const beginTurn = (dir: 1 | -1, twist: number) => {
     renderOverview(props.current.otherScene(dir));
-    turn.current = { dir, p: 0, twist: Math.max(-1, Math.min(1, twist)), anim: 0, drag: null };
+    turn.current = { dir, p: 0, twist: Math.max(-1, Math.min(1, twist)), anim: 0 };
   };
   /** The leaf goes the rest of the way on its own: down onto the other page (1), or back where it was (0). */
   const settleTurn = (target: 0 | 1) => {
     const tr = turn.current!;
-    tr.drag = null;
     const from = tr.p, dist = Math.abs(target - from), ms = 180 + 620 * dist, t0 = performance.now();
     const step = (now: number) => {
       const u = Math.min(1, (now - t0) / ms);
@@ -412,19 +394,10 @@ export const BookCanvas = forwardRef<BookCanvasHandle, {
       const { x, y, s } = t.current;
       scrub.current = null;
       pending.current = tiltFor(s) === 0 ? (grab?.((e.clientX - x) / s, (e.clientY - y) / s) ?? null) : null;
-      // Zoomed right out (the whole spread on the table), a finger on the OUTER half of a page takes hold of the
-      // leaf. Any nearer than that, or nearer the spine, and the finger pans: with the book half zoomed in, every
-      // sideways drag turned a leaf and the book could not be moved at all (Lukas).
-      turnGrab.current = null;
-      if (s <= fitScale.current * GRAB_ZOOM) {
-        const w = unproject(e.clientX, e.clientY);
-        if (Math.abs(w.wx - BOOK_W / 2) > PAGE_W * GRAB_OUTER && w.wx > 0 && w.wx < BOOK_W && w.wy > 0 && w.wy < BOOK_H) turnGrab.current = { wx: w.wx, fy: (w.wy - COVER) / PAGE_H };
-      }
     }
     pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
     if (pointers.current.size === 2) {
-      scrub.current = pending.current = turnGrab.current = null; // a second finger means a pinch, whatever the first one was on
-      if (turn.current?.drag) settleTurn(turn.current.p > 0.5 ? 1 : 0); // the leaf is let go
+      scrub.current = pending.current = null; // a second finger means a pinch, whatever the first one was on
       const [a, b] = [...pointers.current.values()];
       const { x, y, s } = t.current;
       const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
@@ -450,24 +423,6 @@ export const BookCanvas = forwardRef<BookCanvasHandle, {
       // fingers holding still mid-pinch: draw it sharp where it stands, rather than waiting for them to let go
       clearTimeout(stillTimer.current);
       stillTimer.current = window.setTimeout(() => { if (pointers.current.size === 2) render(); }, STILL_MS);
-    } else if (turn.current?.drag && pointers.current.size === 1) {
-      // the fore-edge follows the finger's sideways travel: from lying flat, out at PAGE_W from the spine, over
-      // to the other page. The book itself stays put.
-      const tr = turn.current, w = unproject(e.clientX, e.clientY);
-      tr.p = Math.acos(Math.max(-1, Math.min(1, (PAGE_W + tr.dir * (w.wx - tr.drag!.wx0)) / PAGE_W))) / Math.PI;
-      track(e, prev);
-      apply();
-    } else if (turnGrab.current && pointers.current.size === 1) {
-      // hold still until the finger has said what it wants: sideways = turn the leaf, up or down = pan
-      const tx = e.clientX - down.current.x, ty = e.clientY - down.current.y;
-      if (Math.hypot(tx, ty) >= SCRUB_SLOP) {
-        const g = turnGrab.current;
-        turnGrab.current = null;
-        if (Math.abs(tx) > Math.abs(ty)) {
-          beginTurn(tx < 0 ? 1 : -1, (g.fy - 0.5) * 1.6); // the corner nearest the finger leads
-          turn.current!.drag = { wx0: unproject(e.clientX, e.clientY).wx };
-        } else { t.current.x += tx; t.current.y += ty; apply(); renderIfOff(); }
-      }
     } else if (pending.current && pointers.current.size === 1) {
       // hold still until the finger has said what it wants. Slow and sideways = drag the dot; anything else =
       // pan, and the movement so far goes to the pan so nothing is lost.
@@ -508,14 +463,6 @@ export const BookCanvas = forwardRef<BookCanvasHandle, {
     pointers.current.delete(e.pointerId);
     if (pointers.current.size < 2) pinch.current = null;
     if (pointers.current.size === 0) {
-      turnGrab.current = null;
-      if (turn.current?.drag) {
-        // let go: a flick decides, otherwise which side it is nearer
-        const tr = turn.current, fresh = performance.now() - velocity.current.at < 80;
-        const flick = fresh ? -tr.dir * velocity.current.x : 0; // px/ms in the leaf's direction of travel
-        settleTurn(flick > 0.3 ? 1 : flick < -0.3 ? 0 : tr.p > 0.5 ? 1 : 0);
-        return;
-      }
       const scrubbed = !!scrub.current && dragged.current;
       scrub.current = pending.current = null;
       if (!dragged.current) {

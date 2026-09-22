@@ -150,6 +150,11 @@ Rækker = dage 1–31 (antal efter måneden). Kolonner = brugerens egne trackere
   WebKit-benchen: 1–2 frames à ~35–40 ms pr. pinch (mod 0 før). Ikke målt på telefonen – spørg Lukas, om det hakker.
 - Første måling af skærmen sker i dev FØR CSS'en er slået til i WebKit (Vite indsætter CSS via JS), så `fit()` kører via
   en ResizeObserver på `.viewport` og retter sig selv, når den rigtige størrelse kommer.
+- BLADRING MED FINGEREN ER FJERNET (2026-09-22, Lukas: "man skal ikke kunne bladre med at swipe mere, man skal
+  trykke på pilene"). `turnGrab`, `unproject` og `turn.drag` er ude af BookCanvas.tsx; en finger på bogen
+  panorerer ALTID. Kun `turn(dir)` fra pilene bladrer. BYG DET IKKE IGEN uden at han beder om det.
+  `node tools/swipecheck.mjs` = otte swipes fra forskellige steder og retninger må ikke bladre, pilene skal.
+  (tools/dragturn.mjs er slettet med det.)
 - Læsebåndet er fjernet (Lukas' ønske).
 - iPhone først, hele opslaget synligt + pinch-zoom.
 - Venstre side = månedens mål, undermål og plan. Højre side = daglig tracking.
