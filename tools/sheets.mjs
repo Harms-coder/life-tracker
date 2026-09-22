@@ -28,6 +28,7 @@ await withServer(async () => {
     ["kolonne", () => tap(colX(1), RIGHT_PAGE.y + HEADER_Y - 4 * CELL)],
     ["note", () => tap(200, 300)],                    // left page, the big plan field
     ["haand", async () => { await page.click(".hand-pick"); await page.waitForTimeout(400); }],
+    ["noter", () => tap(200, 700)], // one of the four boxes at the bottom of the right page
   ];
   for (const [name, act] of shots) {
     await act();

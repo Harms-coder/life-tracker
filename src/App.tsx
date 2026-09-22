@@ -37,6 +37,8 @@ const DEFAULT_COLUMNS: Column[] = [
 ];
 const COLUMNS_KEY = "columns";
 const HAND_KEY = "hand";
+/** How fast the pen writes; `?pen=6` slows it down so a screenshot can catch it half-written. */
+const PEN_K = Number(new URLSearchParams(location.search).get("pen")) || 1;
 const generateId = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
 
 type Values = Record<string, string>; // "x" for checks, "71,5" / "8" for numbers, "7.5" for dots
@@ -98,8 +100,43 @@ type ValuePrompt = { kind: "value"; key: string; label: string; value: string; r
 type ColumnPrompt = { kind: "column"; index: number; column: Column }; // index -1 = new
 type HandPrompt = { kind: "hand" };
 type PhotoPrompt = { kind: "photo"; slot: string };
-type NotePrompt = { kind: "note"; field: NoteField; label: string; value: string };
+type NotePrompt = { kind: "note"; field: NoteField; label: string; value: string; bullets: boolean };
 type Prompt = ValuePrompt | ColumnPrompt | NotePrompt | HandPrompt | PhotoPrompt;
+
+/** The text you write is a list of points, one line each - the same lines the book draws, with the same dot in
+ *  front. A written line has a black dot, the empty one at the end a faint one: that is where the next point goes. */
+function Lines({ value, bullets }: { value: string; bullets: boolean }) {
+  const [rows, setRows] = useState<string[]>(() => [...value.split("\n").filter((l) => l.trim()), ""]);
+  const set = (i: number, v: string) => {
+    const next = [...rows];
+    next[i] = v;
+    if (v.trim() && i === next.length - 1) next.push(""); // always one empty line to write on
+    setRows(next);
+  };
+  const move = (el: HTMLInputElement, step: 1 | -1) => {
+    const line = el.closest(".line");
+    const to = (step === 1 ? line?.nextElementSibling : line?.previousElementSibling)?.querySelector("input");
+    (to as HTMLInputElement | null)?.focus();
+  };
+  const onKey = (e: React.KeyboardEvent<HTMLInputElement>, i: number) => {
+    if (e.key === "Enter") { e.preventDefault(); if (rows[i].trim()) move(e.currentTarget, 1); }
+    if (e.key === "Backspace" && !rows[i] && rows.length > 1 && i < rows.length - 1) {
+      e.preventDefault(); move(e.currentTarget, -1);
+      setRows(rows.filter((_, j) => j !== i));
+    }
+  };
+  return (
+    <div className="lines">
+      <input type="hidden" name="v" value={rows.map((r) => r.trim()).filter(Boolean).join("\n")} />
+      {rows.map((r, i) => (
+        <div className="line" key={i}>
+          {bullets && <span className={r.trim() ? "dot" : "dot empty"}>•</span>}
+          <input value={r} autoFocus={i === 0} enterKeyHint="next" onKeyDown={(e) => onKey(e, i)} onChange={(e) => set(i, e.target.value)} />
+        </div>
+      ))}
+    </div>
+  );
+}
 
 /** Every input in the book opens the same slip of paper: heading, what you are writing, and the buttons. */
 function Sheet({ title, onClose, onSubmit, children }: { title: string; onClose: () => void; onSubmit?: (e: FormEvent<HTMLFormElement>) => void; children: React.ReactNode }) {
@@ -157,16 +194,25 @@ export default function App() {
   const redraw = () => book.current?.redraw();
   useEffect(() => { book.current?.setPhotos(photos); book.current?.refresh(); }, [month, columns, values, notes, hand, photos]);
 
-  const write = (key: string, value: string | null) => {
+  /** Write it in the book the way a hand would: the pen runs along the line while the book redraws.
+   *  Everything goes through here - X's, weights, ratings and the text on both pages. */
+  const penWrite = (key: string, chars: number) => {
+    const w = { key, start: performance.now(), ms: Math.min(2600, 320 + chars * 45) * PEN_K };
+    scene.current.writing = w;
+    const step = () => {
+      if (scene.current.writing !== w) return; // something else is being written now
+      redraw();
+      if (performance.now() - w.start < w.ms) requestAnimationFrame(step);
+      else { scene.current.writing = null; redraw(); }
+    };
+    requestAnimationFrame(step);
+  };
+  const write = (key: string, value: string | null, pen = true) => {
     const next = { ...values };
     if (value === null || value === "") delete next[key]; else next[key] = value;
     setValues(next);
     localStorage.setItem(VALUES_KEY, JSON.stringify(next));
-    if (value === "x") { // pen-stroke animation for a new X
-      scene.current.writing = { key, start: performance.now() };
-      const step = () => { redraw(); if (performance.now() - scene.current.writing!.start < 320) requestAnimationFrame(step); else { scene.current.writing = null; redraw(); } };
-      requestAnimationFrame(step);
-    }
+    if (value && pen) penWrite(key, value.length);
   };
   const saveColumns = (next: Column[]) => {
     setColumns(next);
@@ -178,6 +224,7 @@ export default function App() {
     setNotes(next);
     localStorage.setItem(NOTES_KEY, JSON.stringify(next));
     setPrompt(null);
+    if (text) penWrite(field, text.length);
   };
 
   /** How near the dot the finger has to land before it can slide it, in world px (a cell is 20). */
@@ -203,7 +250,7 @@ export default function App() {
       const v = String(dotValue(mx - left));
       if (v === last) return; // one redraw per step, not one per frame
       last = v;
-      write(key, v);
+      write(key, v, false);
     };
   };
 
@@ -250,7 +297,8 @@ export default function App() {
     if (hit.kind === "photo") return photos[hit.slot] ? setPrompt({ kind: "photo", slot: hit.slot }) : pickPhoto(hit.slot);
     if (hit.kind === "header") return setPrompt({ kind: "column", index: hit.index, column: columns[hit.index] });
     if (hit.kind === "add") return setPrompt({ kind: "column", index: -1, column: { id: generateId(), name: "", type: "check" } });
-    setPrompt({ kind: "note", field: hit.field, label: NOTE_LABEL[hit.field], value: notes[hit.field] ?? "" });
+    // the goals are written straight onto their line; everything else is a list of points with a dot in front
+    setPrompt({ kind: "note", field: hit.field, label: NOTE_LABEL[hit.field], value: notes[hit.field] ?? "", bullets: !hit.field.startsWith("goal") });
   };
 
   const submitValue = (e: FormEvent<HTMLFormElement>) => {
@@ -322,7 +370,7 @@ export default function App() {
       )}
       {prompt?.kind === "note" && (
         <Sheet title={prompt.label} onClose={close} onSubmit={submitNote}>
-          <textarea name="v" autoFocus defaultValue={prompt.value} placeholder="Én linje pr. punkt" />
+          <Lines value={prompt.value} bullets={prompt.bullets} />
           <div className="sheet-row"><button type="submit" className="primary">Skriv</button></div>
         </Sheet>
       )}

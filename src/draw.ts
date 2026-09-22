@@ -17,8 +17,9 @@ export type Scene = {
   columns: Column[];
   values: Record<string, string>;
   notes: Partial<Record<NoteField, string>>;
-  /** an X being written right now: key + start time, drawn with a pen-stroke animation */
-  writing: { key: string; start: number } | null;
+  /** what the pen is writing right now: the value key ("5:loeb") or note field, when it started, how long it
+   *  takes. Everything written in the book comes in this way, stroke by stroke, as if by hand. */
+  writing: { key: string; start: number; ms: number } | null;
   /** whose handwriting the page is written in */
   hand: Hand;
 };
@@ -38,14 +39,25 @@ export const WEEKDAY = "SMTOTFL"; // indexed by Date.getDay()
 
 /** Runs in draw.worker.ts, off the main thread: an OffscreenCanvas, no DOM, no fonts (all text is Lukas' glyphs). */
 type Ctx = OffscreenCanvasRenderingContext2D;
+/** How far the pen has got on `key`: 1 when nothing is being written there. */
+const penAt = (scene: Scene, key: string, now: number) =>
+  scene.writing?.key === key ? Math.max(0, Math.min(1, (now - scene.writing.start) / scene.writing.ms)) : 1;
+
 const overlaps = (a: Rect, b: Rect) => a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
 
 /** Handwritten text with a small, stable wobble (seeded), so it looks the same every time. */
-function text(ctx: Ctx, str: string, x: number, y: number, o: { size: number; seed: string; weight?: number; align?: CanvasTextAlign; baseline?: CanvasTextBaseline; tilt?: number; rotate?: number; alpha?: number }) {
+function text(ctx: Ctx, str: string, x: number, y: number, o: { size: number; seed: string; weight?: number; align?: CanvasTextAlign; baseline?: CanvasTextBaseline; tilt?: number; rotate?: number; alpha?: number; reveal?: number }) {
+  if (o.reveal !== undefined && o.reveal <= 0) return;
   const r = seededRandom(o.seed);
   ctx.save();
   ctx.translate(x + (r() - 0.5) * 2, y + (r() - 0.5) * 2);
   ctx.rotate(((r() - 0.5) * 5 * (o.tilt ?? 1) * Math.PI) / 180 + (o.rotate ?? 0));
+  // the pen runs along the line: everything to the right of it is not written yet
+  if (o.reveal !== undefined && o.reveal < 1) {
+    const w = widthOfText(str, o.size, o.seed);
+    const x0 = o.align === "center" ? -w / 2 : o.align === "right" ? -w : 0;
+    ctx.beginPath(); ctx.rect(x0 - 2, -o.size * 2.5, w * o.reveal + 2, o.size * 5); ctx.clip();
+  }
   ctx.fillStyle = INK;
   if (o.alpha !== undefined) ctx.globalAlpha = o.alpha;
   drawText(ctx, str, 0, 0, o.size, o.seed, o.align ?? "left", o.baseline ?? "alphabetic");
@@ -114,19 +126,26 @@ function wrap(_ctx: Ctx, str: string, width: number, size: number): string[] {
 }
 
 /** Free text written line by line on the grid; `bullets` puts a dot in front of each paragraph. */
-function noteText(ctx: Ctx, str: string, box: Rect, seed: string, o: { bullets?: boolean; minRows?: number; top?: number }) {
+function noteText(ctx: Ctx, str: string, box: Rect, seed: string, o: { bullets?: boolean; minRows?: number; top?: number; reveal?: number }) {
   const indent = o.bullets ? 14 : 0, size = 15.5;
   const paras = str.split("\n").filter((p) => p.trim());
   while (paras.length < (o.minRows ?? 0)) paras.push("");
+  // laid out first, so a line knows its share of the pen's journey down the page
+  const rows: { bullet: boolean; line: string; i: number; j: number; row: number }[] = [];
   let row = 0;
   paras.forEach((para, i) => {
     const lines = para ? wrap(ctx, para, box.w - 10 - indent, size) : [""];
-    if (o.bullets) text(ctx, "•", box.x + 6, box.y + (o.top ?? 0) + row * CELL + 15, { size: 22, weight: 700, seed: seed + "b" + i, tilt: 0 });
-    lines.forEach((line, j) => {
-      if (line) text(ctx, line, box.x + 6 + indent, box.y + (o.top ?? 0) + row * CELL + 15, { size, seed: seed + i + "-" + j, tilt: 0.25 });
-      row++;
-    });
+    lines.forEach((line, j) => rows.push({ bullet: !!o.bullets && j === 0, line, i, j, row: row++ }));
   });
+  const written = rows.filter((r) => r.line).length;
+  let done = 0;
+  for (const r of rows) {
+    const y = box.y + (o.top ?? 0) + r.row * CELL + 15;
+    // each written line takes its turn: the pen finishes one before it starts the next
+    const p = o.reveal === undefined ? 1 : Math.max(0, Math.min(1, o.reveal * written - done));
+    if (r.bullet && p > 0) text(ctx, "•", box.x + 6, y, { size: 22, weight: 700, seed: seed + "b" + r.i, tilt: 0 });
+    if (r.line) { text(ctx, r.line, box.x + 6 + indent, y, { size, seed: seed + r.i + "-" + r.j, tilt: 0.25, reveal: p }); done++; }
+  }
 }
 
 /** A square drawn by hand: four wobbly sides. */
@@ -187,7 +206,7 @@ export function drawScene(ctx: Ctx, view: View, plane: Plane, scene: Scene, asse
   drawBackground(ctx, vis, assets);
   drawGrid(ctx, vis, LEFT_PAGE);
   drawGrid(ctx, vis, RIGHT_PAGE);
-  ctx.save(); ctx.translate(LEFT_PAGE.x, LEFT_PAGE.y); drawLeftPage(ctx, scene, { x: vis.x - LEFT_PAGE.x, y: vis.y - LEFT_PAGE.y, w: vis.w, h: vis.h }, assets); ctx.restore();
+  ctx.save(); ctx.translate(LEFT_PAGE.x, LEFT_PAGE.y); drawLeftPage(ctx, scene, { x: vis.x - LEFT_PAGE.x, y: vis.y - LEFT_PAGE.y, w: vis.w, h: vis.h }, now, assets); ctx.restore();
   ctx.save(); ctx.translate(RIGHT_PAGE.x, RIGHT_PAGE.y); drawRightPage(ctx, scene, { x: vis.x - RIGHT_PAGE.x, y: vis.y - RIGHT_PAGE.y, w: vis.w, h: vis.h }, now, assets); ctx.restore();
 }
 
@@ -292,7 +311,7 @@ function drawSpine(ctx: Ctx) {
   ctx.fillStyle = g; ctx.fillRect(BOOK_W / 2 - 18, COVER, 36, PAGE_H);
 }
 
-function drawLeftPage(ctx: Ctx, scene: Scene, vis: Rect, assets: Assets) {
+function drawLeftPage(ctx: Ctx, scene: Scene, vis: Rect, now: number, assets: Assets) {
   const { notes } = scene, by = bottomY(scene.days);
   ctx.beginPath();
   wobbly(ctx, 0, HEADER_Y, PAGE_W, HEADER_Y, "Lh");
@@ -314,7 +333,7 @@ function drawLeftPage(ctx: Ctx, scene: Scene, vis: Rect, assets: Assets) {
       handBox(ctx, { x: p.x, y: p.y, w: CELL, h: CELL }, "sq" + i);
       text(ctx, String(i + 1), p.x + CELL / 2, p.y + CELL / 2, { size: 18, weight: 700, seed: "gn" + i, align: "center", baseline: "middle" });
       const g = notes[`goal${i}`];
-      if (g) noteText(ctx, g, goalTextBox(i), "goal" + i, {});
+      if (g) noteText(ctx, g, goalTextBox(i), "goal" + i, { reveal: penAt(scene, `goal${i}`, now) });
     }
   }
 
@@ -325,9 +344,12 @@ function drawLeftPage(ctx: Ctx, scene: Scene, vis: Rect, assets: Assets) {
       handBox(ctx, num, "pq" + i);
       text(ctx, String(i + 1), num.x + num.w / 2, num.y + num.h / 2, { size: 24, weight: 700, seed: "pn" + i, align: "center", baseline: "middle" });
       const g = notes[`goal${i}`];
-      if (g) wrap(ctx, g, goal.w, 18).slice(0, 2).forEach((line, j) => text(ctx, line, goal.x, goal.y + 19 + j * 21, { size: 18, seed: "pg" + i + j, tilt: 0.25 }));
+      if (g) {
+        const gp = penAt(scene, `goal${i}`, now), lines = wrap(ctx, g, goal.w, 18).slice(0, 2);
+        lines.forEach((line, j) => text(ctx, line, goal.x, goal.y + 19 + j * 21, { size: 18, seed: "pg" + i + j, tilt: 0.25, reveal: Math.max(0, Math.min(1, gp * lines.length - j)) }));
+      }
       const pl = notes[`plan${i}`];
-      if (pl) noteText(ctx, pl, plan, "plan" + i, { bullets: true });
+      if (pl) noteText(ctx, pl, plan, "plan" + i, { bullets: true, reveal: penAt(scene, `plan${i}`, now) });
     }
   }
 
@@ -376,13 +398,14 @@ function drawRightPage(ctx: Ctx, scene: Scene, vis: Rect, now: number, assets: A
       const key = `${day}:${c.id}`, v = values[key];
       if (!v) return;
       const left = xs[i + 1], w = widthOf(c.type) * CELL;
+      const pen = penAt(scene, key, now);
       if (c.type === "check") {
-        const progress = scene.writing?.key === key ? Math.min(1, (now - scene.writing.start) / 300) : 1;
-        handX(ctx, left, y, key, progress);
+        handX(ctx, left, y, key, pen);
       } else if (c.type === "dots") {
-        ctx.beginPath(); ctx.arc(left + dotX(Number(v)), y + CELL / 2, 2.5, 0, Math.PI * 2); ctx.fillStyle = INK; ctx.globalAlpha = 0.9; ctx.fill(); ctx.globalAlpha = 1;
+        if (pen <= 0) return;
+        ctx.beginPath(); ctx.arc(left + dotX(Number(v)), y + CELL / 2, 2.5, 0, Math.PI * 2); ctx.fillStyle = INK; ctx.globalAlpha = 0.9 * pen; ctx.fill(); ctx.globalAlpha = 1;
       } else {
-        text(ctx, v, left + w / 2, y + CELL / 2, { size: c.type === "number" ? 17 : v.length > 2 ? 12.5 : 15, seed: key, align: "center", baseline: "middle" });
+        text(ctx, v, left + w / 2, y + CELL / 2, { size: c.type === "number" ? 17 : v.length > 2 ? 12.5 : 15, seed: key, align: "center", baseline: "middle", reveal: pen });
       }
     });
   }
@@ -416,6 +439,6 @@ function drawRightPage(ctx: Ctx, scene: Scene, vis: Rect, now: number, assets: A
     const b = boxes[f];
     if (!overlaps(vis, b)) return;
     labelled(ctx, NOTE_LABEL[f], b.x + 6, b.y + 16, "n" + f);
-    noteText(ctx, notes[f] ?? "", b, f, { bullets: true, minRows: f === "good" ? 0 : 3, top: CELL });
+    noteText(ctx, notes[f] ?? "", b, f, { bullets: true, minRows: f === "good" ? 0 : 3, top: CELL, reveal: penAt(scene, f, now) });
   });
 }

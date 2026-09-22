@@ -84,12 +84,17 @@ body { font-family: var(--font-hand); -webkit-user-select: none; user-select: no
   padding: 2px 4px; width: 100%; box-sizing: border-box; text-align: center;
 }
 .sheet .hand-input::placeholder { color: rgba(30,34,51,.25); }
-.sheet .hand-input:focus, .sheet textarea:focus { outline: 0; border-bottom-color: var(--ink); }
-.sheet textarea {
-  font: 500 27px/40px var(--font-hand); color: var(--ink);
-  background: none; border: 0; border-radius: 0; padding: 0 2px; min-height: 170px; resize: none; width: 100%; box-sizing: border-box;
+.sheet .hand-input:focus { outline: 0; border-bottom-color: var(--ink); }
+/* one line per point, with the book's own dot in front, so you can see what is written and what is not */
+.lines { display: flex; flex-direction: column; }
+.line { display: flex; align-items: center; gap: 8px; height: 40px; border-bottom: 1px solid rgba(30,34,51,.16); }
+.line .dot { font: 500 30px/1 var(--font-hand); color: var(--ink); width: 14px; text-align: center; }
+.line .dot.empty { opacity: .22; }
+.line input {
+  flex: 1; min-width: 0; font: 500 26px/1.1 var(--font-hand); color: var(--ink);
+  background: none; border: 0; padding: 0; border-radius: 0;
 }
-.sheet textarea::placeholder { color: rgba(30,34,51,.28); }
+.line input:focus { outline: 0; }
 
 /* pick a number / a type / a hand by tapping it */
 .chips { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; }
