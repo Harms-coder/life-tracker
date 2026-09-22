@@ -166,6 +166,23 @@ Rækker = dage 1–31 (antal efter måneden). Kolonner = brugerens egne trackere
 - Test-scripts ligger i sessionens scratchpad (`pw/shots.mjs` skærmbilleder, `pw/bench.mjs` frame-tider i WebKit,
   `pw/tapcheck.mjs` tryk). Dev-server: `npm run dev`. I dev sætter BookCanvas `window.__view` (x, y, s) til scripts.
 
+## Status 2026-09-22 kl. 15.45 – OVERSKRIFTERNE HELT TILBAGE; TRÆK KRÆVER MERE
+
+- **RØR IKKE KOLONNEOVERSKRIFTERNES PLACERING.** Tre forsøg i træk var forkerte (midt i feltet, så løftet 10 px).
+  Blokken i `drawRightPage` er nu ordret den fra 645e751 og skal blive der, medmindre Lukas selv beder om andet.
+  Månedsoverskriften (31 px på linjen ved 3 tern) er IKKE rullet tilbage – den bad han selv om.
+- **Træk i søvnkurven kræver nu tre ting**, fordi et almindeligt swipe hen over siden hev i prikkerne:
+  1) cellen skal HAVE en prik, og fingeren skal lande inden for `DOT_REACH` = 12 verdens-px af den (App.tsx),
+  2) fingeren skal flytte sig `SCRUB_SLOP` = 10 px, før det afgøres hvad den vil (bogen står stille indtil da),
+  3) og den skal have været LANGSOM (< `SCRUB_SPEED` 0,35 px/ms i snit siden nedslaget) og mest vandret.
+  Ellers går HELE bevægelsen til panorering, også de første 10 px. Målt i Chrome: langsomt til siden 8→5 med
+  bogen i ro; hurtigt hen over 8→8 og bogen panorerede 105 px; langsomt op/ned 8→8 og bogen panorerede.
+- `refresh()` tegner nu kun det synlige straks; oversigten over hele opslaget venter 250 ms. Før tegnede hvert
+  eneste træk-trin hele opslaget om. MULIG årsag til hakkeriet Lukas mærkede – UBEKRÆFTET, spørg ham.
+- HAKKERI VED HURTIG PANORERING (åbent): min hypotese er, at det VAR de utilsigtede træk i prikkerne (hver af
+  dem = setValues → refresh → hele opslaget tegnet om midt i en panorering). Kan ikke måles herfra: headless
+  Chrome har intet grafikkort. Bed Lukas om `?maal`-tallene, hvis det stadig hakker.
+
 ## Status 2026-09-22 kl. 15.20 – OVERSKRIFTER TILBAGE + SØVNKURVEN
 
 - **Overskrifterne blev sat tilbage.** At centrere dem i feltet var en FEJL: Lukas ville have dem præcis hvor
