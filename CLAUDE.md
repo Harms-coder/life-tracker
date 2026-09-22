@@ -166,6 +166,36 @@ Rækker = dage 1–31 (antal efter måneden). Kolonner = brugerens egne trackere
 - Test-scripts ligger i sessionens scratchpad (`pw/shots.mjs` skærmbilleder, `pw/bench.mjs` frame-tider i WebKit,
   `pw/tapcheck.mjs` tryk). Dev-server: `npm run dev`. I dev sætter BookCanvas `window.__view` (x, y, s) til scripts.
 
+## Status 2026-09-22 kl. 16.25 – SESSIONEN LUKKET NED, ALT ER PUSHET
+
+**Live:** https://harms-coder.github.io/life-tracker/ · **Galleri:** https://claude.ai/artifact/S914mdZ2Tq4gAuqWUrxLYb
+Arbejdstræet er rent, alt er på `main`. Lukas' sidste ord i dag: "okay, det ser godt ud."
+
+### Det her blev lavet den 22/9 (nyeste først)
+1. Ingen streg under "Sådan kommer jeg i mål" (den under "Mål denne måned" bliver).
+2. Venstresidens store felt: de seks mål igen i stor udgave, tre i hver spalte, med planen under hvert.
+   Billeder kan sættes ind fire steder (tre forneden på venstresiden, ét i hjørnet øverst til højre).
+3. Søvnkurven: hele tal, og prikken kan trækkes (kun med fingeren PÅ prikken, langsomt og til siden).
+4. To håndskrifter at vælge mellem: Lukas' og Louises. Blyantsknappen nederst til venstre.
+5. Bogens kant zoomet ind: læder helt ud i kanten, hele hjørner, papirstakken folder sig væk når bogen er flad.
+6. Bordet: den skarpe træflade spejles ud over hele planet, så der ikke er nogen sløret kant at se.
+
+### FØRSTE SKRIDT NÆSTE GANG
+- **Bed om Lukas' dom på telefonen** på venstresiden og billederne (han har kun set dem i galleriet).
+- **Ubesvaret spørgsmål:** billedpladsen i hjørnet øverst til højre på HØJREsiden (b4) er et GÆT på, hvad han
+  mente med "felterne oppe i højre hjørne". Spørg, om den ligger rigtigt.
+- **Ubekræftet:** hakkeriet ved hurtig panorering. Min rettelse (prikken kan ikke længere hives i ved et uheld
+  + oversigten tegnes med 250 ms forsinkelse) er IKKE bekræftet. Bed om `?maal`-tallene, hvis det stadig hakker.
+- Derefter: roadmap trin 2 (flere måneder, sidevending, IndexedDB).
+
+### TRE TING JEG LÆRTE I DAG – LÆS DEM FØR DU RETTER NOGET VISUELT
+1. **"Det ligger på linjen" betyder LØFT eller FJERN, ikke FLYT.** Jeg flyttede kolonneoverskrifterne tre gange
+   og ramte forkert hver gang. Til sidst hentede jeg koden fra git og satte den tilbage ord for ord.
+2. **Når han siger "det var ikke det, jeg mente": rul HELT tilbage fra git, lad være med at finjustere videre.**
+   At blive ved med at rette på noget forkert gør det bare mere forkert (hans egne ord).
+3. **Lav varianter bag `?knap=N` og lad ham pege**, når det er et niveau eller en form. Det står i ARBEJDSFORM
+   længere nede, og jeg sprang det over to gange og betalte for det begge gange.
+
 ## Status 2026-09-22 kl. 16.10 – VENSTRESIDENS STORE FELT + BILLEDER
 
 - **Det store felt** (mellem overskriftslinjen og den aflange kasse forneden) har nu de seks mål igen, tre i
