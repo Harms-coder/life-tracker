@@ -264,8 +264,11 @@ void main() {
   // The flat spread is drawn clockwise on screen, so a page lying the right way up is back-facing to GL (mirrored
   // for the other direction, so front-facing); once the leaf has swung past upright its winding flips, and that
   // is its back: the other spread, mirrored about the spine.
-  if (u_leaf > 0.0 && gl_FrontFacing == (u_turn.x > 0.0)) c = u_hasNext > 0.5 ? texture2D(u_next, v_buv) : vec4(0.0);
-  else if (u_leaf < 0.5 && u_turnSide * v_side > 0.5) c = u_hasNext > 0.5 ? texture2D(u_next, v_ouv) : vec4(0.0);
+  // Until the other spread's picture has arrived (it is drawn when the turn begins), the page under the leaf keeps
+  // what it showed: plain paper there lost the fold's shadow and flashed white down the spine (Lukas).
+  bool leafBack = u_leaf > 0.0 && gl_FrontFacing == (u_turn.x > 0.0);
+  if (leafBack) c = u_hasNext > 0.5 ? texture2D(u_next, v_buv) : vec4(0.0);
+  else if (u_leaf < 0.5 && u_turnSide * v_side > 0.5 && u_hasNext > 0.5) c = texture2D(u_next, v_ouv);
   else {
     bool outside = v_uv.x < 0.0 || v_uv.x > 1.0 || v_uv.y < 0.0 || v_uv.y > 1.0;
     c = outside ? vec4(0.0) : texture2D(u_img, v_uv);
@@ -413,7 +416,7 @@ export type Book3D = {
   /** The sharp top-down picture of the table (lies in TABLE, world px). */
   setTable(img: HTMLImageElement): void;
   /** Draw one frame. `arch` 0 = flat. `fade` 0..1: how far the top-down table is in over the photo. */
-  draw(o: { w: number; h: number; view: { x: number; y: number; s: number }; origin: [number, number]; tilt: number; arch: number; flat: number; fade: number; turn?: Turn | null }): void;
+  draw(o: { w: number; h: number; view: { x: number; y: number; s: number }; origin: [number, number]; tilt: number; arch: number; flat: number; fade: number; turn?: Turn | null; persp?: number }): void;
   dispose(): void;
 };
 /** A leaf mid-turn: `dir` +1 = the right leaf swings over to the left (the next month), -1 the other way;
@@ -596,7 +599,7 @@ export function createBook3D(canvas: HTMLCanvasElement, persp: number): Book3D |
       if (!ok) console.error("lyskortet kunne ikke lægges ind – lyset er slået fra");
       return ok;
     },
-    draw({ w, h, view, origin, tilt, arch, flat, fade, turn }) {
+    draw({ w, h, view, origin, tilt, arch, flat, fade, turn, persp: perspNow = persp }) {
       if (upload) { // one slice of the next page texture, into the back texture
         const u = upload;
         gl.activeTexture(gl.TEXTURE0);
@@ -619,7 +622,7 @@ export function createBook3D(canvas: HTMLCanvasElement, persp: number): Book3D |
       gl.uniform1f(U.scale, view.s);
       gl.uniform2f(U.origin, origin[0], origin[1]);
       gl.uniform2f(U.trig, Math.cos(tilt), Math.sin(tilt));
-      gl.uniform1f(U.persp, persp);
+      gl.uniform1f(U.persp, perspNow);
       gl.uniform2f(U.res, w, h);
       gl.uniform4f(U.tex, texRect.x, texRect.y, texRect.w, texRect.h);
       // every part of the height fades out with the tilt. At flat = 0 the page sits exactly on the plane the

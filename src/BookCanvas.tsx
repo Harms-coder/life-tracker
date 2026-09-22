@@ -28,8 +28,7 @@ export type BookCanvasHandle = {
   refresh: () => void;
   /** the photos in the book changed: they go to the worker with the next drawing */
   setPhotos: (photos: Record<string, string>) => void;
-  /** turn a leaf: +1 forward (the right page swings over), -1 back. Zoomed in, the camera first pulls back to
-   *  the whole spread - a leaf turning right under the camera would pass through it. */
+  /** turn a leaf: +1 forward (the right page swings over), -1 back - where you are, zoomed in or not. */
   turn: (dir: 1 | -1) => void;
 };
 
@@ -88,7 +87,7 @@ export const BookCanvas = forwardRef<BookCanvasHandle, {
   /** A leaf mid-turn. `anim` while it settles on its own, `drag` while a finger holds its fore-edge. */
   const turn = useRef<(Turn & { anim: number; drag: { wx0: number } | null }) | null>(null);
   const turnGrab = useRef<{ wx: number; fy: number } | null>(null); // the finger went down on the tipped-back book: a sideways drag turns a leaf
-  const viewAnim = useRef(0); // the camera moving on its own (pulling back before a turn)
+  const awaitNext = useRef(0); // an arrow turn waits (briefly) for the other spread's picture before the leaf goes
   /** Bumped when the book opens at another spread: drawings asked for before that show the old month and are dropped. */
   const gen = useRef(0);
 
@@ -96,8 +95,8 @@ export const BookCanvas = forwardRef<BookCanvasHandle, {
   const tiltAmount = (s: number) => { const out = Math.min(1, Math.max(0, (fitScale.current * (1 + TILT_RANGE) - s) / (fitScale.current * TILT_RANGE))); return out * out; };
   const tiltFor = (s: number) => TILT_MAX * tiltAmount(s);
   const maxScale = () => fitScale.current * MAX_OVER_FIT;
-  /** Something is moving on its own (a leaf settling, the camera pulling back): fingers wait. */
-  const busy = () => !!(turn.current?.anim || viewAnim.current);
+  /** Something is moving on its own (a leaf settling, or about to): fingers wait. */
+  const busy = () => !!(turn.current?.anim || awaitNext.current);
 
   /** Screen point -> world point on the book's plane, tilt and all: the inverse of the vertex shader's projection
    *  at height 0 (CSS px throughout; the shader works in device px, but the ratio is the same). */
@@ -148,6 +147,10 @@ export const BookCanvas = forwardRef<BookCanvasHandle, {
       // gone before the unfolding book reaches it
       fade: Math.min(1, (1 - a) * 1.6),
       turn: turn.current,
+      // Looking straight down, everything of the book lies at height 0 and the camera distance changes nothing -
+      // except for a leaf being turned, which would rise up into the camera. So the camera stands back for it:
+      // the leaf then comes up to at most twice its size. Tipped back, the distance is what it always was.
+      persp: Math.max(PERSPECTIVE * dpr, (1 - a) * 2.2 * PAGE_W * s * dpr),
     });
     if (uploading) {
       uploadFrame.current = { max: Math.max(uploadFrame.current.max, performance.now() - t0), n: uploadFrame.current.n + 1 };
@@ -191,7 +194,10 @@ export const BookCanvas = forwardRef<BookCanvasHandle, {
     if (e.data.overview) {
       if (stale || !book3d.current) return;
       const px = new Uint8Array(e.data.pixels);
-      if (e.data.slot === "next") book3d.current.setNext(px, e.data.w, e.data.h); else book3d.current.setOverview(px, e.data.w, e.data.h);
+      if (e.data.slot === "next") {
+        book3d.current.setNext(px, e.data.w, e.data.h);
+        if (awaitNext.current) { clearTimeout(awaitNext.current); awaitNext.current = 0; if (turn.current && !turn.current.anim) settleTurn(1); } // the arrow waits for this
+      } else book3d.current.setOverview(px, e.data.w, e.data.h);
       if (t.current.s) paint();
       return;
     }
@@ -275,22 +281,6 @@ export const BookCanvas = forwardRef<BookCanvasHandle, {
     };
     tr.anim = requestAnimationFrame(step);
   };
-  /** The camera moves on its own to `to`, then `then` runs. */
-  const animateView = (to: View, ms: number, then: () => void) => {
-    const from = { ...t.current }, t0 = performance.now();
-    const step = (now: number) => {
-      const u = Math.min(1, (now - t0) / ms), e = u * u * (3 - 2 * u);
-      t.current = { x: from.x + (to.x - from.x) * e, y: from.y + (to.y - from.y) * e, s: from.s + (to.s - from.s) * e };
-      apply();
-      renderLive();
-      if (u < 1) { viewAnim.current = requestAnimationFrame(step); return; }
-      viewAnim.current = 0;
-      commit();
-      then();
-    };
-    viewAnim.current = requestAnimationFrame(step);
-  };
-
   if (import.meta.env.DEV) { // for the screenshot scripts: hold a leaf at a given angle, or turn it for real
     const w = window as unknown as { __turnTo: (dir: 1 | -1, p: number) => void; __turn: (dir: 1 | -1) => void; __busy: () => boolean };
     w.__turnTo = (dir, p) => { if (!turn.current) beginTurn(dir, 0.6); turn.current!.p = p; if (p <= 0 || p >= 1) turn.current = null; apply(); };
@@ -301,11 +291,9 @@ export const BookCanvas = forwardRef<BookCanvasHandle, {
   useImperativeHandle(ref, () => ({
     turn: (dir) => {
       if (turn.current || busy() || !t.current.s) return;
-      const go = () => { beginTurn(dir, 0.6); settleTurn(1); }; // held by the bottom corner, as one does
-      if (tiltFor(t.current.s) > 0) { go(); return; }
-      // looking straight down, pull back first: the whole spread, tipped back on the table
-      const v = view.current!, s = fitScale.current;
-      animateView({ x: (v.clientWidth - BOOK_W * s) / 2, y: (v.clientHeight - BOOK_H * s) / 2, s }, 420, go);
+      beginTurn(dir, 0.6); // held by the bottom corner, as one does
+      // the leaf goes once the other spread's picture is up (its back shows it), or after a moment regardless
+      awaitNext.current = window.setTimeout(() => { awaitNext.current = 0; if (turn.current && !turn.current.anim) settleTurn(1); }, 600);
     },
     redraw: () => { if (t.current.s) render(); },
     // The visible part is redrawn at once; the whole-spread stand-in follows once the writing stops. Dragging a
@@ -365,7 +353,7 @@ export const BookCanvas = forwardRef<BookCanvasHandle, {
     return () => {
       worker.current?.terminate(); worker.current = null; inflight.current = null; queued.current = null;
       book3d.current?.dispose(); book3d.current = null; ro.disconnect(); clearTimeout(overTimer.current); cancelAnimationFrame(glide.current); cancelAnimationFrame(frame.current); clearTimeout(commitTimer.current);
-      cancelAnimationFrame(turn.current?.anim ?? 0); turn.current = null; cancelAnimationFrame(viewAnim.current); viewAnim.current = 0;
+      cancelAnimationFrame(turn.current?.anim ?? 0); turn.current = null; clearTimeout(awaitNext.current); awaitNext.current = 0;
     };
   }, [width, height]);
 

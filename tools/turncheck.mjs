@@ -12,8 +12,8 @@ await withServer(async () => {
   await page.goto(URL + Q); await page.waitForSelector(".viewport"); await page.waitForTimeout(2500);
   await page.screenshot({ path: `${OUT}/0-start.png` });
   // two views: the start (the whole photo) and the spread filling the screen, tipped back
-  for (const [name, s] of [["start", 0], ["fit", 0.249]]) {
-    if (s) { await page.evaluate((s) => { const v = window.__view; v.s = s; v.x = (390 - 1456 * s) / 2; v.y = (844 - 1048 * s) / 2; window.__turnTo(1, 0); }, s); await page.waitForTimeout(600); }
+  for (const [name, s] of [["start", 0], ["fit", 0.249], ["zoom", 1.1]]) {
+    if (s) { await page.evaluate((s) => { const v = window.__view; v.s = s; v.x = (390 - 1456 * s) / 2; v.y = (844 - 1048 * s) / 2 - (s > 1 ? 300 : 0); window.__turnTo(1, 0); }, s); await page.waitForTimeout(600); }
     for (const p of [0.15, 0.4, 0.6, 0.85]) {
       await page.evaluate((p) => window.__turnTo(1, p), p);
       await page.waitForTimeout(400);

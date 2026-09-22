@@ -204,6 +204,13 @@ og om den hakker). Hans valg mellem finger og pile: begge er lavet, han kan skæ
 - Lukas' dom (16.10): "lige som jeg gerne ville have det" – men bladet beholdt sin skygge og skiftede først ved landing.
   Årsag: rummets lys (v_luv, sprossernes skygger) blev slået op på bladets GAMLE plads (`op`). Nu følger det bladets
   faktiske fodaftryk (`xy`), så lyset glider over undervejs. Rettet og pushet – IKKE bekræftet af Lukas endnu.
+- Lukas (16.15): pilen må IKKE zoome ud – man bliver hvor man er. Zoom-ud-animationen er slettet; i stedet får
+  kameraet en større afstand pr. frame (`persp` i draw(): max(700·dpr, (1−a)·2,2·PAGE_W·s·dpr)) – fladt ligger hele
+  bogen i højde 0, så afstanden ændrer intet andet end bladet, der så højst bliver 2× stort. Vippet er den som før.
+- Lukas: hvidt glimt ned gennem ryggen ved højre pil, halvt zoomet ind. Årsag: siden under bladet viste `u_next`
+  FØR den var nået frem → rent papir uden ryggens skygge. Nu: siden beholder sin tegning til u_next er oppe, og
+  pilen venter på u_next (`awaitNext`, højst 600 ms) før bladet går. Bladets bagside er rent papir indtil da.
+- Kendt: zoomet langt ind ses bladets skygge som 5 trin (SHADOW_PASSES) på siden under.
 - Åbent: stadig localStorage (IndexedDB er ikke lavet). Ingen stak af sider der bliver tyndere/tykkere med måneden.
 
 ## Status 2026-09-22 kl. 16.25 (tidligere samme dag) – SESSIONEN LUKKET NED, ALT ER PUSHET
