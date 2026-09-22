@@ -41,13 +41,45 @@ const pick = (ch: string, r: () => number): Variant | null => {
   return v && v.length ? v[Math.min(v.length - 1, Math.floor(r() * v.length))] : null;
 };
 
+/** The text split into what the pen writes one at a time: a character of Lukas' hand, or an emoji (one grapheme,
+ *  flags and skin tones and all), which no template sheet has. Emojis are set in the system's emoji font. */
+const EMOJI = /\p{Extended_Pictographic}|\p{Regional_Indicator}/u;
+const segmenter = typeof Intl !== "undefined" && "Segmenter" in Intl ? new Intl.Segmenter("da", { granularity: "grapheme" }) : null;
+const parts = (str: string): { ch: string; emoji: boolean }[] => {
+  const out: { ch: string; emoji: boolean }[] = [];
+  for (const ch of segmenter ? Array.from(segmenter.segment(str), (x) => x.segment) : Array.from(str)) {
+    if (EMOJI.test(ch)) out.push({ ch, emoji: true });
+    else for (const c of ch) out.push({ ch: c, emoji: false }); // a grapheme of plain letters: one glyph each
+  }
+  return out;
+};
+const EMOJI_SIZE = 1.05; // of the nominal size: a little taller than the capitals, as emoji sit next to text
+const emojiFont = (size: number) => `${size * EMOJI_SIZE}px "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif`;
+const emojiW = new Map<string, number>();
+let measurer: OffscreenCanvasRenderingContext2D | null = null;
+const emojiWidth = (ch: string, size: number) => {
+  const key = ch + size;
+  let w = emojiW.get(key);
+  if (w === undefined) {
+    measurer ??= new OffscreenCanvas(1, 1).getContext("2d")!;
+    measurer.font = emojiFont(size);
+    w = measurer.measureText(ch).width;
+    emojiW.set(key, w);
+  }
+  return w;
+};
+
 export const has = (ch: string) => !!(GLYPHS[ch] ?? GLYPHS[ch.toLowerCase()] ?? GLYPHS[ch.toUpperCase()]);
 
 export function widthOfText(str: string, size: number, seed: string) {
   const r = seededRandom(seed);
+  const em = size * EM;
   let w = 0;
-  for (const ch of str) w += ch === " " ? SPACE : (pick(ch, r)?.w ?? SPACE) + GAP;
-  return w * size * EM;
+  for (const { ch, emoji } of parts(str)) {
+    if (emoji) w += emojiWidth(ch, size) / em + GAP;
+    else w += ch === " " ? SPACE : (pick(ch, r)?.w ?? SPACE) + GAP;
+  }
+  return w * em;
 }
 
 /** Draw `str` with its baseline at y (or centred/topped, matching the canvas baseline names). */
@@ -58,7 +90,15 @@ export function drawText(ctx: OffscreenCanvasRenderingContext2D, str: string, x:
   let pen = align === "center" ? -total / 2 : align === "right" ? -total : 0;
   const by = baseline === "middle" ? y + (CAP / 2) * em : baseline === "top" ? y + CAP * em : y;
   const r = seededRandom(seed);
-  for (const ch of str) {
+  for (const { ch, emoji } of parts(str)) {
+    if (emoji) {
+      ctx.save();
+      ctx.font = emojiFont(size); ctx.textBaseline = "alphabetic"; ctx.textAlign = "left";
+      ctx.fillText(ch, x + pen, by);
+      ctx.restore();
+      pen += emojiWidth(ch, size) + GAP * em;
+      continue;
+    }
     if (ch === " ") { pen += SPACE * em; continue; }
     const v = pick(ch, r);
     if (!v) { pen += SPACE * em; continue; }

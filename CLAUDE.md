@@ -166,6 +166,22 @@ Rækker = dage 1–31 (antal efter måneden). Kolonner = brugerens egne trackere
 - Test-scripts ligger i sessionens scratchpad (`pw/shots.mjs` skærmbilleder, `pw/bench.mjs` frame-tider i WebKit,
   `pw/tapcheck.mjs` tryk). Dev-server: `npm run dev`. I dev sætter BookCanvas `window.__view` (x, y, s) til scripts.
 
+## Status 2026-09-22 kl. 19.25 – EMOJIS
+
+Lukas: man skal kunne bruge emojis, når man skriver. De findes ikke i håndskrifts-glyfferne, så de sættes i
+telefonens egen emoji-skrift midt i skriften (`glyf.ts`):
+- `parts(str)` deler teksten i det, pennen skriver ét ad gangen: Intl.Segmenter (grapheme) holder sammen på
+  flag, ZWJ-familier og hudfarver; er tegnet et `\p{Extended_Pictographic}`/`\p{Regional_Indicator}`, tegnes det
+  med `fillText` i "Apple Color Emoji"/"Segoe UI Emoji"/"Noto Color Emoji" i stedet for en glyf.
+  Bogstav-graphemes deles op i enkelttegn, så hvert bogstav får sin egen glyf som før.
+- Bredden måles én gang pr. (tegn, størrelse) og caches (`emojiWidth`); både `widthOfText` og `drawText` bruger
+  den, så understregninger og centrering passer. Størrelse = 1,05 × den nominelle (lidt over versalhøjden).
+- Tegnes i WORKEREN via OffscreenCanvas: systemskrifter er til rådighed der (verificeret i Chrome, tools/emojicheck.mjs).
+  IKKE verificeret i iOS Safari – hvis emojis udebliver på telefonen, er det dér, man skal kigge.
+- Skrive-animationen (`reveal`) klipper dem frem som alt andet. Input-fladerne er almindelige <input>, så
+  telefonens emoji-tastatur virker uden videre.
+- `node tools/emojicheck.mjs screenshots/emoji.png` = mål + plan med emojis, zoomet ind.
+
 ## Status 2026-09-22 kl. 19.10 – TRE BILLEDPLADSER MERE + SORTE KANTER
 - Lukas' tre cirkler: b5 = kassen under måneden (venstre), b6 = over "Søvn score" i prikgrafens overskriftsfelt,
   b7 = de nederste 7 tern af "Hvad gik godt"-kassen. `photoBoxes(days)` (venstre, nu 4) og `photoBoxesRight(columns,
