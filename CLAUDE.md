@@ -166,6 +166,24 @@ Rækker = dage 1–31 (antal efter måneden). Kolonner = brugerens egne trackere
 - Test-scripts ligger i sessionens scratchpad (`pw/shots.mjs` skærmbilleder, `pw/bench.mjs` frame-tider i WebKit,
   `pw/tapcheck.mjs` tryk). Dev-server: `npm run dev`. I dev sætter BookCanvas `window.__view` (x, y, s) til scripts.
 
+## Status 2026-09-22 kl. 14.30 – KANT, FOLD OG BORD (runde 2 samme dag)
+
+Lukas' næste tre ting. Rettet, pushet, IKKE set af ham på telefonen endnu. Knapper: `?kant=N` `?fold=N`.
+- **Den hvide kant om siderne** (zoomet ud, ude i hver side): papirstakkens snitflade blev tegnet i fuld
+  papirfarve x 1,04 – altså LYSERE end siden. I `referencer/bog-maal.jpg` er den en varm gråbrun, tydeligt
+  MØRKERE. `STACK_LIT` = 0,78 ganges på `u_flat` i edges-passet.
+- **Folden var "gennemsigtig"**: nær ryggen rejser siden sig stejlt, og sidens gitter + sorte kolonnelinjer løb
+  helt ned til omslaget, hvor øjet venter en mørk dal. `FOLD_DARK` 0,3 → 0,85 og v_shade-bunden 0,6 → 0,08.
+  VIGTIGT: den stærke udgave gælder kun vippet (`FOLD_FLAT` = 0,3 fladt) – fladt er der ingen dal, og en sort
+  stribe ned gennem opslaget ville være forkert.
+- **Sløringen i kanterne zoomet ind**: `bord.webp` har en blød alfa-kant på 13 % af hver side (tools/bordplade.py),
+  og zoomet ind var netop den kant alt, man så i skærmens rand – skarpt træ der toner ud i flad brun. Nu tegnes
+  billedet på HELE den polstrede flade (TABLE ± TABLE_PAD), og kun dets skarpe midte samples, spejlet ud over
+  planet (`TABLE_EDGE` = 0,15, spejling i fragmentshaderen). Spejling samler sig sømløst, så træet bare
+  fortsætter uendeligt og skarpt. Panoreringsgrænsen er IKKE ændret – der er bare ikke noget grimt at se mere.
+- Målt: før/efter zoom-trin er ellers identiske (jeg tjekkede, at de to første ting IKKE kom af formiddagens
+  kant-rettelse – de har været der hele tiden).
+
 ## Status 2026-09-22 kl. 14.00 – BOGENS KANT ZOOMET IND
 
 Lukas zoomede ind og så tre ting: striber i den sorte kant, hjørner der ikke var dækket (bordet skinnede
