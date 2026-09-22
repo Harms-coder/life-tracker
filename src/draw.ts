@@ -3,7 +3,7 @@ import { drawInBox, drawText, setHand, widthOfText, type Hand } from "./glyf";
 import {
   CELL, PAGE_W, PAGE_H, COVER, LIP, BOOK_W, BOOK_H, LEFT_PAGE, RIGHT_PAGE, HEADER_Y, TABLE_LEFT, DAY_COL_W,
   TITLE_BOX_X, TITLE_BOX_Y, GOALS, goalPos, goalTextBox, widthOf, dotX, columnXs, bottomY, noteBoxes, NOTE_LABEL,
-  PLAN_Y, PLAN_ROW_H, planBoxes, photoBoxes, photoBoxesRight,
+  PLAN_Y, PLAN_ROW_H, planBoxes, photoBoxes, photoBoxesRight, wrapText, NOTE_SIZE, NOTE_INDENT,
   type Column, type NoteField, type Rect,
 } from "./layout";
 
@@ -117,24 +117,12 @@ function handX(ctx: Ctx, x: number, y: number, seed: string, progress = 1) {
   ctx.restore();
 }
 
-/** Word-wrap text into lines that fit `width` (canvas units), greedy. */
-function wrap(_ctx: Ctx, str: string, width: number, size: number): string[] {
-  const out: string[] = [];
-  for (const para of str.split("\n")) {
-    if (!para.trim()) continue;
-    let line = "";
-    for (const word of para.split(" ")) {
-      const next = line ? line + " " + word : word;
-      if (widthOfText(next, size, "w") > width && line) { out.push(line); line = word; } else line = next;
-    }
-    out.push(line);
-  }
-  return out;
-}
+/** Word-wrap: layout.ts owns it, so the hit-test counts the same rows as the drawing. */
+const wrap = (_ctx: Ctx, str: string, width: number, size: number) => wrapText(str, width, size);
 
 /** Free text written line by line on the grid; `bullets` puts a dot in front of each paragraph. */
-function noteText(ctx: Ctx, str: string, box: Rect, seed: string, o: { bullets?: boolean; minRows?: number; top?: number; reveal?: number; lines?: number[] }) {
-  const indent = o.bullets ? 14 : 0, size = 15.5;
+function noteText(ctx: Ctx, str: string, box: Rect, seed: string, o: { bullets?: boolean; minRows?: number; top?: number; reveal?: number; lines?: number[]; until?: number }) {
+  const indent = o.bullets ? NOTE_INDENT : 0, size = NOTE_SIZE;
   const paras = str.split("\n").filter((p) => p.trim());
   while (paras.length < (o.minRows ?? 0)) paras.push("");
   // laid out first, so a line knows its share of the pen's journey down the page
@@ -150,6 +138,7 @@ function noteText(ctx: Ctx, str: string, box: Rect, seed: string, o: { bullets?:
   let done = 0;
   for (const r of rows) {
     const y = box.y + (o.top ?? 0) + r.row * CELL + 15;
+    if (o.until !== undefined && y > o.until) break; // a photo is taped in below: the text stops above it
     // each new line takes its turn: the pen finishes one before it starts the next
     const p = !r.line || !isNew(r.i) ? 1 : Math.max(0, Math.min(1, o.reveal! * written - done));
     if (r.bullet && p > 0) text(ctx, "•", box.x + 6, y, { size: 22, weight: 700, seed: seed + "b" + r.i, tilt: 0 });
@@ -391,7 +380,9 @@ function drawRightPage(ctx: Ctx, scene: Scene, vis: Rect, now: number, assets: A
     text(ctx, "+", right + CELL / 2, HEADER_Y - 6, { size: 20, seed: "plus", align: "center", alpha: 0.35 });
   }
 
-  for (const { slot, box } of photoBoxesRight(columns, days)) if (overlaps(vis, box)) photo(ctx, box, assets.photos?.[slot], slot);
+  const rightPhotos = photoBoxesRight(columns, days, notes);
+  for (const { slot, box } of rightPhotos) if (overlaps(vis, box)) photo(ctx, box, assets.photos?.[slot], slot);
+  const b7 = assets.photos?.b7 ? rightPhotos.find((p) => p.slot === "b7")?.box : undefined;
 
   // day rows (only the visible ones)
   const first = Math.max(1, Math.floor((vis.y - HEADER_Y) / CELL) + 1), last = Math.min(days, Math.ceil((vis.y + vis.h - HEADER_Y) / CELL));
@@ -444,6 +435,6 @@ function drawRightPage(ctx: Ctx, scene: Scene, vis: Rect, now: number, assets: A
     const b = boxes[f];
     if (!overlaps(vis, b)) return;
     labelled(ctx, NOTE_LABEL[f], b.x + 6, b.y + 16, "n" + f);
-    noteText(ctx, notes[f] ?? "", b, f, { bullets: true, minRows: f === "good" ? 0 : 3, top: CELL, reveal: penAt(scene, f, now), lines: penLines(scene, f) });
+    noteText(ctx, notes[f] ?? "", b, f, { bullets: true, minRows: f === "good" ? 0 : 3, top: CELL, reveal: penAt(scene, f, now), lines: penLines(scene, f), until: f === "good" && b7 ? b7.y - 8 : undefined });
   });
 }

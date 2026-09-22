@@ -4,7 +4,7 @@ import { Backdrop } from "./Backdrop";
 import type { Scene } from "./draw";
 import { BOOK_H, BOOK_W, columnXs, dotX, hitTest, NOTE_LABEL, RIGHT_PAGE, widthOf, CELL, type ColType, type Column, type NoteField } from "./layout";
 import { seededRandom } from "./random";
-import { HANDS, type Hand } from "./glyf";
+import { HANDS, setHand, type Hand } from "./glyf";
 
 declare const __BUILD__: string; // set in vite.config.ts
 
@@ -191,6 +191,7 @@ export default function App() {
   const scene = useRef<Scene>(sceneOf(month, values, notes));
   scene.current = { ...sceneOf(month, values, notes), writing: scene.current.writing };
 
+  setHand(hand); // the hit-test measures text here too, and the widths differ between the two hands
   const redraw = () => book.current?.redraw();
   useEffect(() => { book.current?.setPhotos(photos); book.current?.refresh(); }, [month, columns, values, notes, hand, photos]);
 
@@ -243,7 +244,7 @@ export default function App() {
    *  when the finger goes down, so a drag that wanders up or down still moves the dot it started on.
    *  BookCanvas decides the rest: it only hands the drag over if the finger then moves slowly and sideways. */
   const grab = (wx: number, wy: number) => {
-    const hit = hitTest(wx, wy, columns, DAYS);
+    const hit = hitTest(wx, wy, columns, DAYS, notes);
     if (!hit || hit.kind !== "cell" || hit.col.type !== "dots") return null;
     const key = `${hit.day}:${hit.col.id}`;
     const v0 = values[key];
@@ -288,7 +289,7 @@ export default function App() {
   };
 
   const onTap = (wx: number, wy: number) => {
-    const hit = hitTest(wx, wy, columns, DAYS);
+    const hit = hitTest(wx, wy, columns, DAYS, notes);
     if (!hit) return;
     if (hit.kind === "cell") {
       const { day, col } = hit, key = `${day}:${col.id}`;

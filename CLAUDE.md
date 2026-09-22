@@ -189,7 +189,14 @@ telefonens egen emoji-skrift midt i skriften (`glyf.ts`):
   overskrifterne (b6 ligger i overskriftsbåndet). Samme flow som før (vælg/skift/fjern), samme localStorage-nøgle.
 - Rammen om billeder er sort (#161616) i `photo()` i draw.ts (før hvid).
 - `node tools/photocheck.mjs <photos.json> screenshots/photos.png` = startvisning med testbilleder i alle pladser.
-- b7 kan kollidere med en meget lang "godt"-tekst (teksten skrives hen over billedet). Ikke håndteret.
+- b7 DELER kasse med teksten (rettet 19.40, Lukas): pladsen tilbydes kun, så længe teksten ikke er nået ned til
+  den (`photoBoxesRight(columns, days, notes)`; uden `notes` tilbydes den altid). Ligger der ALLEREDE et billede,
+  bliver det, og teksten stopper lige over det (`until` i noteText) i stedet for at blive skrevet hen over.
+  Fjernes billedet, kommer resten af teksten frem igen – intet er slettet.
+  Linjeoptællingen SKAL være den samme i tegningen og i hit-testen: `wrapText`/`noteRows`/`noteBottom` ligger nu i
+  layout.ts (draw.ts bruger dem), og App kalder `setHand(hand)`, fordi bredderne er forskellige i de to håndskrifter.
+  `node tools/goodcheck.mjs screenshots/good <photos.json>` = kort tekst / lang tekst / med billede + hvilke pladser
+  layout'en tilbyder. Målt: kort [b4,b6,b7], lang [b4,b6], med billede [b4,b6,b7].
 
 ## Status 2026-09-22 kl. 18.55 – OVERSKRIFTERNE LØFTET (tredje gang, nu med måling) + LABEL VÆK
 - Lukas' foto: de lodrette overskrifter STOD på linjen, "Vægt" svævede. `HEADER_LIFT` = 14 i draw.ts (før 8):
