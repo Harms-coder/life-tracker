@@ -222,6 +222,7 @@ uniform float u_mix;          // how far the sharp drawing has faded in over the
 uniform sampler2D u_next;     // the spread being turned to, coarse: the leaf's back, and the page it uncovers
 uniform float u_hasNext;
 uniform float u_turnSide;     // mid-turn: which page of the spread (-1 left, +1 right) already shows u_next
+uniform float u_cover;        // > 0: the board pass - under the pages it is bare board, never their picture
 uniform highp float u_leaf;   // highp: shared with the vertex shader, or the program does not link
 uniform highp vec4 u_turn;
 uniform sampler2D u_tableTex; // the sharp top-down table
@@ -262,6 +263,13 @@ void main() {
   // the next drawing is back (~150 ms on the phone): there, and wherever that drawing did not reach, the coarser
   // whole-spread overview stands in, so the book never goes blank.
   vec4 c;
+  // The board carries the same flat picture as the pages (they are one drawing), so any sliver of it that shows
+  // between the page stack and the board's edge came out as paper with a grid on it (Lukas). Under the pages
+  // the board is dark, like its rim: a sliver there now reads as the shadow under the page block.
+  if (u_cover > 0.5) {
+    vec2 sp = v_ouv * vec2(${BOOK_W + 2 * LIP}.0, ${BOOK_H + 2 * LIP}.0) - ${LIP}.0;
+    if (sp.x > ${COVER}.0 && sp.x < ${BOOK_W - COVER}.0 && sp.y > ${COVER}.0 && sp.y < ${BOOK_H - COVER}.0) { gl_FragColor = vec4(vec3(0.10, 0.09, 0.08) * v_shade * light, 1.0); return; }
+  }
   // The flat spread is drawn clockwise on screen, so a page lying the right way up is back-facing to GL (mirrored
   // for the other direction, so front-facing); once the leaf has swung past upright its winding flips, and that
   // is its back: the other spread, mirrored about the spine.
@@ -317,7 +325,7 @@ function buildRim(): Mesh {
   const pos: number[] = [], meta: number[] = [], idx: number[] = [];
   const push = (x: number, y: number, top: boolean, shade: number) => { pos.push(x, y, 0); meta.push(top ? 0 : -1, shade, 0); return pos.length / 3 - 1; };
   const quad = (a: number, b: number, c: number, d: number) => idx.push(a, b, c, a, c, d);
-  const corners = [[0, 0], [BOOK_W, 0], [BOOK_W, BOOK_H], [0, BOOK_H]], shade = [0.5, 0.7, 1, 0.7];
+  const corners = [[-LIP, -LIP], [BOOK_W + LIP, -LIP], [BOOK_W + LIP, BOOK_H + LIP], [-LIP, BOOK_H + LIP]], shade = [0.5, 0.7, 1, 0.7];
   for (let i = 0; i < 4; i++) {
     const [ax, ay] = corners[i], [bx, by] = corners[(i + 1) % 4];
     quad(push(ax, ay, true, shade[i]), push(bx, by, true, shade[i]), push(bx, by, false, shade[i]), push(ax, ay, false, shade[i]));
@@ -378,8 +386,11 @@ function buildEdges(): Mesh {
     for (let k = 0; k < ROLL; k++) {
       const t0 = k / ROLL, t1 = (k + 1) / ROLL;
       const oa = dir * OVERHANG * out(t0), ob = dir * OVERHANG * out(t1);
-      quad(push(xo, top, oa, 0, 1, 1 - drop(t0), lit(t0), drop(t0)), push(xo, bot, oa, 0, 1, 1 - drop(t0), lit(t0) * 0.98, drop(t0)),
-           push(xo, bot, ob, 0, 1, 1 - drop(t1), lit(t1) * 0.98, drop(t1)), push(xo, top, ob, 0, 1, 1 - drop(t1), lit(t1), drop(t1)));
+      // its ends roll out along y as well, to meet the long skirts at the corners (left apart, the fore-edge skirt
+      // stood out past the corner as a pale fin, and the corner itself was open)
+      const ya = OVERHANG * out(t0), yb = OVERHANG * out(t1);
+      quad(push(xo, top, oa, -ya, 1, 1 - drop(t0), lit(t0), drop(t0)), push(xo, bot, oa, ya, 1, 1 - drop(t0), lit(t0) * 0.98, drop(t0)),
+           push(xo, bot, ob, yb, 1, 1 - drop(t1), lit(t1) * 0.98, drop(t1)), push(xo, top, ob, -yb, 1, 1 - drop(t1), lit(t1), drop(t1)));
     }
     // the long edges, top and bottom: they follow the curve along the page, and roll over the same way
     for (const [y, sh, sgn] of [[top, 1.1, -1], [bot, 0.9, 1]] as const) {
@@ -390,9 +401,10 @@ function buildEdges(): Mesh {
           const t0 = k / ROLL, t1 = (k + 1) / ROLL;
           // the roll grows with the stack, so the skirt closes to nothing at the fold instead of flaring there
           const oa = sgn * OVERHANG * out(t0), ob = sgn * OVERHANG * out(t1);
+          const xa = i === SEG_X - 1 ? dir * OVERHANG * out(t0) : 0, xb = i === SEG_X - 1 ? dir * OVERHANG * out(t1) : 0; // the last piece reaches the corner
           quad(push(x0, y, 0, oa * s0, s0, 1 - drop(t0), sh * lit(t0), drop(t0)),
-               push(x1, y, 0, oa * s1, s1, 1 - drop(t0), sh * lit(t0), drop(t0)),
-               push(x1, y, 0, ob * s1, s1, 1 - drop(t1), sh * lit(t1), drop(t1)),
+               push(x1, y, xa, oa * s1, s1, 1 - drop(t0), sh * lit(t0), drop(t0)),
+               push(x1, y, xb, ob * s1, s1, 1 - drop(t1), sh * lit(t1), drop(t1)),
                push(x0, y, 0, ob * s0, s0, 1 - drop(t1), sh * lit(t1), drop(t1)));
         }
       }
@@ -437,6 +449,8 @@ const LEAF_SHADOW_DARK = Number(new URLSearchParams(location.search).get("ld") ?
 
 /** The page texture goes up in slices of at most this many bytes per frame (`?strip=MB`). One upload of the whole
  *  25 MB bitmap cost 47 ms on the iPhone - the one hitch left once the drawing had moved off the main thread. */
+/** ?skip=cover,rim,edges,pages leaves those passes out - to see which one a stray band comes from. */
+const SKIP = new URLSearchParams(location.search).get("skip") ?? "";
 const STRIP_BYTES = Number(new URLSearchParams(location.search).get("strip") ?? 4) * 1e6;
 
 export function createBook3D(canvas: HTMLCanvasElement, persp: number): Book3D | null {
@@ -461,7 +475,7 @@ export function createBook3D(canvas: HTMLCanvasElement, persp: number): Book3D |
     bow: loc("u_bow"), dip: loc("u_dip"), amp: loc("u_sheetAmp"), out: loc("u_out"), shadow: loc("u_shadow"), shadowC: loc("u_shadowC"),
     light: loc("u_light"), lightAmt: loc("u_lightAmt"), over: loc("u_over"), hasOver: loc("u_hasOver"), lightRect: loc("u_lightRect"), tone: loc("u_tone"), paper: loc("u_paper"),
     table: loc("u_table"), tableTex: loc("u_tableTex"), tableRect: loc("u_tableRect"), fade: loc("u_fade"),
-    next: loc("u_next"), hasNext: loc("u_hasNext"), turnSide: loc("u_turnSide"), leaf: loc("u_leaf"), turn: loc("u_turn"), mix: loc("u_mix"),
+    next: loc("u_next"), hasNext: loc("u_hasNext"), turnSide: loc("u_turnSide"), leaf: loc("u_leaf"), turn: loc("u_turn"), mix: loc("u_mix"), cover: loc("u_cover"),
   };
   const aPos = gl.getAttribLocation(prog, "a_pos"), aOff = gl.getAttribLocation(prog, "a_off"), aMeta = gl.getAttribLocation(prog, "a_meta");
   /** One set of buffers per mesh, so a frame that changes nothing only binds them. Re-uploading both meshes
@@ -673,14 +687,14 @@ export function createBook3D(canvas: HTMLCanvasElement, persp: number): Book3D |
         // ends there anyway), so it stays out of the shadow: painted dark it was a frame all round the flat book.
         gl.uniform4f(U.flat, 0, 0, 0, 0);
         gl.uniform4f(U.paper, 0, 0, 0, 0);
-        if (!shadow) { bind(slots.cover); gl.drawElements(gl.TRIANGLES, slots.cover.n, gl.UNSIGNED_SHORT, 0); }
+        if (!shadow && !SKIP.includes("cover")) { gl.uniform1f(U.cover, 1); bind(slots.cover); gl.drawElements(gl.TRIANGLES, slots.cover.n, gl.UNSIGNED_SHORT, 0); gl.uniform1f(U.cover, 0); }
         gl.uniform4f(U.flat, 0.13, 0.12, 0.11, 1);
-        bind(slots.rim); gl.drawElements(gl.TRIANGLES, slots.rim.n, gl.UNSIGNED_SHORT, 0);
+        if (!SKIP.includes("rim")) { bind(slots.rim); gl.drawElements(gl.TRIANGLES, slots.rim.n, gl.UNSIGNED_SHORT, 0); }
         gl.uniform4f(U.flat, 0.95, 0.92, 0.83, 1);
-        bind(slots.edges); gl.drawElements(gl.TRIANGLES, slots.edges.n, gl.UNSIGNED_SHORT, 0);
+        if (!SKIP.includes("edges")) { bind(slots.edges); gl.drawElements(gl.TRIANGLES, slots.edges.n, gl.UNSIGNED_SHORT, 0); }
         gl.uniform4f(U.flat, 0, 0, 0, 0);
         gl.uniform4f(U.paper, 0.94, 0.91, 0.83, 1); // draw.ts' PAPER
-        bind(slots.pages); gl.drawElements(gl.TRIANGLES, slots.pages.n, gl.UNSIGNED_SHORT, 0);
+        if (!SKIP.includes("pages")) { bind(slots.pages); gl.drawElements(gl.TRIANGLES, slots.pages.n, gl.UNSIGNED_SHORT, 0); }
       };
       // the table under everything: its colour out to the padding, then the picture, both faded in as the camera
       // goes overhead. Drawn here rather than as an <img> in the page: a picture this size under a scale that

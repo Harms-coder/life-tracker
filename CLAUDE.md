@@ -223,6 +223,15 @@ og om den hakker). Hans valg mellem finger og pile: begge er lavet, han kan skæ
   er oppe viser siden under bladet allerede næste måned, men bladet blev først tegnet ved p > 0 – så i frames mellem
   svar og første bevægelse så man den tomme side UDEN blad. Nu tegnes bladet fra p = 0 (`turn.p < 1`). Mipmaps og
   fade (ovenfor) er bevaret – de gør skiftet ved landing blødere – men var ikke årsagen.
+- KANTEN (Lukas 16.40, to billeder): (1) en stribe PAPIR MED TERN under papirstakken langs bogens nederste kant.
+  Det var omslagspladen: den bærer samme flade tegning som siderne, så den lille sliver af plade mellem stakkens
+  fod og læderet viste sidens tern. Nu: `u_cover` i omslagspasset → under siderne er pladen mørk (læderfarve),
+  så en sliver læses som skygge under sideblokken. (2) Zoomet halvt ind i nederste venstre hjørne: en hvid
+  lodret "vinge" + en sort kile. Vingen = forkantens skørt rullede kun ud i x, bundskørtet kun i y → de mødtes ikke i
+  hjørnet. Nu ruller forkantens ender også i y, og sidste stykke af de lange skørter i x (`buildEdges`). Kilen =
+  `buildRim` var bygget på BOOK-hjørnerne (30 px inde i pladen), så dens sideflade stak op som en mørk kile i
+  hjørnet; nu bygges den på LIP-kassen = pladens egen kant. `?skip=cover,rim,edges,pages` udelader tegnepas
+  (fejlsøgning). `node tools/edgecheck.mjs <mappe>` = fit-visning + hjørne ved s=0,28/0,31. UBEKRÆFTET af Lukas.
 - Kendt: zoomet langt ind ses bladets skygge som 5 trin (SHADOW_PASSES) på siden under.
 - Åbent: stadig localStorage (IndexedDB er ikke lavet). Ingen stak af sider der bliver tyndere/tykkere med måneden.
 
