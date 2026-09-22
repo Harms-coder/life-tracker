@@ -182,6 +182,21 @@ telefonens egen emoji-skrift midt i skriften (`glyf.ts`):
   telefonens emoji-tastatur virker uden videre.
 - `node tools/emojicheck.mjs screenshots/emoji.png` = mål + plan med emojis, zoomet ind.
 
+## Status 2026-09-22 kl. 20.45 – OVERSKRIFTERNES PLADS I FELTET: TRE VARIANTER (?ov=1|2|3)
+
+Lukas sendte et billede og bad om "i midten af feltet", men skriftretningen skal blive som nu. Hans billede er
+en MOCKUP: den lodrette skrift i det læses OPPEFRA OG NED (modsat appen), og fotoet er i perspektiv, så det kan
+ikke måles præcist. Efter at have ramt forkert på de overskrifter tre gange tidligere: tre varianter, han peger.
+- `headY(len, pos)` i draw.ts: 1 = ved linjen (som før, 14 px luft), 2 = ordets midte i feltets midte,
+  3 = hængt op i toppen. For lange ord klippes der til linjen, så de aldrig krydser den. Gælder ALLE overskrifter
+  (også de vandrette "Vægt" og "Søvn score"); prikgrafens 0–10-skala bliver ved sin egen linje.
+- **FALDGRUBE:** `?ov=` kunne ikke læses i draw.ts – den fil kører i WORKEREN, hvor `location` er worker-scriptet
+  og ikke siden. Knappen ligger nu i App (hovedtråden) og rider med på scenen (`headPos`), som `hand` gør.
+  Samme gælder enhver anden ny `?knap=` der skal virke i tegningen.
+- Standard = 2. `node tools/ovcheck.mjs screenshots/ov` tegner alle tre.
+- MÅLT (luft under ordene, verdens-px): ov=1 13,5 · ov=2 33–67 for de korte (lange ord står stadig ved linjen)
+  · ov=3 85–96. Bemærk ved måling: første række X'er stikker ~4 px op over linjen og forurener en naiv måling.
+
 ## Status 2026-09-22 kl. 20.15 – MARKØREN STARTER NEDERST
 Lukas: åbner man en skriveflade, sad markøren i den ØVERSTE linje – den skal stå i den tomme linje nederst, for
 man åbner næsten altid en kasse for at tilføje et punkt. `autoFocus={i === rows.length - 1}` i `Lines` (App.tsx).
