@@ -166,6 +166,19 @@ Rækker = dage 1–31 (antal efter måneden). Kolonner = brugerens egne trackere
 - Test-scripts ligger i sessionens scratchpad (`pw/shots.mjs` skærmbilleder, `pw/bench.mjs` frame-tider i WebKit,
   `pw/tapcheck.mjs` tryk). Dev-server: `npm run dev`. I dev sætter BookCanvas `window.__view` (x, y, s) til scripts.
 
+## Status 2026-09-22 kl. 15.20 – OVERSKRIFTER TILBAGE + SØVNKURVEN
+
+- **Overskrifterne blev sat tilbage.** At centrere dem i feltet var en FEJL: Lukas ville have dem præcis hvor
+  de stod, bare løftet fri af linjen. `LIFT = 10` i drawRightPage er hele ændringen; `fit()`-nedskaleringen er
+  også væk igen. LÆRE (anden gang i dag): "det skal ikke ligge på linjen" betyder LØFT, ikke FLYT.
+- **Søvnkurven: hele tal.** `dotValue()` i App.tsx runder til 0..10 uden halve; bruges af både tryk og træk.
+- **Prikken kan trækkes.** `BookCanvas` har fået `grab(wx, wy)`: ved fingerens nedslag (kun når vippet er væk)
+  spørger den App, om noget på siden vil følge fingeren. Svarer App ja, går træk-bevægelsen til den handler i
+  stedet for at panorere, dagen ligger fast fra nedslaget, og en anden finger (knib) slipper det. Der skrives
+  kun når tallet faktisk skifter → én omtegning pr. trin, ikke pr. frame. Samme krog kan bruges til andet, der
+  skal kunne trækkes senere.
+  Målt i Chrome: 40 verdens-px træk flyttede dag 5 fra 3 til 7, og bogen stod stille (0, 0 px).
+
 ## Status 2026-09-22 kl. 15.00 – TO HÅNDSKRIFTER
 
 Louises tre ark laa som PDF på Lukas' skrivebord ("Louise haandskrift 1/2/3.pdf"); konverteret med
