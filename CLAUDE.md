@@ -166,6 +166,51 @@ Rækker = dage 1–31 (antal efter måneden). Kolonner = brugerens egne trackere
 - Test-scripts ligger i sessionens scratchpad (`pw/shots.mjs` skærmbilleder, `pw/bench.mjs` frame-tider i WebKit,
   `pw/tapcheck.mjs` tryk). Dev-server: `npm run dev`. I dev sætter BookCanvas `window.__view` (x, y, s) til scripts.
 
+## Status 2026-09-22 kl. 20.40 – SESSIONEN LUKKET NED, ALT ER PUSHET (værktøj, ikke appen)
+
+**Live:** https://harms-coder.github.io/life-tracker/ · **Galleri:** https://claude.ai/artifact/S914mdZ2Tq4gAuqWUrxLYb
+Arbejdstræet er rent. Alt nedenfor er pushet til main. **Der er IKKE rørt ved appens kode i aften** –
+sessionen gik med at sætte værktøjet op. Alt om selve bogen står uændret i 21.40-blokken nedenfor.
+
+### Det blev lavet i aften (nyeste først)
+1. **To projekt-skills i `.claude/skills/`** (aktive fra næste sessionsstart):
+   - **`luk-ned`** – skriver denne statusblok i husets format, krydser af i roadmap, committer,
+     pusher, opdaterer galleriet. Fyrer på "luk ned"; på indirekte signaler ("nu stopper vi for i
+     dag", "jeg går i seng") SPØRGER den først i stedet for at gøre det. Grunden: Lukas skærer ting
+     væk igen dagen efter, og et uopfordret push er besværligt at rulle tilbage.
+   - **`vis-det`** – vælger det rigtige af de 41 scripts i `tools/` ud fra HVAD der blev rettet,
+     kører det, måler rigtigt, og lægger billedet i galleriet. Samler de tre målefælder (bølgende
+     streger ±1,4 px, X'er i første række, roteret grundlinje) og WebKit-fælden ét sted, i stedet
+     for spredt over otte statusafsnit.
+2. Fire skills installeret globalt: `find-skills`, `convert-documents-to-markdown` (jeg kan nu læse
+   Word/PDF/Excel direkte), Anthropics `claude-code-setup`-plugin, og `addyosmani/agent-skills`
+   opdateret (5 af 25 var forældede).
+3. 28 skills hentet fra claude-skills.free. **15 af dem slettet igen samme aften** efter `/skill-audit`
+   – overlap, uudfyldte skabeloner, betalte tjenester, LinkedIn/Instagram. Backup i
+   `~/.claude/backups/skills-slettet-20260922-201821`. Status nu: 49 globale + 2 projekt-skills.
+4. **Claude Mem FRAVALGT** (Lukas' beslutning): den sender som standard alle samtaler til en hostet
+   tjeneste. Foreslå den ikke igen uden at han spørger.
+
+### FØRSTE SKRIDT NÆSTE GANG
+- **Appens udestående er UÆNDRET fra 21.40-blokken.** Bed om Lukas' dom på telefonen på:
+  panoreringen zoomet ind (hakker den stadig?), skrive/viske-animationen (tempo, for trinvis?), og
+  emojis (virker de overhovedet i iOS Safari? UBEKRÆFTET).
+- **De to nye skills er kun delvist afprøvet.** `luk-ned` har skrevet netop denne blok (virker).
+  `vis-det` er kun testet ved at køre `tools/fit.mjs` igennem – kortlægningen af de 41 scripts er
+  IKKE prøvet i rigtig brug. Går den galt, er det tabellen i skillen, der skal rettes.
+- **Åbent spørgsmål:** skal `luk-ned` laves i en generel udgave til Vigorra? Min vurdering: vent til
+  der er to projekter, der lukker ned ens, så man kan SE hvad der er fælles i stedet for at gætte.
+- Åbent fra roadmap: IndexedDB i stedet for localStorage (trin 2), finpudsning (trin 5).
+
+### LÆRT I AFTEN
+1. **Generelle læresætninger fra i aften ligger i `~/.claude/playbook/skills.md`, ikke her.**
+   Trigger-hygiejne, hvad der tjekkes før en skill installeres, hvordan man skriver en, og
+   zsh-fælden der kostede en runde. Det er `luk-ned`-skillens trin 4, der virker som den skal:
+   kun det projektspecifikke bliver i CLAUDE.md.
+2. **Denne fil er nu så lang, at den er dyr at læse.** 900+ linjer, 20+ statusafsnit, og de tre
+   ældste siger kun det, de nyere allerede siger bedre. Overvej at flytte alt før 2026-09-18 til en
+   `HISTORIK.md` næste gang der ryddes op. Ikke gjort i aften – det er Lukas' fil, og han har ikke bedt om det.
+
 ## Status 2026-09-22 kl. 19.25 – EMOJIS
 
 Lukas: man skal kunne bruge emojis, når man skriver. De findes ikke i håndskrifts-glyfferne, så de sættes i
