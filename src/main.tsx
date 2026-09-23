@@ -10,6 +10,9 @@ document.addEventListener("gesturestart", (e) => e.preventDefault());
 
 // Ask the browser to keep the book: without it, storage on a phone short of space may be cleared to make room.
 navigator.storage?.persist?.().catch(() => {});
+// Keep the book's files on the phone so it opens without the internet (sw-template.js). Not in dev: it would serve
+// yesterday's code.
+if (!import.meta.env.DEV && "serviceWorker" in navigator) navigator.serviceWorker.register(import.meta.env.BASE_URL + "sw.js", { scope: import.meta.env.BASE_URL }).catch(() => {});
 
 // Reload once when a newer build is online. GitHub Pages tells the phone to keep index.html for
 // 10 min; version.txt is fetched past that cache, and index.html is re-fetched before reloading.
