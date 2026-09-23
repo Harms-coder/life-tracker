@@ -8,7 +8,7 @@ import { BOOK_H, BOOK_W, GOALS, columnXs, dotX, hitTest, NOTE_LABEL, RIGHT_PAGE,
 import { seededRandom } from "./random";
 import { HANDS, setHand, type Hand } from "./glyf";
 import { migrate as migratePhotos, photosNow, save as savePhotosTo, warm as warmPhotos } from "./photos";
-import { allMonths, clearMonth, download as downloadBackup, restore as restoreBackup } from "./backup";
+import { allMonths, clearMonth, download as downloadBackup, restore as restoreBackup, shareFile } from "./backup";
 import { eraseSound, penSound, setSoundOn, soundOn } from "./sound";
 
 declare const __BUILD__: string; // set in vite.config.ts
@@ -458,6 +458,24 @@ export default function App() {
     }
     catch (e) { setBusyNote((e as Error).name === "AbortError" ? "" : "Kunne ikke gemme kopien."); }
   };
+  /** The spread as a picture, to keep in Photos or send to someone: drawn flat and large, on the dark of the table. */
+  const sharePicture = async () => {
+    setBusyNote("Tegner opslaget …");
+    try {
+      const { pixels, w, h } = await book.current!.picture(2);
+      const c = document.createElement("canvas");
+      c.width = w; c.height = h;
+      const ctx = c.getContext("2d")!;
+      const img = new ImageData(new Uint8ClampedArray(pixels.buffer as ArrayBuffer), w, h);
+      const tmp = await createImageBitmap(img);
+      ctx.fillStyle = "#2a211a"; ctx.fillRect(0, 0, w, h); // the cover's round corners are see-through; a JPEG has no see-through
+      ctx.drawImage(tmp, 0, 0); tmp.close();
+      const blob = await new Promise<Blob | null>((ok) => c.toBlob(ok, "image/jpeg", 0.9));
+      if (!blob) throw new Error();
+      const how = await shareFile(new File([blob], `maanedsbog-${labelOf(month).toLowerCase().replace(" ", "-")}.jpg`, { type: "image/jpeg" }));
+      setBusyNote(how === "delt" ? "" : "Billedet er hentet.");
+    } catch (e) { setBusyNote((e as Error).name === "AbortError" ? "" : "Kunne ikke lave billedet."); }
+  };
   const onBackupFile = async (e: FormEvent<HTMLInputElement>) => {
     const file = (e.currentTarget.files ?? [])[0];
     e.currentTarget.value = "";
@@ -618,6 +636,8 @@ export default function App() {
                       onClick={() => { setSound(on); setSoundOn(on); }}>{on ? "Til" : "Fra"}</button>
             ))}
           </div>
+          <p className="sheet-label">Del</p>
+          <button type="button" className="ghost wide-button" onClick={sharePicture}>Del {labelOf(month).toLowerCase()} som billede</button>
           <p className="sheet-label">Sikkerhedskopi</p>
           <div className="sheet-row">
             <button type="button" className="ghost" onClick={saveCopy}>Gem en kopi</button>

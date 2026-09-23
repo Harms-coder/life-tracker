@@ -40,6 +40,8 @@ export type BookCanvasHandle = {
   /** turn a leaf: +1 forward (the right page swings over), -1 back - where you are, zoomed in or not. False if
    *  the book is busy (a leaf already on its way) and nothing happened. */
   turn: (dir: 1 | -1) => boolean;
+  /** the whole spread as it is now, flat, `k` pixels per world px, for sharing as a picture */
+  picture: (k: number) => Promise<{ pixels: Uint8Array; w: number; h: number }>;
 };
 
 /**
@@ -198,6 +200,7 @@ export const BookCanvas = forwardRef<BookCanvasHandle, {
   const onReply = (e: MessageEvent<RenderReply>) => {
     if ("error" in e.data) { console.error("draw.worker:", e.data.error); next(); return; }
     const stale = e.data.id !== gen.current; // asked for before the book turned to another spread: it shows the old month
+    if (e.data.overview && e.data.slot === "export") { exported.current?.({ pixels: new Uint8Array(e.data.pixels), w: e.data.w, h: e.data.h }); exported.current = null; return; }
     if (e.data.overview) {
       if (stale || !book3d.current) return;
       const px = new Uint8Array(e.data.pixels);
@@ -297,7 +300,13 @@ export const BookCanvas = forwardRef<BookCanvasHandle, {
     w.__busy = busy;
   }
 
+  const exported = useRef<((p: { pixels: Uint8Array; w: number; h: number }) => void) | null>(null);
   useImperativeHandle(ref, () => ({
+    picture: (k) => new Promise((done) => {
+      exported.current = done;
+      const w = BOOK_W + 2 * LIP, h = BOOK_H + 2 * LIP; // the whole board, lip and all
+      worker.current?.postMessage({ id: gen.current, view: { x: 0, y: 0, s: 1 }, plane: { x0: -LIP, y0: -LIP, w, h, k }, live: false, scene: scene.current, now: performance.now(), overview: true, slot: "export" } satisfies RenderRequest);
+    }),
     turn: (dir) => {
       if (turn.current || busy() || !t.current.s) return false;
       beginTurn(dir, 0.6); // held by the bottom corner, as one does

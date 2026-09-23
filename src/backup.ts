@@ -66,7 +66,12 @@ export async function collect(): Promise<Backup> {
 export async function download(): Promise<"delt" | "hentet"> {
   const data = await collect();
   const name = `maanedsbog-${new Date().toISOString().slice(0, 10)}.json`;
-  const file = new File([JSON.stringify(data)], name, { type: "application/json" });
+  return shareFile(new File([JSON.stringify(data)], name, { type: "application/json" }));
+}
+
+/** The phone's share sheet for a file ("Save to Files", "Save Image", Messages ...), or a download on a desktop. */
+export async function shareFile(file: File): Promise<"delt" | "hentet"> {
+  const name = file.name;
   const nav = navigator as Navigator & { canShare?: (d: { files: File[] }) => boolean };
   if (nav.canShare?.({ files: [file] })) {
     try {

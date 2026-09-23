@@ -148,6 +148,8 @@ body { font-family: var(--font-hand); -webkit-user-select: none; user-select: no
 /* the month list: four to a row */
 .chips.months { grid-template-columns: repeat(4, 1fr); }
 
+.sheet button.wide-button { width: 100%; }
+
 /* take the last change back: shows for a few seconds after each one */
 .undo {
   position: fixed; left: 50%; bottom: 14px; transform: translateX(-50%); border: 0; border-radius: 20px; padding: 9px 18px;

@@ -199,6 +199,20 @@ Rækker = dage 1–31 (antal efter måneden). Kolonner = brugerens egne trackere
 - Test-scripts ligger i sessionens scratchpad (`pw/shots.mjs` skærmbilleder, `pw/bench.mjs` frame-tider i WebKit,
   `pw/tapcheck.mjs` tryk). Dev-server: `npm run dev`. I dev sætter BookCanvas `window.__view` (x, y, s) til scripts.
 
+## Status 2026-09-23 nat – FLYT KOLONNER, HOP TIL MÅNED, DEL SOM BILLEDE
+- **Flyt kolonner**: "← Flyt"/"Flyt →" i kolonnens ark (`moveColumn`); arket bliver åbent, værdierne følger med
+  (nøglet på id). `node tools/movecheck.mjs screenshots/move`.
+- **Hop til måned**: tryk på månedens navn (hit `title` i layout.ts) → "Gå til måned" med alle måneder, der har
+  noget i sig (`allMonths` fra backup.ts) + den åbne + i dag. Ét blad vender direkte derhen: `jump`-ref i App,
+  som `otherScene`/`onTurned` lander på (`landing()`); `turn()` returnerer nu false, hvis bogen er optaget, så
+  ref'en ikke hænger ved. `node tools/jumpcheck.mjs screenshots/jump`.
+- **Del som billede**: Indstillinger → "Del <måned> som billede". Workeren tegner hele opslaget fladt ved k=2
+  (`slot: "export"`, eget canvas, 3032×2216) → JPEG → `shareFile()` (backup.ts, del-ark eller download).
+  `node tools/sharecheck.mjs <photos.json> screenshots/delt.jpg`. Del-arket på iPhone er IKKE prøvet (samme
+  ubekræftede `navigator.share` som "Gem en kopi").
+- **NEJ (Lukas 23/9)**: stjerner-tæller ved månedens navn, kæder gennem X'er i træk, streg punkter over i planerne.
+  Foreslå dem ikke igen. Tilbage på listen: kuglepen/blyant, morgen/middag/nat.
+
 ## Status 2026-09-23 sen aften – STJERNE, FORTRYD, UDEN NET, MÅL MED TIL NY MÅNED
 - **Stjerne i stedet for flueben** (Lukas' billede): en håndtegnet stjerne i ÉN streg (pentagram, stregerne krydser),
   KUN streg i gul, ingen fyld; den ERSTATTER firkanten, tallet står i femkanten i midten, stregerne må gå hen over
@@ -217,7 +231,6 @@ Rækker = dage 1–31 (antal efter måneden). Kolonner = brugerens egne trackere
   flag. "Nej tak"/✕ fortsætter til det, man trykkede på (`onTap(wx, wy, true)` – uden `declined` spurgte den straks igen). Mål + plan skrives ind med
   pennen ét felt ad gangen. Vises ikke i dev uden `?husk`. `node tools/carrycheck.mjs screenshots/carry`.
 - **NEJ til "udfyld i dag med ét tryk"** (Lukas 23/9). Foreslå det ikke igen.
-- Stadig på listen, ikke valgt endnu: streg punkter over, kuglepen/blyant, morgen/middag/nat.
 
 ## Status 2026-09-23 aften – SEKS FORBEDRINGER (Lukas valgte 1, 2, 4, 5, 7 og 8 af mine idéer)
 - **Lager der bliver**: `navigator.storage.persist()` i main.tsx.

@@ -13,8 +13,9 @@ import leatherUrl from "./textures/leather.png";
  *  and its photos are kept apart from the current spread's. */
 /** `photos` rides along on the first render after they changed (data URLs, by slot): they are decoded here,
  *  once, and kept - sending them with every frame would copy half a megabyte per pinch. */
-export type RenderRequest = { id: number; view: View; plane: Plane; live: boolean; scene: Scene; now: number; overview?: boolean; slot?: "next"; photos?: Record<string, string> };
-export type RenderReply = { id: number; pixels: ArrayBuffer; w: number; h: number; k: number; overview?: boolean; slot?: "next" } | { id: number; error: string };
+/** `slot` "export": the whole spread once, large, for sharing as a picture - on a canvas of its own, let go after. */
+export type RenderRequest = { id: number; view: View; plane: Plane; live: boolean; scene: Scene; now: number; overview?: boolean; slot?: "next" | "export"; photos?: Record<string, string> };
+export type RenderReply = { id: number; pixels: ArrayBuffer; w: number; h: number; k: number; overview?: boolean; slot?: "next" | "export" } | { id: number; error: string };
 
 const canvas = new OffscreenCanvas(1, 1);
 const ctx = canvas.getContext("2d")!;
@@ -37,7 +38,7 @@ onmessage = async (e: MessageEvent<RenderRequest>) => {
   const { id, view, plane: p, live, scene, now, overview, slot, photos } = e.data;
   await ready;
   try {
-  const set = sets[slot ?? "current"];
+  const set = sets[slot === "next" ? "next" : "current"];
   if (photos) {
     for (const [ps, url] of Object.entries(photos)) {
       const had = set.get(ps);
@@ -48,8 +49,9 @@ onmessage = async (e: MessageEvent<RenderRequest>) => {
   assets.photos = Object.fromEntries([...set].map(([ps, { bm }]) => [ps, bm]));
   if (overview) {
     const w = Math.round(p.w * p.k), h = Math.round(p.h * (p.ky ?? p.k));
-    if (overCanvas.width !== w || overCanvas.height !== h) { overCanvas.width = w; overCanvas.height = h; }
-    const oc = overCanvas.getContext("2d")!;
+    const c = slot === "export" ? new OffscreenCanvas(w, h) : overCanvas;
+    if (c.width !== w || c.height !== h) { c.width = w; c.height = h; }
+    const oc = c.getContext("2d")!;
     drawScene(oc, view, p, { ...scene, writing: null }, assets, now);
     const { data } = oc.getImageData(0, 0, w, h);
     port.postMessage({ id, pixels: data.buffer, w, h, k: p.k, overview: true, slot }, [data.buffer]);
