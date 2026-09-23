@@ -199,6 +199,53 @@ Rækker = dage 1–31 (antal efter måneden). Kolonner = brugerens egne trackere
 - Test-scripts ligger i sessionens scratchpad (`pw/shots.mjs` skærmbilleder, `pw/bench.mjs` frame-tider i WebKit,
   `pw/tapcheck.mjs` tryk). Dev-server: `npm run dev`. I dev sætter BookCanvas `window.__view` (x, y, s) til scripts.
 
+## Status 2026-09-23 kl. 20.10 – SESSIONEN LUKKET NED, ALT ER PUSHET
+
+**Live:** https://harms-coder.github.io/life-tracker/ · **Galleri:** https://claude.ai/artifact/S914mdZ2Tq4gAuqWUrxLYb
+Arbejdstræet er rent. Alt nedenfor er pushet til main. Detaljerne står i de fire blokke lige under denne.
+
+### Det blev lavet i dag (nyeste først)
+1. **Del et opslag som billede** (Indstillinger), **gå direkte til en måned** (tryk på månedens navn), **flyt kolonner**
+   (pile i kolonnens ark). "Slet"-knappen ligner nu de andre knapper.
+2. **Stjerne når et mål er nået**: håndtegnet gul stjerne i én streg, der ERSTATTER firkanten, tallet i midten, i
+   listen øverst og ved de seks store. Tre forsøg før det: tykt flueben ("alt for fake"), naturligt flueben, fyldt
+   gul stjerne over firkanten – ALLE FORKASTET, byg dem ikke igen.
+3. **Ufærdige mål med til næste måned**: tilbydes, når man begynder at skrive i en helt tom måned (IKKE ved
+   bladring), og igen hver gang, indtil der står noget i måneden. "Nej tak" fortsætter til det, man trykkede på.
+4. **Fortryd** i 5 sekunder efter hver ændring. **Bogen åbner uden internet.**
+5. **Markøren hoppede en linje ned for hvert bogstav** i skrivefladerne – RETTET (Lukas: "perfekt").
+6. **Fotohjørner** af lyst karton om billederne (efter Lukas' billede). Tape blev prøvet i to udgaver og FJERNET.
+7. **Lyde**: pen, viskelæder og bladring er optagelser fra Higgsfield. Første udgave (lavet med filtreret støj)
+   var for billig.
+8. **Dagens række** skraveres med blyant (Lukas' valg af tre). **Bogen åbner altid i den aktuelle måned.**
+9. **Påmindelse om sikkerhedskopi** én gang om måneden, og **telefonen bedes om ikke at rydde bogen**.
+
+### GODKENDT AF LUKAS I DAG – spørg ikke om det igen
+Stjernerne ("perfekt"), markør-rettelsen ("perfekt"), ufærdige mål virker på telefonen (han bad kun om, hvornår
+de kommer). Hans skærmbillede viste fotohjørnerne og Fortryd-knappen i brug uden klager.
+
+### FØRSTE SKRIDT NÆSTE GANG
+- **UBEKRÆFTET på telefonen:** lydene (anden udgave – for høj/lav? passer de?), at bogen åbner uden net (han skal
+  have åbnet appen én gang MED net efter opdateringen), "Gå til måned", "Flyt kolonne", påmindelsen om kopi.
+- **UBEKRÆFTET: `navigator.share` i hjemmeskærms-appen.** Både "Gem en kopi" og det nye "Del som billede" hænger på
+  det. Kun prøvet i Chrome (download). Gør den intet på iPhone, skal begge have en anden vej.
+- Stadig åbent (han har sagt, vi venter): opsummeringsbogen, påmindelse om aftenen. På listen: kuglepen/blyant,
+  morgen/middag/nat.
+- NEJ i dag, foreslå dem ikke igen: "udfyld i dag med ét tryk", stjerne-tæller ved månedens navn, kæder gennem X'er,
+  streg punkter over i planerne.
+
+### LÆRT I DAG
+1. **"Ser fake ud" om noget håndtegnet = det er for jævnt.** En perfekt glat streg med ens bredde læses som
+   computer, uanset form. Fluebenet blev først godt nok (teknisk), da det blev tegnet som en blækflade med tryk,
+   der varierer, og kanter der vandrer. Men det var stadig forkert – han ville have noget helt andet (en stjerne).
+   Spørg om retningen, før du finpudser en form tre gange.
+2. **Lukas' billeder med rettelser er mockups, han selv har lavet** (stjernen tegnet ind på et skærmbillede).
+   Gør det, billedet viser, ordret – her: kun streg, ingen fyld, firkanten væk.
+3. **Service worker og offline-test** – to fælder, der hver kostede en runde (`ignoreVary`, og at Playwrights
+   `setOffline` også blokerer SW'ens cache). Står i `~/.claude/playbook/mobile-pwa.md` og `verifikation.md`.
+4. **"Fortsæt efter Nej tak" må ikke spørge igen.** Et tilbud, der dukker op ved et tryk og bagefter kører trykket
+   igen, skal springe sit eget tjek over (`onTap(wx, wy, true)`), ellers kommer arket bare igen.
+
 ## Status 2026-09-23 nat – FLYT KOLONNER, HOP TIL MÅNED, DEL SOM BILLEDE
 - **Flyt kolonner**: "← Flyt"/"Flyt →" i kolonnens ark (`moveColumn`); arket bliver åbent, værdierne følger med
   (nøglet på id). `node tools/movecheck.mjs screenshots/move`.
