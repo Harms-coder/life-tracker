@@ -199,6 +199,21 @@ Rækker = dage 1–31 (antal efter måneden). Kolonner = brugerens egne trackere
 - Test-scripts ligger i sessionens scratchpad (`pw/shots.mjs` skærmbilleder, `pw/bench.mjs` frame-tider i WebKit,
   `pw/tapcheck.mjs` tryk). Dev-server: `npm run dev`. I dev sætter BookCanvas `window.__view` (x, y, s) til scripts.
 
+## Status 2026-09-23 aften – SEKS FORBEDRINGER (Lukas valgte 1, 2, 4, 5, 7 og 8 af mine idéer)
+- **Lager der bliver**: `navigator.storage.persist()` i main.tsx.
+- **Påmindelse om kopi**: ét ark én gang om måneden ved start (`backup-asked` = "år-md"), indtil der er gemt en
+  kopi i den måned (`backup-at` sættes af "Gem en kopi"). Vises ikke i dev, medmindre `?husk`.
+- **Bogen åbner altid i den aktuelle måned** (nøglen `month` bruges ikke længere). Dagens række får et
+  blyantsmærke (`todayMark` i draw.ts, `scene.today`; `?idag=N` til billeder).
+- **Flueben ved nået mål**: knappen "Nået ✓" i målets skriveflade, gemt i values som `done-goalN`, tegnet med
+  pennen (`handTick`/`goalTick`) både i listen og i det store felt.
+- **Tape på billederne** (`tape()` i draw.ts).
+- **Lyd** (`src/sound.ts`, Web Audio uden filer): pen, viskelæder, bladring. Kan slås fra i Indstillinger.
+  Telefonens lydløs-knap slår den fra. HØRT AF INGEN – jeg kan ikke lytte; Lukas skal dømme.
+- **VENTER PÅ LUKAS**: varianterne ligger bag `?flueben=1|2`, `?idagmark=1|2|3`, `?tape=0|1|2|3` (standard 1).
+  Når han har valgt: gør hans valg til det eneste og SLET de andre varianter og `look` på scenen.
+  `node tools/lookshot.mjs <photos.json> <out.png> <cx> <cy> [query]` = zoom ind på et sted med testbilleder og to mål flueben-markeret.
+
 ## Status 2026-09-23 – SESSIONEN LUKKET NED, ALT ER PUSHET (værktøj, ikke appen)
 
 **Live:** https://harms-coder.github.io/life-tracker/ · **Galleri:** https://claude.ai/artifact/S914mdZ2Tq4gAuqWUrxLYb
