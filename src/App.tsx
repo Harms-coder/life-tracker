@@ -4,7 +4,7 @@ import { Backdrop } from "./Backdrop";
 import type { Scene } from "./draw";
 
 type Writing = NonNullable<Scene["writing"]>;
-import { BOOK_H, BOOK_W, columnXs, dotX, hitTest, NOTE_LABEL, RIGHT_PAGE, widthOf, CELL, type ColType, type Column, type NoteField } from "./layout";
+import { BOOK_H, BOOK_W, GOALS, columnXs, dotX, hitTest, NOTE_LABEL, RIGHT_PAGE, widthOf, CELL, type ColType, type Column, type NoteField } from "./layout";
 import { seededRandom } from "./random";
 import { HANDS, setHand, type Hand } from "./glyf";
 import { migrate as migratePhotos, photosNow, save as savePhotosTo, warm as warmPhotos } from "./photos";
@@ -144,9 +144,12 @@ type ValuePrompt = { kind: "value"; key: string; label: string; value: string; r
 type ColumnPrompt = { kind: "column"; index: number; column: Column }; // index -1 = new
 type SettingsPrompt = { kind: "settings" };
 type ReminderPrompt = { kind: "reminder" };
+/** Goals the month before did not reach, offered to a new, empty month: `pick` = which are ticked to go along. */
+type Carried = { goal: string; plan: string };
+type CarryPrompt = { kind: "carry"; from: Month; items: Carried[]; pick: boolean[] };
 type PhotoPrompt = { kind: "photo"; slot: string };
 type NotePrompt = { kind: "note"; field: NoteField; label: string; value: string; bullets: boolean };
-type Prompt = ValuePrompt | ColumnPrompt | NotePrompt | SettingsPrompt | PhotoPrompt | ReminderPrompt;
+type Prompt = ValuePrompt | ColumnPrompt | NotePrompt | SettingsPrompt | PhotoPrompt | ReminderPrompt | CarryPrompt;
 
 /** The text you write is a list of points, one line each - the same lines the book draws, with the same dot in
  *  front. A written line has a black dot, the empty one at the end a faint one: that is where the next point goes. */
@@ -227,11 +230,45 @@ export default function App() {
     const m = stepMonth(month, dir);
     return { scene: sceneOf(m, load(keyOf("values", m), {}), load(keyOf("notes", m), {})), photos: photosNow(keyOf("photos", m)) };
   };
+  /** A month with no goals yet, whose month before left some unreached: offer to take them along, once. Not in
+   *  dev (it would sit on top of every screenshot in a new month) unless `?husk`. */
+  const carryOffer = (m: Month): CarryPrompt | null => {
+    if (import.meta.env.DEV && !new URLSearchParams(location.search).has("husk")) return null;
+    const flag = `carry-asked-${m.year}-${m.month}`, mine: Notes = load(keyOf("notes", m), {});
+    if (localStorage.getItem(flag) || Array.from({ length: GOALS }, (_, i) => mine[`goal${i}`]).some((g) => g?.trim())) return null;
+    const from = stepMonth(m, -1), n: Notes = load(keyOf("notes", from), {}), v: Values = load(keyOf("values", from), {});
+    const items = Array.from({ length: GOALS }, (_, i) => i).filter((i) => n[`goal${i}`]?.trim() && !v[`done-goal${i}`])
+      .map((i) => ({ goal: n[`goal${i}`]!.trim(), plan: n[`plan${i}`] ?? "" }));
+    if (!items.length) return null;
+    localStorage.setItem(flag, "1"); // asked once, whatever the answer
+    return { kind: "carry", from, items, pick: items.map(() => true) };
+  };
+  /** Write the chosen goals (and how to reach them) into this month's empty list, one after another with the pen.
+   *  All of it is stored at once; only the drawing goes one field at a time. */
+  const carry = (p: CarryPrompt) => {
+    const chosen = p.items.filter((_, k) => p.pick[k]), key = NOTES_KEY, before = notes;
+    const fields: [NoteField, string][] = chosen.flatMap((c, i) => [[`goal${i}`, c.goal], [`plan${i}`, c.plan]] as [NoteField, string][]).filter(([, t]) => t.trim());
+    const all: Notes = { ...notes, ...Object.fromEntries(fields) };
+    localStorage.setItem(key, JSON.stringify(all));
+    setPrompt(null);
+    let acc = notes;
+    const step = (k: number) => {
+      if (k >= fields.length || scene.current.monthLabel !== labelOf(month)) { if (scene.current.monthLabel === labelOf(month)) setNotes(all); return; }
+      const [field, text] = fields[k];
+      acc = { ...acc, [field]: text };
+      setNotes(acc);
+      startPen(field, { erase: "", ...diffLines([], lines(text)) });
+      setTimeout(() => step(k + 1), penMs(text.length) + 150);
+    };
+    step(0);
+    offerUndo(() => { setNotes(before); localStorage.setItem(key, JSON.stringify(before)); });
+  };
   /** The leaf has landed: the book is open at that month now. */
   const onTurned = (dir: 1 | -1) => {
     const m = stepMonth(month, dir);
     dropUndo(); // it would put back something in the month just left
     setMonth(m); setValues(load(keyOf("values", m), {})); setNotes(load(keyOf("notes", m), {})); setPhotos(photosNow(keyOf("photos", m)));
+    if (dir === 1) { const offer = carryOffer(m); if (offer) setPrompt(offer); }
   };
   // Once a month, until a copy has been saved in it: the book lives only on this phone (see backup.ts).
   // Not in dev, where it would sit on top of every screenshot - `?husk` shows it there.
@@ -239,7 +276,7 @@ export default function App() {
     if (import.meta.env.DEV && !new URLSearchParams(location.search).has("husk")) return null;
     const d = new Date(), ym = `${d.getFullYear()}-${d.getMonth() + 1}`;
     const savedAt = Number(localStorage.getItem(BACKUP_AT)) || 0;
-    if (localStorage.getItem(BACKUP_ASKED) === ym || savedAt >= new Date(d.getFullYear(), d.getMonth(), 1).getTime()) return null;
+    if (localStorage.getItem(BACKUP_ASKED) === ym || savedAt >= new Date(d.getFullYear(), d.getMonth(), 1).getTime()) return carryOffer(month);
     localStorage.setItem(BACKUP_ASKED, ym); // asked once this month, whatever the answer
     return { kind: "reminder" };
   });
@@ -485,6 +522,23 @@ export default function App() {
             <button type="button" className="primary" onClick={saveCopy}>Gem en kopi</button>
           </div>
           {busyNote && <p className="sheet-note">{busyNote}</p>}
+        </Sheet>
+      )}
+      {prompt?.kind === "carry" && (
+        <Sheet title={`Ikke nået i ${MONTHS_DA[prompt.from.month - 1].toLowerCase()}`} onClose={close}>
+          <p className="sheet-note">Skal de med til {MONTHS_DA[month.month - 1].toLowerCase()}? Tryk på et mål for at lade det blive.</p>
+          <div className="carry-list">
+            {prompt.items.map((c, k) => (
+              <button type="button" key={k} className={"chip" + (prompt.pick[k] ? " on" : "")}
+                      onClick={() => setPrompt({ ...prompt, pick: prompt.pick.map((v, j) => (j === k ? !v : v)) })}>
+                {prompt.pick[k] ? "✓ " : ""}{c.goal}
+              </button>
+            ))}
+          </div>
+          <div className="sheet-row">
+            <button type="button" className="ghost" onClick={close}>Nej tak</button>
+            <button type="button" className="primary" disabled={!prompt.pick.some(Boolean)} onClick={() => carry(prompt)}>Tag med</button>
+          </div>
         </Sheet>
       )}
       {prompt?.kind === "settings" && (

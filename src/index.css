@@ -137,6 +137,10 @@ body { font-family: var(--font-hand); -webkit-user-select: none; user-select: no
 .turn.prev { left: 10px; }
 .turn.next { right: 10px; }
 
+/* goals taken along into a new month: one per line, tapped to leave it behind */
+.carry-list { display: flex; flex-direction: column; gap: 8px; margin: 10px 0 14px; }
+.carry-list .chip { width: 100%; text-align: left; padding: 10px 14px; font-size: 22px; line-height: 1.15; }
+
 /* take the last change back: shows for a few seconds after each one */
 .undo {
   position: fixed; left: 50%; bottom: 14px; transform: translateX(-50%); border: 0; border-radius: 20px; padding: 9px 18px;

@@ -199,6 +199,23 @@ Rækker = dage 1–31 (antal efter måneden). Kolonner = brugerens egne trackere
 - Test-scripts ligger i sessionens scratchpad (`pw/shots.mjs` skærmbilleder, `pw/bench.mjs` frame-tider i WebKit,
   `pw/tapcheck.mjs` tryk). Dev-server: `npm run dev`. I dev sætter BookCanvas `window.__view` (x, y, s) til scripts.
 
+## Status 2026-09-23 sen aften – STJERNE, FORTRYD, UDEN NET, MÅL MED TIL NY MÅNED
+- **Stjerne i stedet for flueben** (Lukas): gul, tegnet oven på målets firkant med tallet i midten (`handStar`/
+  `goalStar` i draw.ts). Knappen i målets ark hedder "Nået ★". Fluebenet er slettet helt.
+- **Fortryd** (`offerUndo`/`takeBack` i App.tsx): hver ændring (celle, tekst, kolonne, billede) viser "↶ Fortryd" i
+  5 s. Ændringer der ikke kan fortrydes (træk i søvnprik, ryd måned, bladring) FJERNER tilbuddet, for det lægger
+  "før denne ændring" tilbage og må aldrig overleve en senere ændring. `node tools/undocheck.mjs`.
+- **Uden internet**: `sw-template.js` → `dist/sw.js` (plugin i vite.config.ts skriver buildets filnavne ind +
+  `PUBLIC_KEEP`). Siden: net først (3 s), ellers den gemte; resten: gemt først. `ignoreVary` er NØDVENDIG (script og
+  css hentes med Origin-header, serveren svarer "Vary: Origin" → ingen match uden). Kun i build, ikke i dev.
+  `npm run build && node tools/offlinecheck.mjs` (stopper serveren; Playwrights setOffline blokerer også SW'ens svar).
+  Nye filer i public/, som bogen skal bruge, SKAL på `PUBLIC_KEEP`.
+- **Ufærdige mål med til ny måned** (`carryOffer`/`carry`): en måned uden mål, hvis forrige måned har mål uden
+  stjerne, spørger én gang (`carry-asked-år-md`) – ved bladring frem og ved start. Mål + plan skrives ind med pennen
+  ét felt ad gangen. Vises ikke i dev uden `?husk`. `node tools/carrycheck.mjs screenshots/carry`.
+- **NEJ til "udfyld i dag med ét tryk"** (Lukas 23/9). Foreslå det ikke igen.
+- Stadig på listen, ikke valgt endnu: streg punkter over, kuglepen/blyant, morgen/middag/nat.
+
 ## Status 2026-09-23 aften – SEKS FORBEDRINGER (Lukas valgte 1, 2, 4, 5, 7 og 8 af mine idéer)
 - **Lager der bliver**: `navigator.storage.persist()` i main.tsx.
 - **Påmindelse om kopi**: ét ark én gang om måneden ved start (`backup-asked` = "år-md"), indtil der er gemt en
