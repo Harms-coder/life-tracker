@@ -1,4 +1,4 @@
-// Zoomed-in shots of a spot on the spread, with test photos and two goals ticked off:
+// Zoomed-in shots of a spot on the spread, with test photos and every goal ticked off:
 // node tools/lookshot.mjs <photos.json> <out.png> <cx> <cy> [query]   (cx, cy = screen point in the start view to pinch open)
 import { chromium } from "playwright";
 import { withServer, URL } from "./server.mjs";
@@ -15,8 +15,8 @@ await withServer(async () => {
     localStorage.setItem("look-ticks", "1");
   }, fs.readFileSync(photos, "utf8"));
   await page.goto(URL + Q); await page.waitForSelector(".viewport"); await page.waitForTimeout(1500);
-  // tick two goals off in the demo month
-  await page.evaluate(() => { const v = JSON.parse(localStorage.getItem("values-2026-9") || "{}"); v["done-goal0"] = "x"; v["done-goal3"] = "x"; localStorage.setItem("values-2026-9", JSON.stringify(v)); });
+  // tick every goal off in the demo month
+  await page.evaluate(() => { const v = JSON.parse(localStorage.getItem("values-2026-9") || "{}"); for (let i = 0; i < 6; i++) v["done-goal" + i] = "x"; localStorage.setItem("values-2026-9", JSON.stringify(v)); });
   await page.reload(); await page.waitForSelector(".viewport"); await page.waitForTimeout(2500);
   await page.evaluate(async ([cx, cy]) => {
     const vp = document.querySelector(".viewport");

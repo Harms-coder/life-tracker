@@ -55,9 +55,6 @@ const PEN_K = Number(new URLSearchParams(location.search).get("pen")) || 1;
 /** How far a rotated column heading sits from its column's left edge (`?ox=N`); it rides on the scene, since
  *  draw.ts runs in a worker and cannot read the address itself. */
 const HEAD_POS = Number(new URLSearchParams(location.search).get("ox")) || 0;
-/** While Lukas picks: `?flueben=N`, `?idagmark=N`, `?tape=N` choose the variant (see draw.ts). */
-const q = new URLSearchParams(location.search);
-const LOOK = { tick: Number(q.get("flueben")) || undefined, mark: Number(q.get("idagmark")) || undefined, tape: q.has("tape") ? Number(q.get("tape")) : undefined };
 const generateId = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
 
 type Values = Record<string, string>; // "x" for checks, "71,5" / "8" for numbers, "7.5" for dots
@@ -221,7 +218,7 @@ export default function App() {
   const [hand, setHandState] = useState<Hand>(() => (localStorage.getItem(HAND_KEY) as Hand) in HANDS ? (localStorage.getItem(HAND_KEY) as Hand) : "lukas");
   const [photos, setPhotos] = useState<Photos>(() => photosNow(keyOf("photos", month)));
   const DAYS = daysOf(month), VALUES_KEY = keyOf("values", month), NOTES_KEY = keyOf("notes", month), PHOTOS_KEY = keyOf("photos", month);
-  const sceneOf = (m: Month, v: Values, n: Notes): Scene => ({ ...m, monthLabel: labelOf(m), days: daysOf(m), columns, values: v, notes: n, writing: null, hand, headPos: HEAD_POS || undefined, today: todayIn(m), look: LOOK });
+  const sceneOf = (m: Month, v: Values, n: Notes): Scene => ({ ...m, monthLabel: labelOf(m), days: daysOf(m), columns, values: v, notes: n, writing: null, hand, headPos: HEAD_POS || undefined, today: todayIn(m) });
   /** The spread on the other side of a leaf turned in `dir`, read straight from storage. */
   const otherScene = (dir: 1 | -1) => {
     const m = stepMonth(month, dir);
@@ -276,7 +273,7 @@ export default function App() {
     if (!pen.eraseMs && !pen.writeMs) return;
     scene.current.writing = pen;
     eraseSound(pen.eraseMs);
-    setTimeout(() => penSound(pen.writeMs), pen.eraseMs);
+    penSound(pen.writeMs, pen.eraseMs);
     const step = () => {
       if (scene.current.writing !== pen) return; // something else is being written now
       redraw();

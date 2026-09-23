@@ -207,12 +207,14 @@ Rækker = dage 1–31 (antal efter måneden). Kolonner = brugerens egne trackere
   blyantsmærke (`todayMark` i draw.ts, `scene.today`; `?idag=N` til billeder).
 - **Flueben ved nået mål**: knappen "Nået ✓" i målets skriveflade, gemt i values som `done-goalN`, tegnet med
   pennen (`handTick`/`goalTick`) både i listen og i det store felt.
-- **Tape på billederne** (`tape()` i draw.ts).
-- **Lyd** (`src/sound.ts`, Web Audio uden filer): pen, viskelæder, bladring. Kan slås fra i Indstillinger.
-  Telefonens lydløs-knap slår den fra. HØRT AF INGEN – jeg kan ikke lytte; Lukas skal dømme.
-- **VENTER PÅ LUKAS**: varianterne ligger bag `?flueben=1|2`, `?idagmark=1|2|3`, `?tape=0|1|2|3` (standard 1).
-  Når han har valgt: gør hans valg til det eneste og SLET de andre varianter og `look` på scenen.
-  `node tools/lookshot.mjs <photos.json> <out.png> <cx> <cy> [query]` = zoom ind på et sted med testbilleder og to mål flueben-markeret.
+- **Tape på billederne** (`tape()` i draw.ts): gennemsigtig maskeringstape, to strimler, hjørnerne vælges pr. billede.
+- **Flueben** = Lukas' eget billede: stort, tykt, tre tern højt, ud over stregerne. Fem slags i `TICKS`, én pr.
+  mål (seed), plus jitter. Dagens række = blyantsskravering (hans valg; pil og ring er slettet).
+- **Lyd** (`src/sound.ts`): tre optagelser lavet i Higgsfield (mirelo_text_to_audio), `public/lyd/`, råfiler i
+  `baggrund-kilder/lyd/` (normaliseret med ffmpeg loudnorm -20). Pen og viskelæder klippes til skrivetiden fra et
+  tilfældigt sted. Kan slås fra i Indstillinger. Telefonens lydløs-knap slår den fra. Første udgave (lavet med
+  filtreret støj) var for billig (Lukas). IKKE HØRT AF MIG – kun målt (ingen tomme stykker).
+- `node tools/lookshot.mjs <photos.json> <out.png> <cx> <cy> [query]` = zoom ind på et sted med testbilleder og alle mål markeret med flueben.
 
 ## Status 2026-09-23 – SESSIONEN LUKKET NED, ALT ER PUSHET (værktøj, ikke appen)
 
