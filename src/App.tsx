@@ -146,7 +146,7 @@ type SettingsPrompt = { kind: "settings" };
 type ReminderPrompt = { kind: "reminder" };
 /** Goals the month before did not reach, offered to a new, empty month: `pick` = which are ticked to go along. */
 type Carried = { goal: string; plan: string };
-type CarryPrompt = { kind: "carry"; from: Month; items: Carried[]; pick: boolean[] };
+type CarryPrompt = { kind: "carry"; from: Month; items: Carried[]; pick: boolean[]; then?: () => void };
 type PhotoPrompt = { kind: "photo"; slot: string };
 type NotePrompt = { kind: "note"; field: NoteField; label: string; value: string; bullets: boolean };
 type Prompt = ValuePrompt | ColumnPrompt | NotePrompt | SettingsPrompt | PhotoPrompt | ReminderPrompt | CarryPrompt;
@@ -230,8 +230,9 @@ export default function App() {
     const m = stepMonth(month, dir);
     return { scene: sceneOf(m, load(keyOf("values", m), {}), load(keyOf("notes", m), {})), photos: photosNow(keyOf("photos", m)) };
   };
-  /** A month with no goals yet, whose month before left some unreached: offer to take them along, once. Not in
-   *  dev (it would sit on top of every screenshot in a new month) unless `?husk`. */
+  /** A month with no goals yet, whose month before left some unreached: offer to take them along, once - when you
+   *  first start writing in it, not when you just leaf through (Lukas). Not in dev (it would sit on top of every
+   *  screenshot in a new month) unless `?husk`. */
   const carryOffer = (m: Month): CarryPrompt | null => {
     if (import.meta.env.DEV && !new URLSearchParams(location.search).has("husk")) return null;
     const flag = `carry-asked-${m.year}-${m.month}`, mine: Notes = load(keyOf("notes", m), {});
@@ -268,7 +269,6 @@ export default function App() {
     const m = stepMonth(month, dir);
     dropUndo(); // it would put back something in the month just left
     setMonth(m); setValues(load(keyOf("values", m), {})); setNotes(load(keyOf("notes", m), {})); setPhotos(photosNow(keyOf("photos", m)));
-    if (dir === 1) { const offer = carryOffer(m); if (offer) setPrompt(offer); }
   };
   // Once a month, until a copy has been saved in it: the book lives only on this phone (see backup.ts).
   // Not in dev, where it would sit on top of every screenshot - `?husk` shows it there.
@@ -276,7 +276,7 @@ export default function App() {
     if (import.meta.env.DEV && !new URLSearchParams(location.search).has("husk")) return null;
     const d = new Date(), ym = `${d.getFullYear()}-${d.getMonth() + 1}`;
     const savedAt = Number(localStorage.getItem(BACKUP_AT)) || 0;
-    if (localStorage.getItem(BACKUP_ASKED) === ym || savedAt >= new Date(d.getFullYear(), d.getMonth(), 1).getTime()) return carryOffer(month);
+    if (localStorage.getItem(BACKUP_ASKED) === ym || savedAt >= new Date(d.getFullYear(), d.getMonth(), 1).getTime()) return null;
     localStorage.setItem(BACKUP_ASKED, ym); // asked once this month, whatever the answer
     return { kind: "reminder" };
   });
@@ -459,6 +459,12 @@ export default function App() {
   const onTap = (wx: number, wy: number) => {
     const hit = hitTest(wx, wy, columns, DAYS, notes);
     if (!hit) return;
+    if (hit.kind === "cell" || hit.kind === "note") {
+      // the first thing written in a new month: the goals left over from the one before come first. Declined,
+      // the tap goes on to what it was for.
+      const offer = carryOffer(month);
+      if (offer) return setPrompt({ ...offer, then: () => onTap(wx, wy) });
+    }
     if (hit.kind === "cell") {
       const { day, col } = hit, key = `${day}:${col.id}`;
       if (col.type === "check") return write(key, values[key] ? null : "x");
@@ -525,7 +531,7 @@ export default function App() {
         </Sheet>
       )}
       {prompt?.kind === "carry" && (
-        <Sheet title={`Ikke nået i ${MONTHS_DA[prompt.from.month - 1].toLowerCase()}`} onClose={close}>
+        <Sheet title={`Ikke nået i ${MONTHS_DA[prompt.from.month - 1].toLowerCase()}`} onClose={() => { close(); prompt.then?.(); }}>
           <p className="sheet-note">Skal de med til {MONTHS_DA[month.month - 1].toLowerCase()}? Tryk på et mål for at lade det blive.</p>
           <div className="carry-list">
             {prompt.items.map((c, k) => (
@@ -536,7 +542,7 @@ export default function App() {
             ))}
           </div>
           <div className="sheet-row">
-            <button type="button" className="ghost" onClick={close}>Nej tak</button>
+            <button type="button" className="ghost" onClick={() => { close(); prompt.then?.(); }}>Nej tak</button>
             <button type="button" className="primary" disabled={!prompt.pick.some(Boolean)} onClick={() => carry(prompt)}>Tag med</button>
           </div>
         </Sheet>

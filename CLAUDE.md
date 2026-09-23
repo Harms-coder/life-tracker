@@ -211,8 +211,9 @@ Rækker = dage 1–31 (antal efter måneden). Kolonner = brugerens egne trackere
   `npm run build && node tools/offlinecheck.mjs` (stopper serveren; Playwrights setOffline blokerer også SW'ens svar).
   Nye filer i public/, som bogen skal bruge, SKAL på `PUBLIC_KEEP`.
 - **Ufærdige mål med til ny måned** (`carryOffer`/`carry`): en måned uden mål, hvis forrige måned har mål uden
-  stjerne, spørger én gang (`carry-asked-år-md`) – ved bladring frem og ved start. Mål + plan skrives ind med pennen
-  ét felt ad gangen. Vises ikke i dev uden `?husk`. `node tools/carrycheck.mjs screenshots/carry`.
+  stjerne, spørger én gang (`carry-asked-år-md`) – FØRSTE GANG MAN TRYKKER FOR AT SKRIVE i den (celle eller
+  tekstfelt), IKKE ved bladring (Lukas). "Nej tak"/✕ fortsætter til det, man trykkede på. Mål + plan skrives ind med
+  pennen ét felt ad gangen. Vises ikke i dev uden `?husk`. `node tools/carrycheck.mjs screenshots/carry`.
 - **NEJ til "udfyld i dag med ét tryk"** (Lukas 23/9). Foreslå det ikke igen.
 - Stadig på listen, ikke valgt endnu: streg punkter over, kuglepen/blyant, morgen/middag/nat.
 
