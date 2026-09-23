@@ -33,6 +33,11 @@ export type Scene = {
   hand: Hand;
   /** how far a rotated heading's anchor sits from its column's left edge (`?ox=N` while we pick the number) */
   headPos?: number;
+  /** today's day of the month, when this spread is the current month: its row gets a pencil mark */
+  today?: number;
+  /** which variant of the tick, the today mark and the photo tape to draw (`?flueben= ?idagmark= ?tape=`),
+   *  while Lukas picks one */
+  look?: { tick?: number; mark?: number; tape?: number };
 };
 export type Assets = {
   paper?: ImageBitmap; leather?: ImageBitmap;
@@ -168,6 +173,95 @@ function handX(ctx: Ctx, x: number, y: number, seed: string, progress = 1) {
   ctx.restore();
 }
 
+/** A hand-drawn tick centred on (cx, cy), `size` across: a short stroke down, a long one up. `progress` 0..1. */
+function handTick(ctx: Ctx, cx: number, cy: number, size: number, seed: string, progress = 1) {
+  const r = seededRandom(seed), j = (a: number) => (r() - 0.5) * 2 * a; // in fractions of `size`
+  const a = [-0.42 + j(0.04), 0.02 + j(0.05)], b = [-0.1 + j(0.04), 0.4 + j(0.04)], c = [0.55 + j(0.05), -0.55 + j(0.06)];
+  ctx.save();
+  ctx.translate(cx, cy); ctx.rotate(j(0.08));
+  const stroke = (p: number[], q: number[], bend: number, part: number) => {
+    if (part <= 0) return;
+    ctx.beginPath(); ctx.moveTo(p[0] * size, p[1] * size);
+    ctx.quadraticCurveTo(((p[0] + q[0]) / 2) * size + bend, ((p[1] + q[1]) / 2) * size - bend * 0.5, q[0] * size, q[1] * size);
+    if (part < 1) { const len = Math.hypot(q[0] - p[0], q[1] - p[1]) * size * 1.1; ctx.setLineDash([len, len]); ctx.lineDashOffset = len * (1 - part); }
+    strokeInk(ctx, Math.max(1.6, size * 0.075), 0.9);
+    ctx.setLineDash([]);
+  };
+  // the short stroke is a third of the journey, the long one the rest
+  stroke(a, b, j(0.03) * size, Math.min(1, progress * 3));
+  stroke(b, c, (0.06 + j(0.03)) * size, Math.min(1, (progress - 1 / 3) * 1.5));
+  ctx.restore();
+}
+/** The goal's tick, where the variant being tried puts it: across the numbered square (1), or at the end of
+ *  the goal's text (2). `end` is where that text ends. */
+function goalTick(ctx: Ctx, scene: Scene, i: number, sq: Rect, end: { x: number; y: number } | null, now: number) {
+  const key = `done-goal${i}`, pen = penOn(scene, key, now);
+  const v = pen?.erasing ? "x" : scene.values[key];
+  if (!v) return;
+  const p = pen ? (pen.erasing ? 1 : pen.p) : 1;
+  if (pen?.erasing) ctx.globalAlpha = 1 - pen.p; // rubbed out: it fades off the page
+  if ((scene.look?.tick ?? 1) === 2 && end) handTick(ctx, end.x + sq.w * 0.7, end.y, sq.w * 1.1, key + sq.w, p);
+  else handTick(ctx, sq.x + sq.w * 0.6, sq.y + sq.h * 0.4, sq.w * 1.5, key + sq.w, p);
+  ctx.globalAlpha = 1;
+}
+const PENCIL = "rgba(72,72,80,.6)";
+/** Today's row, marked in pencil (variant 1 arrow in the margin, 2 a ring round the date, 3 shading on the row). */
+function todayMark(ctx: Ctx, variant: number, y: number, xs: number[], right: number, day: number) {
+  const r = seededRandom("today" + day);
+  ctx.save();
+  ctx.strokeStyle = PENCIL; ctx.lineCap = "round"; ctx.lineJoin = "round"; ctx.lineWidth = 1.2;
+  if (variant === 2) {
+    const cx = xs[0] + 1.5 * CELL, cy = y + CELL / 2;
+    ctx.beginPath();
+    for (let k = 0; k <= 26; k++) { const a = -0.6 + (k / 24) * Math.PI * 2, rr = 11 + (r() - 0.5) * 1.2; ctx.lineTo(cx + Math.cos(a) * rr * 1.08, cy + Math.sin(a) * rr * 0.82); }
+    ctx.stroke();
+  } else if (variant === 3) {
+    // soft graphite hatching along the row, the way one shades with the side of a pencil
+    ctx.beginPath(); ctx.rect(xs[0], y + 1, right - xs[0], CELL - 2); ctx.clip();
+    ctx.globalAlpha = 0.28; ctx.lineWidth = 2.2;
+    ctx.beginPath();
+    for (let x = xs[0] - CELL; x < right; x += 3.2 + r()) { ctx.moveTo(x, y + CELL + 1); ctx.lineTo(x + 9 + r() * 2, y - 1); }
+    ctx.stroke();
+  } else {
+    const mx = 3, my = y + CELL / 2 + (r() - 0.5);
+    ctx.beginPath(); ctx.moveTo(mx, my + (r() - 0.5)); ctx.lineTo(TABLE_LEFT - 3, my);
+    ctx.moveTo(TABLE_LEFT - 8, my - 4 + (r() - 0.5)); ctx.lineTo(TABLE_LEFT - 3, my); ctx.lineTo(TABLE_LEFT - 8, my + 4 + (r() - 0.5));
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+/** Masking tape holding a photo in, in the photo's own (centred, turned) coordinates. */
+function tape(ctx: Ctx, w: number, h: number, variant: number, seed: string) {
+  const r = seededRandom(seed + "tape"), T = Math.max(12, Math.min(w, h) * 0.16), L = Math.max(34, Math.min(w, h) * 0.5);
+  const strip = (x: number, y: number, angle: number) => {
+    ctx.save();
+    ctx.translate(x, y); ctx.rotate(angle + (r() - 0.5) * 0.12);
+    ctx.beginPath();
+    // torn ends: a few small zigzags across each short side
+    ctx.moveTo(-L / 2, -T / 2);
+    ctx.lineTo(L / 2, -T / 2);
+    for (let k = 1; k <= 4; k++) ctx.lineTo(L / 2 + (k % 2 ? 2 : -1) * (0.5 + r()), -T / 2 + (T * k) / 4);
+    ctx.lineTo(-L / 2, T / 2);
+    for (let k = 3; k >= 0; k--) ctx.lineTo(-L / 2 + (k % 2 ? -2 : 1) * (0.5 + r()), -T / 2 + (T * k) / 4);
+    ctx.closePath();
+    ctx.fillStyle = "rgba(228,216,184,.78)"; ctx.fill();
+    ctx.strokeStyle = "rgba(120,100,60,.18)"; ctx.lineWidth = 0.8; ctx.stroke();
+    ctx.restore();
+  };
+  if (variant === 2) { strip(0, -h / 2, 0); strip(0, h / 2, 0); return; }
+  if (variant === 3) { // black photo corners
+    const c = Math.min(w, h) * 0.22;
+    ctx.fillStyle = "#1b1b1b";
+    for (const [sx, sy] of [[-1, -1], [1, -1], [1, 1], [-1, 1]]) {
+      const x = (sx * w) / 2 + sx * 3, y = (sy * h) / 2 + sy * 3;
+      ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x - sx * c, y); ctx.lineTo(x, y - sy * c); ctx.closePath(); ctx.fill();
+    }
+    return;
+  }
+  strip(-w / 2 + L * 0.22, -h / 2 + L * 0.12, -Math.PI / 4);
+  strip(w / 2 - L * 0.22, -h / 2 + L * 0.12, Math.PI / 4);
+}
+
 /** Word-wrap: layout.ts owns it, so the hit-test counts the same rows as the drawing. */
 const wrap = (_ctx: Ctx, str: string, width: number, size: number) => wrapText(str, width, size);
 
@@ -216,7 +310,7 @@ function handBox(ctx: Ctx, b: Rect, seed: string, width = 1.3, alpha = 0.85) {
 
 /** A photo taped into the book: a white border, a little askew, with a shadow under it. An empty slot is a
  *  faint hand-drawn frame with a + in it, so you can see where one can go. */
-function photo(ctx: Ctx, box: Rect, img: ImageBitmap | undefined, seed: string) {
+function photo(ctx: Ctx, box: Rect, img: ImageBitmap | undefined, seed: string, tapeVariant = 1) {
   if (!img) {
     handBox(ctx, box, seed, 1.2, 0.3);
     text(ctx, "+", box.x + box.w / 2, box.y + box.h / 2 + 8, { size: 24, seed: seed + "p", align: "center", alpha: 0.28 });
@@ -234,6 +328,7 @@ function photo(ctx: Ctx, box: Rect, img: ImageBitmap | undefined, seed: string) 
   const sc = Math.max((box.w - 2 * B) / img.width, (box.h - 2 * B) / img.height); // fill the frame, crop the overhang
   ctx.drawImage(img, (-img.width * sc) / 2, (-img.height * sc) / 2, img.width * sc, img.height * sc);
   ctx.restore();
+  if (tapeVariant) tape(ctx, box.w, box.h, tapeVariant, seed);
   ctx.restore();
 }
 
@@ -386,6 +481,11 @@ function drawLeftPage(ctx: Ctx, scene: Scene, vis: Rect, now: number, assets: As
       const pen = penOn(scene, `goal${i}`, now);
       const g = pen?.erasing ? pen.text : notes[`goal${i}`];
       if (g) noteText(ctx, g, goalTextBox(i), "goal" + i, { pen });
+      if (g) {
+        // where the goal's text ends: the last wrapped line, measured with the seed noteText drew it with
+        const b = goalTextBox(i), ls = wrap(ctx, g.split("\n").filter((l) => l.trim())[0] ?? "", b.w - 10, NOTE_SIZE), j = ls.length - 1;
+        goalTick(ctx, scene, i, { x: p.x, y: p.y, w: CELL, h: CELL }, { x: b.x + 6 + widthOfText(ls[j], NOTE_SIZE, "goal" + i + "0-" + j), y: b.y + j * CELL + 9 }, now);
+      }
     }
   }
 
@@ -410,6 +510,8 @@ function drawLeftPage(ctx: Ctx, scene: Scene, vis: Rect, now: number, assets: As
           text(ctx, line, goal.x, goal.y + 19 + j * 21, { size: 18, seed: "pg" + i + j, tilt: 0.25, ...(part ? { reveal: p, from: part.from, erase: gpen!.erasing } : {}) });
           if (part) done += part.chars;
         });
+        const j = lines.length - 1;
+        goalTick(ctx, scene, i, num, { x: goal.x + widthOfText(lines[j], 18, "pg" + i + j), y: goal.y + 12 + j * 21 }, now);
       }
       const ppen = penOn(scene, `plan${i}`, now);
       const pl = ppen?.erasing ? ppen.text : notes[`plan${i}`];
@@ -419,7 +521,7 @@ function drawLeftPage(ctx: Ctx, scene: Scene, vis: Rect, now: number, assets: As
 
   // and three photos along the bottom
   for (const { slot, box } of photoBoxes(scene.days)) {
-    if (overlaps(vis, box)) photo(ctx, box, assets.photos?.[slot], slot);
+    if (overlaps(vis, box)) photo(ctx, box, assets.photos?.[slot], slot, scene.look?.tape);
   }
 }
 function drawRightPage(ctx: Ctx, scene: Scene, vis: Rect, now: number, assets: Assets) {
@@ -454,8 +556,10 @@ function drawRightPage(ctx: Ctx, scene: Scene, vis: Rect, now: number, assets: A
   }
 
   const rightPhotos = photoBoxesRight(columns, days, notes);
-  for (const { slot, box } of rightPhotos) if (overlaps(vis, box)) photo(ctx, box, assets.photos?.[slot], slot);
+  for (const { slot, box } of rightPhotos) if (overlaps(vis, box)) photo(ctx, box, assets.photos?.[slot], slot, scene.look?.tape);
   const b7 = assets.photos?.b7 ? rightPhotos.find((p) => p.slot === "b7")?.box : undefined;
+
+  if (scene.today && scene.today <= days) todayMark(ctx, scene.look?.mark ?? 1, HEADER_Y + (scene.today - 1) * CELL, xs, right, scene.today);
 
   // day rows (only the visible ones)
   const first = Math.max(1, Math.floor((vis.y - HEADER_Y) / CELL) + 1), last = Math.min(days, Math.ceil((vis.y + vis.h - HEADER_Y) / CELL));

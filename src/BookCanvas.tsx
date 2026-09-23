@@ -3,6 +3,7 @@ import { BG, BOOK_H, BOOK_W, LIP, PAGE_W, TABLE } from "./layout";
 import { ARCH, createBook3D, type Book3D, type Turn } from "./bog3d";
 import type { Plane, Scene, View } from "./draw";
 import type { RenderReply, RenderRequest } from "./draw.worker";
+import { turnSound } from "./sound";
 
 const MAX_OVER_FIT = 7; // how far past "whole spread visible" you can zoom in
 const TAP_SLOP = 8;
@@ -269,6 +270,7 @@ export const BookCanvas = forwardRef<BookCanvasHandle, {
   const settleTurn = (target: 0 | 1) => {
     const tr = turn.current!;
     const from = tr.p, dist = Math.abs(target - from), ms = 180 + 620 * dist, t0 = performance.now();
+    if (from === 0 && target === 1) turnSound(ms);
     const step = (now: number) => {
       const u = Math.min(1, (now - t0) / ms);
       // a whole turn eases in and out; a leaf let go mid-air just eases out into its landing

@@ -6,7 +6,7 @@ await withServer(async () => {
   const browser = await chromium.launch();
   const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 3, hasTouch: true, isMobile: true });
   const page = await ctx.newPage();
-  await page.goto(URL); await page.waitForSelector(".viewport"); await page.waitForTimeout(2500);
+  await page.goto(URL + (process.env.Q ?? "")); await page.waitForSelector(".viewport"); await page.waitForTimeout(2500);
   await page.screenshot({ path: OUT });
   await browser.close();
 });

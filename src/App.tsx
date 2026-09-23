@@ -9,11 +9,20 @@ import { seededRandom } from "./random";
 import { HANDS, setHand, type Hand } from "./glyf";
 import { migrate as migratePhotos, photosNow, save as savePhotosTo, warm as warmPhotos } from "./photos";
 import { clearMonth, download as downloadBackup, restore as restoreBackup } from "./backup";
+import { eraseSound, penSound, setSoundOn, soundOn } from "./sound";
 
 declare const __BUILD__: string; // set in vite.config.ts
 
 const TYPE_LABEL: Record<ColType, string> = { check: "Afkrydsning", number: "Tal", rating: "Rating 1–10", dots: "Prikgraf 0–10" };
 
+/** `?idag=N` pretends today is day N of the month on screen (screenshots). */
+const TODAY = Number(new URLSearchParams(location.search).get("idag")) || 0;
+/** Today's day of the month, if `m` is this month: its row gets a pencil mark. */
+function todayIn(m: { year: number; month: number }) {
+  const d = new Date();
+  if (TODAY) return TODAY;
+  return d.getFullYear() === m.year && d.getMonth() + 1 === m.month ? d.getDate() : undefined;
+}
 /** One month of the book: `month` 1..12. Everything written in it is stored under its own keys. */
 type Month = { year: number; month: number };
 const MONTHS_DA = ["Januar", "Februar", "Marts", "April", "Maj", "Juni", "Juli", "August", "September", "Oktober", "November", "December"];
@@ -21,7 +30,6 @@ const labelOf = (m: Month) => `${MONTHS_DA[m.month - 1]} ${m.year}`;
 const daysOf = (m: Month) => new Date(m.year, m.month, 0).getDate();
 const stepMonth = (m: Month, dir: 1 | -1): Month => ({ year: m.year + (m.month + dir < 1 ? -1 : m.month + dir > 12 ? 1 : 0), month: ((m.month + dir + 11) % 12) + 1 });
 const keyOf = (kind: "values" | "notes" | "photos", m: Month) => `${kind}-${m.year}-${m.month}`;
-const MONTH_KEY = "month"; // the spread the book was last open at
 /** The month the demo text and values were written into, once, on the first visit. */
 const DEMO_MONTH: Month = { year: 2026, month: 9 };
 const DEFAULT_COLUMNS: Column[] = [
@@ -40,12 +48,16 @@ const DEFAULT_COLUMNS: Column[] = [
   { id: "dagsscore", name: "Dagsscore", type: "rating" },
 ];
 const COLUMNS_KEY = "columns";
+const BACKUP_AT = "backup-at", BACKUP_ASKED = "backup-asked"; // when a copy was last saved; which month was reminded
 const HAND_KEY = "hand";
 /** How fast the pen writes; `?pen=6` slows it down so a screenshot can catch it half-written. */
 const PEN_K = Number(new URLSearchParams(location.search).get("pen")) || 1;
 /** How far a rotated column heading sits from its column's left edge (`?ox=N`); it rides on the scene, since
  *  draw.ts runs in a worker and cannot read the address itself. */
 const HEAD_POS = Number(new URLSearchParams(location.search).get("ox")) || 0;
+/** While Lukas picks: `?flueben=N`, `?idagmark=N`, `?tape=N` choose the variant (see draw.ts). */
+const q = new URLSearchParams(location.search);
+const LOOK = { tick: Number(q.get("flueben")) || undefined, mark: Number(q.get("idagmark")) || undefined, tape: q.has("tape") ? Number(q.get("tape")) : undefined };
 const generateId = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
 
 type Values = Record<string, string>; // "x" for checks, "71,5" / "8" for numbers, "7.5" for dots
@@ -134,9 +146,10 @@ function diffLines(before: string[], after: string[]) {
 type ValuePrompt = { kind: "value"; key: string; label: string; value: string; rating: boolean };
 type ColumnPrompt = { kind: "column"; index: number; column: Column }; // index -1 = new
 type SettingsPrompt = { kind: "settings" };
+type ReminderPrompt = { kind: "reminder" };
 type PhotoPrompt = { kind: "photo"; slot: string };
 type NotePrompt = { kind: "note"; field: NoteField; label: string; value: string; bullets: boolean };
-type Prompt = ValuePrompt | ColumnPrompt | NotePrompt | SettingsPrompt | PhotoPrompt;
+type Prompt = ValuePrompt | ColumnPrompt | NotePrompt | SettingsPrompt | PhotoPrompt | ReminderPrompt;
 
 /** The text you write is a list of points, one line each - the same lines the book draws, with the same dot in
  *  front. A written line has a black dot, the empty one at the end a faint one: that is where the next point goes. */
@@ -200,15 +213,15 @@ export default function App() {
       localStorage.setItem("demo-plans-seeded", "1");
       localStorage.setItem(keyOf("notes", DEMO_MONTH), JSON.stringify({ ...DEMO_PLANS, ...n }));
     }
-    const today = new Date();
-    return load<Month>(MONTH_KEY, { year: today.getFullYear(), month: today.getMonth() + 1 });
+    const today = new Date(); // the book always opens at this month (Lukas): today's row is where you write
+    return { year: today.getFullYear(), month: today.getMonth() + 1 };
   });
   const [values, setValues] = useState<Values>(() => load(keyOf("values", month), {}));
   const [notes, setNotes] = useState<Notes>(() => load(keyOf("notes", month), {}));
   const [hand, setHandState] = useState<Hand>(() => (localStorage.getItem(HAND_KEY) as Hand) in HANDS ? (localStorage.getItem(HAND_KEY) as Hand) : "lukas");
   const [photos, setPhotos] = useState<Photos>(() => photosNow(keyOf("photos", month)));
   const DAYS = daysOf(month), VALUES_KEY = keyOf("values", month), NOTES_KEY = keyOf("notes", month), PHOTOS_KEY = keyOf("photos", month);
-  const sceneOf = (m: Month, v: Values, n: Notes): Scene => ({ ...m, monthLabel: labelOf(m), days: daysOf(m), columns, values: v, notes: n, writing: null, hand, headPos: HEAD_POS || undefined });
+  const sceneOf = (m: Month, v: Values, n: Notes): Scene => ({ ...m, monthLabel: labelOf(m), days: daysOf(m), columns, values: v, notes: n, writing: null, hand, headPos: HEAD_POS || undefined, today: todayIn(m), look: LOOK });
   /** The spread on the other side of a leaf turned in `dir`, read straight from storage. */
   const otherScene = (dir: 1 | -1) => {
     const m = stepMonth(month, dir);
@@ -218,9 +231,18 @@ export default function App() {
   const onTurned = (dir: 1 | -1) => {
     const m = stepMonth(month, dir);
     setMonth(m); setValues(load(keyOf("values", m), {})); setNotes(load(keyOf("notes", m), {})); setPhotos(photosNow(keyOf("photos", m)));
-    localStorage.setItem(MONTH_KEY, JSON.stringify(m));
   };
-  const [prompt, setPrompt] = useState<Prompt | null>(null);
+  // Once a month, until a copy has been saved in it: the book lives only on this phone (see backup.ts).
+  // Not in dev, where it would sit on top of every screenshot - `?husk` shows it there.
+  const [prompt, setPrompt] = useState<Prompt | null>(() => {
+    if (import.meta.env.DEV && !new URLSearchParams(location.search).has("husk")) return null;
+    const d = new Date(), ym = `${d.getFullYear()}-${d.getMonth() + 1}`;
+    const savedAt = Number(localStorage.getItem(BACKUP_AT)) || 0;
+    if (localStorage.getItem(BACKUP_ASKED) === ym || savedAt >= new Date(d.getFullYear(), d.getMonth(), 1).getTime()) return null;
+    localStorage.setItem(BACKUP_ASKED, ym); // asked once this month, whatever the answer
+    return { kind: "reminder" };
+  });
+  const [sound, setSound] = useState(soundOn);
   const [busyNote, setBusyNote] = useState("");   // what the backup buttons are doing, shown in the sheet
   const [confirmWipe, setConfirmWipe] = useState(false); // "Ryd" asks twice: it cannot be undone
   const backupInput = useRef<HTMLInputElement>(null);
@@ -253,6 +275,8 @@ export default function App() {
     const pen: Writing = { key, start: performance.now(), eraseMs: penMs(w.eraseChars), writeMs: penMs(w.writeChars), erase: w.erase, eraseEdits: w.eraseEdits, writeEdits: w.writeEdits };
     if (!pen.eraseMs && !pen.writeMs) return;
     scene.current.writing = pen;
+    eraseSound(pen.eraseMs);
+    setTimeout(() => penSound(pen.writeMs), pen.eraseMs);
     const step = () => {
       if (scene.current.writing !== pen) return; // something else is being written now
       redraw();
@@ -340,7 +364,11 @@ export default function App() {
   /** Save the whole book to a file, read one back, or empty this month. The book lives only on this phone. */
   const saveCopy = async () => {
     setBusyNote("Samler bogen …");
-    try { setBusyNote((await downloadBackup()) === "delt" ? "Kopien er klar – vælg hvor den skal gemmes." : "Kopien er hentet."); }
+    try {
+      const how = await downloadBackup();
+      localStorage.setItem(BACKUP_AT, String(Date.now()));
+      setBusyNote(how === "delt" ? "Kopien er klar – vælg hvor den skal gemmes." : "Kopien er hentet.");
+    }
     catch (e) { setBusyNote((e as Error).name === "AbortError" ? "" : "Kunne ikke gemme kopien."); }
   };
   const onBackupFile = async (e: FormEvent<HTMLInputElement>) => {
@@ -425,6 +453,16 @@ export default function App() {
           </div>
         </Sheet>
       )}
+      {prompt?.kind === "reminder" && (
+        <Sheet title="Gem en kopi af bogen?" onClose={close}>
+          <p className="sheet-note">Bogen findes kun på denne telefon. En kopi i Filer eller iCloud gør, at intet går tabt, hvis telefonen bliver væk eller ryddes.</p>
+          <div className="sheet-row">
+            <button type="button" className="ghost" onClick={close}>Ikke nu</button>
+            <button type="button" className="primary" onClick={saveCopy}>Gem en kopi</button>
+          </div>
+          {busyNote && <p className="sheet-note">{busyNote}</p>}
+        </Sheet>
+      )}
       {prompt?.kind === "settings" && (
         <Sheet title="Indstillinger" onClose={close}>
           <p className="sheet-label">Håndskrift</p>
@@ -436,6 +474,13 @@ export default function App() {
           </div>
           {/* The only copy of the book there is: an app on the home screen and the same book in Safari are two
               separate stores on iOS, and nothing backs either of them up. */}
+          <p className="sheet-label">Lyd</p>
+          <div className="chips wide">
+            {[true, false].map((on) => (
+              <button type="button" key={String(on)} className={"chip" + (on === sound ? " on" : "")}
+                      onClick={() => { setSound(on); setSoundOn(on); }}>{on ? "Til" : "Fra"}</button>
+            ))}
+          </div>
           <p className="sheet-label">Sikkerhedskopi</p>
           <div className="sheet-row">
             <button type="button" className="ghost" onClick={saveCopy}>Gem en kopi</button>
@@ -472,7 +517,15 @@ export default function App() {
       {prompt?.kind === "note" && (
         <Sheet title={prompt.label} onClose={close} onSubmit={submitNote}>
           <Lines value={prompt.value} bullets={prompt.bullets} />
-          <div className="sheet-row"><button type="submit" className="primary">Skriv</button></div>
+          <div className="sheet-row">
+            {/^goal\d+$/.test(prompt.field) && prompt.value && (
+              // a goal reached gets a tick, drawn by the pen like everything else; tapped again it is rubbed out
+              <button type="button" className="ghost" onClick={() => { const k = "done-" + prompt.field; write(k, values[k] ? null : "x"); close(); }}>
+                {values["done-" + prompt.field] ? "Ikke nået alligevel" : "Nået ✓"}
+              </button>
+            )}
+            <button type="submit" className="primary">Skriv</button>
+          </div>
         </Sheet>
       )}
       {prompt?.kind === "column" && (
