@@ -109,7 +109,7 @@ body { font-family: var(--font-hand); -webkit-user-select: none; user-select: no
 
 .sheet-row { display: flex; gap: 10px; }
 .sheet-row > * { flex: 1; }
-.sheet button.primary, .sheet button.ghost {
+.sheet button.primary, .sheet button.ghost, .sheet button.danger {
   font: 500 22px/1 var(--font-hand); padding: 13px 18px; border-radius: 12px; border: 1.5px solid var(--ink);
 }
 .sheet button.primary { background: var(--ink); color: var(--paper); }
@@ -140,6 +140,10 @@ body { font-family: var(--font-hand); -webkit-user-select: none; user-select: no
 /* goals taken along into a new month: one per line, tapped to leave it behind */
 .carry-list { display: flex; flex-direction: column; gap: 8px; margin: 10px 0 14px; }
 .carry-list .chip { width: 100%; text-align: left; padding: 10px 14px; font-size: 22px; line-height: 1.15; }
+
+/* move a column left or right: above the delete/save row */
+.move-row { margin-bottom: 10px; }
+.sheet button:disabled { opacity: .3; }
 
 /* take the last change back: shows for a few seconds after each one */
 .undo {

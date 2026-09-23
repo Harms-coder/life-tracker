@@ -359,6 +359,18 @@ export default function App() {
     localStorage.setItem(COLUMNS_KEY, JSON.stringify(next));
     setPrompt(null);
   };
+  /** Move a column one place left (-1) or right (+1). The sheet stays open, so it can go several places; its
+   *  values go with it, since they are keyed on the column's id, not its place. */
+  const moveColumn = (p: ColumnPrompt, step: -1 | 1) => {
+    const to = p.index + step;
+    if (p.index < 0 || to < 0 || to >= columns.length) return;
+    const before = columns, next = [...columns];
+    [next[p.index], next[to]] = [next[to], next[p.index]];
+    setColumns(next);
+    localStorage.setItem(COLUMNS_KEY, JSON.stringify(next));
+    offerUndo(() => saveColumns(before, false));
+    setPrompt({ ...p, index: to });
+  };
   const saveNote = (field: NoteField, text: string, undoable = true) => {
     const was = notes[field] ?? "";
     if (undoable && was !== text) offerUndo(() => saveNote(field, was, false));
@@ -621,6 +633,12 @@ export default function App() {
                       onClick={() => setPrompt({ ...prompt, column: { ...prompt.column, type: t } })}>{TYPE_LABEL[t]}</button>
             ))}
           </div>
+          {prompt.index >= 0 && (
+            <div className="sheet-row move-row">
+              <button type="button" className="ghost" disabled={prompt.index === 0} onClick={() => moveColumn(prompt, -1)}>← Flyt</button>
+              <button type="button" className="ghost" disabled={prompt.index === columns.length - 1} onClick={() => moveColumn(prompt, 1)}>Flyt →</button>
+            </div>
+          )}
           <div className="sheet-row">
             {prompt.index >= 0 && <button type="button" className="danger" onClick={() => saveColumns(columns.filter((_, i) => i !== prompt.index))}>Slet</button>}
             <button type="submit" className="primary">Gem</button>
