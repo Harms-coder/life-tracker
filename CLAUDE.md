@@ -199,6 +199,25 @@ Rækker = dage 1–31 (antal efter måneden). Kolonner = brugerens egne trackere
 - Test-scripts ligger i sessionens scratchpad (`pw/shots.mjs` skærmbilleder, `pw/bench.mjs` frame-tider i WebKit,
   `pw/tapcheck.mjs` tryk). Dev-server: `npm run dev`. I dev sætter BookCanvas `window.__view` (x, y, s) til scripts.
 
+## Status 2026-09-23 – SESSIONEN LUKKET NED, ALT ER PUSHET (værktøj, ikke appen)
+
+**Live:** https://harms-coder.github.io/life-tracker/ · **Galleri:** https://claude.ai/artifact/S914mdZ2Tq4gAuqWUrxLYb
+Arbejdstræet er rent. **Der er IKKE rørt ved appens kode** – kun kigget på værktøjer.
+
+### Det blev lavet (nyeste først)
+1. **Task Observer FRAVALGT**: den laver det samme som `luk-ned` + playbooken + hukommelsen og skal startes
+   hver session. Foreslå den ikke igen uden at han spørger.
+2. **Claude Code Setup** er allerede installeret (22/9). Brug den ved start af en NY app ("hvad kan vi automatisere?").
+3. **Strix (AI-sikkerhedstest) FRAVALGT til Life Tracker**: ingen server/login = intet at angribe. Men Lukas vil
+   have den husket til apps med login/server/App Store → `~/.claude/playbook/sikkerhed.md` + én linje i
+   `~/.claude/CLAUDE.md`, så jeg selv foreslår den dér.
+4. **Graphify** er allerede installeret globalt; lille gevinst i dette projekt. Ikke kørt.
+
+### FØRSTE SKRIDT NÆSTE GANG
+- **UÆNDRET fra 22/9 kl. 22.15-blokken nedenfor:** indstillingsfladen er IKKE SET AF LUKAS – især om
+  `navigator.share` virker i hjemmeskærms-appen (UBEKRÆFTET); at swipe ikke bladrer (UBEKRÆFTET); hvordan det
+  gik med at rydde september og skrive sit eget.
+
 ## Status 2026-09-22 kl. 22.15 – SESSIONEN LUKKET NED, ALT ER PUSHET
 
 **Live:** https://harms-coder.github.io/life-tracker/ · **Galleri:** https://claude.ai/artifact/S914mdZ2Tq4gAuqWUrxLYb
