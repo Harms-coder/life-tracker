@@ -200,8 +200,9 @@ Rækker = dage 1–31 (antal efter måneden). Kolonner = brugerens egne trackere
   `pw/tapcheck.mjs` tryk). Dev-server: `npm run dev`. I dev sætter BookCanvas `window.__view` (x, y, s) til scripts.
 
 ## Status 2026-09-23 sen aften – STJERNE, FORTRYD, UDEN NET, MÅL MED TIL NY MÅNED
-- **Stjerne i stedet for flueben** (Lukas): gul, tegnet oven på målets firkant med tallet i midten (`handStar`/
-  `goalStar` i draw.ts). Knappen i målets ark hedder "Nået ★". Fluebenet er slettet helt.
+- **Stjerne i stedet for flueben** (Lukas' billede): en håndtegnet stjerne i ÉN streg (pentagram, stregerne krydser),
+  KUN streg i gul, ingen fyld; den ERSTATTER firkanten, tallet står i femkanten i midten, stregerne må gå hen over
+  det. Både i listen øverst og i de seks store. Hver stjerne er forskellig (seed). `handStar`/`goalStar` i draw.ts. Knappen i målets ark hedder "Nået ★". Fluebenet er slettet helt.
 - **Fortryd** (`offerUndo`/`takeBack` i App.tsx): hver ændring (celle, tekst, kolonne, billede) viser "↶ Fortryd" i
   5 s. Ændringer der ikke kan fortrydes (træk i søvnprik, ryd måned, bladring) FJERNER tilbuddet, for det lægger
   "før denne ændring" tilbage og må aldrig overleve en senere ændring. `node tools/undocheck.mjs`.
