@@ -230,6 +230,7 @@ export default function App() {
   /** The leaf has landed: the book is open at that month now. */
   const onTurned = (dir: 1 | -1) => {
     const m = stepMonth(month, dir);
+    dropUndo(); // it would put back something in the month just left
     setMonth(m); setValues(load(keyOf("values", m), {})); setNotes(load(keyOf("notes", m), {})); setPhotos(photosNow(keyOf("photos", m)));
   };
   // Once a month, until a copy has been saved in it: the book lives only on this phone (see backup.ts).
@@ -285,12 +286,27 @@ export default function App() {
     };
     requestAnimationFrame(step);
   };
-  const write = (key: string, value: string | null, pen = true) => {
+  /** The last change can be taken back for a few seconds (a wrong tap sets or clears an X at once). Every change
+   *  replaces the offer, and one that cannot be taken back drops it: `undo` puts back what was there before THIS
+   *  change, so it must never outlive a later one. */
+  const [undo, setUndo] = useState<(() => void) | null>(null);
+  const undoTimer = useRef(0);
+  const offerUndo = (run: () => void) => {
+    clearTimeout(undoTimer.current);
+    setUndo(() => run);
+    undoTimer.current = window.setTimeout(() => setUndo(null), 5000);
+  };
+  const dropUndo = () => { clearTimeout(undoTimer.current); setUndo(null); };
+  const takeBack = () => { const run = undo; dropUndo(); run?.(); };
+
+  const write = (key: string, value: string | null, pen = true, undoable = true) => {
     const before = values[key] ?? "", after = value ?? "";
     const next = { ...values };
     if (!after) delete next[key]; else next[key] = after;
     setValues(next);
     localStorage.setItem(VALUES_KEY, JSON.stringify(next));
+    if (undoable && pen && before !== after) offerUndo(() => write(key, before || null, true, false));
+    else if (!pen) dropUndo(); // a dot being dragged: not offered, and an older offer would undo it
     if (!pen || before === after) return;
     const k = prefixLen(before, after); // "71,4" -> "71,5" changes one digit, and that is all that moves
     startPen(key, {
@@ -299,12 +315,16 @@ export default function App() {
       eraseChars: Math.max(0, before.length - k), writeChars: Math.max(0, after.length - k),
     });
   };
-  const saveColumns = (next: Column[]) => {
+  const saveColumns = (next: Column[], undoable = true) => {
+    const before = columns;
+    if (undoable) offerUndo(() => saveColumns(before, false));
     setColumns(next);
     localStorage.setItem(COLUMNS_KEY, JSON.stringify(next));
     setPrompt(null);
   };
-  const saveNote = (field: NoteField, text: string) => {
+  const saveNote = (field: NoteField, text: string, undoable = true) => {
+    const was = notes[field] ?? "";
+    if (undoable && was !== text) offerUndo(() => saveNote(field, was, false));
     const before = lines(notes[field] ?? ""), after = lines(text);
     const next = { ...notes, [field]: text };
     setNotes(next);
@@ -354,7 +374,9 @@ export default function App() {
     img.onerror = fail;
     img.src = URL.createObjectURL(file);
   });
-  const savePhotos = (next: Photos) => {
+  const savePhotos = (next: Photos, undoable = true) => {
+    const before = photos;
+    if (undoable) offerUndo(() => savePhotos(before, false));
     setPhotos(next);
     setPrompt(null);
     savePhotosTo(PHOTOS_KEY, next).catch(() => alert("Der er ikke plads til flere billeder på telefonen. Fjern et af dem først."));
@@ -387,6 +409,7 @@ export default function App() {
     setConfirmWipe(false);
     await clearMonth(month.year, month.month);
     setValues({}); setNotes({}); setPhotos({});
+    dropUndo();
     setPrompt(null);
   };
   const onFile = async (e: FormEvent<HTMLInputElement>) => {
@@ -443,6 +466,7 @@ export default function App() {
       <button className="turn next" onClick={() => book.current?.turn(1)} aria-label="Næste måned">›</button>
       <input ref={fileInput} type="file" accept="image/*" hidden onInput={onFile} />
       <input ref={backupInput} type="file" accept="application/json,.json" hidden onInput={onBackupFile} />
+      {undo && <button className="undo" onClick={takeBack}>↶ Fortryd</button>}
       <button className="hand-pick" onClick={() => setPrompt({ kind: "settings" })} aria-label="Indstillinger">✎</button>
 
       {prompt?.kind === "photo" && (

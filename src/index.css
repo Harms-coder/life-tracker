@@ -137,6 +137,14 @@ body { font-family: var(--font-hand); -webkit-user-select: none; user-select: no
 .turn.prev { left: 10px; }
 .turn.next { right: 10px; }
 
+/* take the last change back: shows for a few seconds after each one */
+.undo {
+  position: fixed; left: 50%; bottom: 14px; transform: translateX(-50%); border: 0; border-radius: 20px; padding: 9px 18px;
+  background: rgba(20,20,20,.72); color: #fff; font: 500 16px/1 -apple-system, system-ui, sans-serif;
+  animation: undo-in .18s ease-out;
+}
+@keyframes undo-in { from { opacity: 0; transform: translate(-50%, 8px); } }
+
 /* the settings sheet: headings over each group, and a quiet line under the backup buttons for what just happened */
 .sheet-label { margin: 14px 0 8px; font: 600 15px/1.2 system-ui, sans-serif; letter-spacing: .02em; opacity: .62; text-transform: uppercase; }
 .sheet-label:first-of-type { margin-top: 4px; }
