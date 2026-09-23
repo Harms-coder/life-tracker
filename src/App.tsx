@@ -519,9 +519,9 @@ export default function App() {
           <Lines value={prompt.value} bullets={prompt.bullets} />
           <div className="sheet-row">
             {/^goal\d+$/.test(prompt.field) && prompt.value && (
-              // a goal reached gets a tick, drawn by the pen like everything else; tapped again it is rubbed out
+              // a goal reached gets a yellow star, drawn by the pen like everything else; tapped again it is rubbed out
               <button type="button" className="ghost" onClick={() => { const k = "done-" + prompt.field; write(k, values[k] ? null : "x"); close(); }}>
-                {values["done-" + prompt.field] ? "Ikke nået alligevel" : "Nået ✓"}
+                {values["done-" + prompt.field] ? "Ikke nået alligevel" : "Nået ★"}
               </button>
             )}
             <button type="submit" className="primary">Skriv</button>

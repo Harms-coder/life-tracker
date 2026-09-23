@@ -170,76 +170,51 @@ function handX(ctx: Ctx, x: number, y: number, seed: string, progress = 1) {
   ctx.restore();
 }
 
-/** The ways a tick gets drawn, in units of the numbered square's side, from its centre: where the pen lands
- *  (a), the bottom of the V (b) and where it flies off (c), with the bend of each stroke. Like Lukas' own: big,
- *  thick, and well out past the square (his picture: three squares tall). One is picked per goal, then jittered. */
-const TICKS: { a: number[]; b: number[]; c: number[]; bendA: number; bendC: number; hook?: number; flick?: number }[] = [
-  { a: [-0.8, -0.2], b: [-0.05, 0.9], c: [1.35, -2.45], bendA: 0.03, bendC: 0.08 },             // his picture
-  { a: [-0.65, 0.05], b: [0.05, 0.85], c: [1.0, -2.1], bendA: 0, bendC: 0.04, hook: 0.22 },      // starts with a little hook
-  { a: [-0.75, -0.05], b: [0.0, 0.95], c: [1.75, -1.95], bendA: 0.06, bendC: 0.2 },              // long, bellied sweep
-  { a: [-0.6, -0.5], b: [0.0, 0.8], c: [1.05, -2.35], bendA: -0.03, bendC: 0 },                  // sharp and narrow
-  { a: [-0.85, 0.1], b: [-0.1, 0.85], c: [1.3, -2.15], bendA: 0.08, bendC: 0.12, flick: 0.18 },  // loose, flicks off
-];
-/** A tick drawn by hand, centred on the square (cx, cy) of side `size`. Each stroke is its own ink shape, not a
- *  tube: the pen lands light, presses into the bottom of the V, and lifts off thin at the end; the edges wander a
- *  little, each side on its own, and where the two strokes cross the ink lies twice and goes darker. `progress`
- *  0..1 is how far the pen has got. */
-function handTick(ctx: Ctx, cx: number, cy: number, size: number, seed: string, progress = 1) {
+/** A yellow star drawn over a goal's numbered square once the goal is reached (Lukas), the number sitting in
+ *  its middle. Drawn the way one does with a yellow felt-tip: the outline in one go, a little uneven, then
+ *  coloured in, covering the square under it. `progress` 0..1 is how far it has got. */
+function handStar(ctx: Ctx, cx: number, cy: number, size: number, seed: string, progress = 1) {
   const r = seededRandom(seed), j = (a: number) => (r() - 0.5) * 2 * a;
-  const t = TICKS[Math.floor(r() * TICKS.length)];
-  const P = (p: number[], a: number) => [p[0] + j(a), p[1] + j(a)];
-  const a = P(t.a, 0.12), b = P(t.b, 0.1), c = P(t.c, 0.2);
-  /** Points along a curved stroke: [x, y] in square units. */
-  const curve = (p: number[], q: number[], bend: number, n: number) => {
-    const mx = (p[0] + q[0]) / 2 - (q[1] - p[1]) * bend, my = (p[1] + q[1]) / 2 + (q[0] - p[0]) * bend;
-    return Array.from({ length: n + 1 }, (_, k) => { const u = k / n, v = 1 - u; return [v * v * p[0] + 2 * v * u * mx + u * u * q[0], v * v * p[1] + 2 * v * u * my + u * u * q[1]]; });
-  };
-  const down = [...(t.hook ? curve([a[0] - t.hook * 0.6, a[1] + t.hook], a, 0.2, 6).slice(0, -1) : []), ...curve(a, b, t.bendA + j(0.03), 16)];
-  const up = [...curve(b, c, t.bendC + j(0.04), 36), ...(t.flick ? curve(c, [c[0] + t.flick, c[1] - t.flick * 0.15], -0.2, 6).slice(1) : [])];
-  const W = 0.17 + j(0.02);
-  // slow wobbles: the hand is not a ruler (drift of the line, and of each edge on its own)
-  const wave = () => { const f = 1.5 + r() * 2, ph = r() * 6.3, amp = r(); return (u: number) => amp * Math.sin(u * f * 6.3 + ph); };
-  /** One stroke as a filled shape. `press` gives the width along it (0..1 in, 0..1 out). */
-  const stroke = (pts: number[][], press: (u: number) => number, part: number) => {
-    const n = Math.round(part * (pts.length - 1));
-    if (n < 1) return;
-    const drift = wave(), eL = wave(), eR = wave(), left: number[][] = [], right: number[][] = [];
-    for (let k = 0; k <= n; k++) {
-      const u = k / (pts.length - 1), p = pts[k], q = pts[Math.min(pts.length - 1, k + 1)], o = pts[Math.max(0, k - 1)];
-      let nx = -(q[1] - o[1]), ny = q[0] - o[0];
-      const l = Math.hypot(nx, ny) || 1; nx /= l; ny /= l;
-      const x = p[0] + nx * drift(u) * 0.018, y = p[1] + ny * drift(u) * 0.018;
-      const w = (W * press(u)) / 2;
-      left.push([x + nx * w * (1 + eL(u) * 0.12), y + ny * w * (1 + eL(u) * 0.12)]);
-      right.push([x - nx * w * (1 + eR(u) * 0.12), y - ny * w * (1 + eR(u) * 0.12)]);
-    }
-    ctx.beginPath();
-    left.forEach(([x, y], k) => (k ? ctx.lineTo(x, y) : ctx.moveTo(x, y)));
-    const e = right[n], f = left[n];
-    ctx.quadraticCurveTo((e[0] + f[0]) / 2 + (pts[n][0] - pts[Math.max(0, n - 1)][0]) * 0.6, (e[1] + f[1]) / 2 + (pts[n][1] - pts[Math.max(0, n - 1)][1]) * 0.6, e[0], e[1]); // the round end of the nib
-    for (let k = n - 1; k >= 0; k--) ctx.lineTo(right[k][0], right[k][1]);
-    ctx.closePath();
-    ctx.fill();
-  };
+  const R = size * (1.12 + j(0.08)), inner = 0.46 + j(0.04), turn = j(0.18);
+  // ten corners, out and in, each a little off; the outline closes where it began, slightly overshooting
+  const pts = Array.from({ length: 10 }, (_, k) => {
+    const a = -Math.PI / 2 + turn + (k * Math.PI) / 5 + j(0.06), rr = R * (k % 2 ? inner : 1) * (1 + j(0.07));
+    return [cx + Math.cos(a) * rr, cy + Math.sin(a) * rr];
+  });
+  const path = [...pts, [pts[0][0] + j(0.08) * size, pts[0][1] + j(0.08) * size]];
+  const outline = Math.min(1, progress / 0.6), fill = Math.max(0, (progress - 0.6) / 0.4);
   ctx.save();
-  ctx.translate(cx, cy); ctx.rotate(j(0.1)); ctx.scale(size, size);
-  ctx.fillStyle = INK; ctx.globalAlpha *= 0.88;
-  const share = down.length / (down.length + up.length);
-  // lands light, presses harder into the V
-  stroke(down, (u) => 0.55 + 0.45 * Math.sin(Math.min(1, u * 1.3) * Math.PI / 2), Math.min(1, progress / share));
-  // leaves the V pressed, then lets go: thin and fast at the end
-  stroke(up, (u) => (u < 0.55 ? 1 - u * 0.25 : 0.86 * Math.pow(1 - (u - 0.55) / 0.45, 0.8) + 0.08), Math.max(0, (progress - share) / (1 - share)));
+  if (fill > 0) {
+    // coloured in with zigzag strokes across the star, clipped a touch outside it
+    ctx.save();
+    ctx.beginPath(); pts.forEach(([x, y], k) => (k ? ctx.lineTo(x, y) : ctx.moveTo(x, y))); ctx.closePath();
+    ctx.lineWidth = size * 0.12; ctx.lineJoin = "round"; ctx.strokeStyle = "rgba(255,220,60,.5)"; ctx.stroke();
+    ctx.clip();
+    ctx.fillStyle = "rgba(255,222,66,.93)"; ctx.globalAlpha *= fill; ctx.fillRect(cx - R * 1.2, cy - R * 1.2, R * 2.4, R * 2.4);
+    ctx.beginPath();
+    for (let y = cy - R; y < cy + R; y += size * 0.16) { ctx.moveTo(cx - R, y + j(0.03) * size); ctx.lineTo(cx + R, y + size * 0.1 + j(0.03) * size); }
+    ctx.strokeStyle = "rgba(235,190,30,.16)"; ctx.lineWidth = size * 0.1; ctx.stroke();
+    ctx.restore();
+  }
+  // the outline, as far as the pen has got
+  const segs = path.length - 1, done = outline * segs;
+  ctx.beginPath(); ctx.moveTo(path[0][0], path[0][1]);
+  for (let k = 1; k <= Math.floor(done); k++) ctx.lineTo(path[k][0], path[k][1]);
+  const f = done - Math.floor(done);
+  if (f > 0 && done < segs) { const a = path[Math.floor(done)], b = path[Math.floor(done) + 1]; ctx.lineTo(a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f); }
+  ctx.strokeStyle = "#d6a50c"; ctx.lineWidth = Math.max(1.4, size * 0.09); ctx.lineJoin = "round"; ctx.lineCap = "round"; ctx.stroke();
   ctx.restore();
 }
-/** The goal's tick, across its numbered square. */
-function goalTick(ctx: Ctx, scene: Scene, i: number, sq: Rect, now: number) {
+/** The goal's star, over its numbered square; `number` writes the number again on top of it. */
+function goalStar(ctx: Ctx, scene: Scene, i: number, sq: Rect, now: number, number: () => void) {
   const key = `done-goal${i}`, pen = penOn(scene, key, now);
   const v = pen?.erasing ? "x" : scene.values[key];
   if (!v) return;
   const p = pen ? (pen.erasing ? 1 : pen.p) : 1;
   if (pen?.erasing) ctx.globalAlpha = 1 - pen.p; // rubbed out: it fades off the page
-  handTick(ctx, sq.x + sq.w / 2, sq.y + sq.h / 2, sq.w, key + sq.w, p);
+  handStar(ctx, sq.x + sq.w / 2, sq.y + sq.h / 2, sq.w, key + sq.w, p);
   ctx.globalAlpha = 1;
+  number();
 }
 /** Today's row, shaded in pencil: soft graphite hatching, the way one shades with the side of a pencil. */
 function todayMark(ctx: Ctx, y: number, xs: number[], right: number, day: number) {
@@ -501,11 +476,12 @@ function drawLeftPage(ctx: Ctx, scene: Scene, vis: Rect, now: number, assets: As
     for (let i = 0; i < GOALS; i++) {
       const p = goalPos(i);
       handBox(ctx, { x: p.x, y: p.y, w: CELL, h: CELL }, "sq" + i);
-      text(ctx, String(i + 1), p.x + CELL / 2, p.y + CELL / 2, { size: 18, weight: 700, seed: "gn" + i, align: "center", baseline: "middle" });
+      const num = () => text(ctx, String(i + 1), p.x + CELL / 2, p.y + CELL / 2, { size: 18, weight: 700, seed: "gn" + i, align: "center", baseline: "middle" });
+      num();
+      goalStar(ctx, scene, i, { x: p.x, y: p.y, w: CELL, h: CELL }, now, num);
       const pen = penOn(scene, `goal${i}`, now);
       const g = pen?.erasing ? pen.text : notes[`goal${i}`];
       if (g) noteText(ctx, g, goalTextBox(i), "goal" + i, { pen });
-      if (g) goalTick(ctx, scene, i, { x: p.x, y: p.y, w: CELL, h: CELL }, now);
     }
   }
 
@@ -514,7 +490,9 @@ function drawLeftPage(ctx: Ctx, scene: Scene, vis: Rect, now: number, assets: As
     for (let i = 0; i < GOALS; i++) {
       const { num, goal, plan } = planBoxes(i);
       handBox(ctx, num, "pq" + i);
-      text(ctx, String(i + 1), num.x + num.w / 2, num.y + num.h / 2, { size: 24, weight: 700, seed: "pn" + i, align: "center", baseline: "middle" });
+      const n = () => text(ctx, String(i + 1), num.x + num.w / 2, num.y + num.h / 2, { size: 24, weight: 700, seed: "pn" + i, align: "center", baseline: "middle" });
+      n();
+      goalStar(ctx, scene, i, num, now, n);
       const gpen = penOn(scene, `goal${i}`, now);
       const g = gpen?.erasing ? gpen.text : notes[`goal${i}`];
       if (g) {
@@ -530,7 +508,6 @@ function drawLeftPage(ctx: Ctx, scene: Scene, vis: Rect, now: number, assets: As
           text(ctx, line, goal.x, goal.y + 19 + j * 21, { size: 18, seed: "pg" + i + j, tilt: 0.25, ...(part ? { reveal: p, from: part.from, erase: gpen!.erasing } : {}) });
           if (part) done += part.chars;
         });
-        goalTick(ctx, scene, i, num, now);
       }
       const ppen = penOn(scene, `plan${i}`, now);
       const pl = ppen?.erasing ? ppen.text : notes[`plan${i}`];
