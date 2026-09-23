@@ -230,18 +230,18 @@ export default function App() {
     const m = stepMonth(month, dir);
     return { scene: sceneOf(m, load(keyOf("values", m), {}), load(keyOf("notes", m), {})), photos: photosNow(keyOf("photos", m)) };
   };
-  /** A month with no goals yet, whose month before left some unreached: offer to take them along, once - when you
-   *  first start writing in it, not when you just leaf through (Lukas). Not in dev (it would sit on top of every
-   *  screenshot in a new month) unless `?husk`. */
+  /** A month with nothing written in it yet, whose month before left goals unreached: offer to take them along
+   *  when you start writing in it, not when you just leaf through - and again next time, until something is
+   *  actually written there (a "Nej tak" followed by nothing may have been a tap in the wrong month) (Lukas).
+   *  Not in dev (it would sit on top of every screenshot in a new month) unless `?husk`. */
   const carryOffer = (m: Month): CarryPrompt | null => {
     if (import.meta.env.DEV && !new URLSearchParams(location.search).has("husk")) return null;
-    const flag = `carry-asked-${m.year}-${m.month}`, mine: Notes = load(keyOf("notes", m), {});
-    if (localStorage.getItem(flag) || Array.from({ length: GOALS }, (_, i) => mine[`goal${i}`]).some((g) => g?.trim())) return null;
+    const mine: Notes = load(keyOf("notes", m), {}), written: Values = load(keyOf("values", m), {});
+    if (Object.keys(written).length || Object.values(mine).some((t) => t?.trim())) return null;
     const from = stepMonth(m, -1), n: Notes = load(keyOf("notes", from), {}), v: Values = load(keyOf("values", from), {});
     const items = Array.from({ length: GOALS }, (_, i) => i).filter((i) => n[`goal${i}`]?.trim() && !v[`done-goal${i}`])
       .map((i) => ({ goal: n[`goal${i}`]!.trim(), plan: n[`plan${i}`] ?? "" }));
     if (!items.length) return null;
-    localStorage.setItem(flag, "1"); // asked once, whatever the answer
     return { kind: "carry", from, items, pick: items.map(() => true) };
   };
   /** Write the chosen goals (and how to reach them) into this month's empty list, one after another with the pen.
@@ -456,14 +456,14 @@ export default function App() {
     savePhotos({ ...photos, [fileSlot.current]: await shrink(file) });
   };
 
-  const onTap = (wx: number, wy: number) => {
+  const onTap = (wx: number, wy: number, declined = false) => {
     const hit = hitTest(wx, wy, columns, DAYS, notes);
     if (!hit) return;
-    if (hit.kind === "cell" || hit.kind === "note") {
+    if ((hit.kind === "cell" || hit.kind === "note") && !declined) {
       // the first thing written in a new month: the goals left over from the one before come first. Declined,
       // the tap goes on to what it was for.
       const offer = carryOffer(month);
-      if (offer) return setPrompt({ ...offer, then: () => onTap(wx, wy) });
+      if (offer) return setPrompt({ ...offer, then: () => onTap(wx, wy, true) });
     }
     if (hit.kind === "cell") {
       const { day, col } = hit, key = `${day}:${col.id}`;

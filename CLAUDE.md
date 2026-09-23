@@ -210,9 +210,10 @@ Rækker = dage 1–31 (antal efter måneden). Kolonner = brugerens egne trackere
   css hentes med Origin-header, serveren svarer "Vary: Origin" → ingen match uden). Kun i build, ikke i dev.
   `npm run build && node tools/offlinecheck.mjs` (stopper serveren; Playwrights setOffline blokerer også SW'ens svar).
   Nye filer i public/, som bogen skal bruge, SKAL på `PUBLIC_KEEP`.
-- **Ufærdige mål med til ny måned** (`carryOffer`/`carry`): en måned uden mål, hvis forrige måned har mål uden
-  stjerne, spørger én gang (`carry-asked-år-md`) – FØRSTE GANG MAN TRYKKER FOR AT SKRIVE i den (celle eller
-  tekstfelt), IKKE ved bladring (Lukas). "Nej tak"/✕ fortsætter til det, man trykkede på. Mål + plan skrives ind med
+- **Ufærdige mål med til ny måned** (`carryOffer`/`carry`): en HELT TOM måned, hvis forrige måned har mål uden
+  stjerne, spørger når man trykker for at skrive (celle eller tekstfelt), IKKE ved bladring – og BLIVER VED med at
+  spørge, indtil der står noget i måneden (Lukas: et "Nej tak" kan have været et tryk i den forkerte måned). Intet
+  flag. "Nej tak"/✕ fortsætter til det, man trykkede på (`onTap(wx, wy, true)` – uden `declined` spurgte den straks igen). Mål + plan skrives ind med
   pennen ét felt ad gangen. Vises ikke i dev uden `?husk`. `node tools/carrycheck.mjs screenshots/carry`.
 - **NEJ til "udfyld i dag med ét tryk"** (Lukas 23/9). Foreslå det ikke igen.
 - Stadig på listen, ikke valgt endnu: streg punkter over, kuglepen/blyant, morgen/middag/nat.

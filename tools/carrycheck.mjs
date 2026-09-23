@@ -1,5 +1,5 @@
 // A new month offers the goals the month before did not reach, when you start writing in it (not when you turn to
-// it): node tools/carrycheck.mjs screenshots/carry
+// it), and keeps asking until something is written there: node tools/carrycheck.mjs screenshots/carry
 // September's demo has six goals; goal 2 is marked reached, so five should be offered for October.
 import { chromium } from "playwright";
 import { withServer, URL } from "./server.mjs";
@@ -28,13 +28,22 @@ await withServer(async () => {
   const goals = [0, 1, 2, 3, 4, 5].map((i) => oct["goal" + i] ?? null);
   console.log({ onTurn, offered: offered.length, goals, plan0: oct.plan0, again });
   console.log(!onTurn && offered.length === 5 && goals.filter(Boolean).length === 4 && !again ? "OK" : "FEJL");
-  // declined, the tap goes on to what it was for: a fresh November asks, "Nej tak" opens the goal's own sheet
+  // declined, the tap goes on to what it was for; and until something is written in the month, it asks again
   await page.click(".sheet-x"); await page.waitForTimeout(400); // the goal's own sheet from the tap above
-  await page.click(".turn.next"); await page.waitForTimeout(2500);
-  await page.evaluate(() => window.__tap(300, 90)); await page.waitForTimeout(600);
+  await page.click(".turn.next"); await page.waitForTimeout(2500); // November, empty
+  const tapGoal = async () => { await page.evaluate(() => window.__tap(300, 90)); await page.waitForTimeout(600); };
+  await tapGoal();
   const asked = await page.isVisible(".carry-list");
   await page.click(".sheet .ghost"); await page.waitForTimeout(600);
   const title = await page.textContent(".sheet-head h2").catch(() => null);
-  console.log({ asked, efterNejTak: title }, asked && title === "Mål 1" ? "OK" : "FEJL");
+  await page.click(".sheet-x"); await page.waitForTimeout(400); // closed without writing anything
+  await tapGoal();
+  const askedAgain = await page.isVisible(".carry-list");
+  await page.click(".sheet .ghost"); await page.waitForTimeout(400); await page.click(".sheet-x"); await page.waitForTimeout(400);
+  await page.evaluate(() => window.__tap(838, 214)); await page.waitForTimeout(600); // an X in day 1 ... asks first
+  await page.click(".sheet .ghost"); await page.waitForTimeout(600); // "Nej tak": the X is written
+  await tapGoal();
+  const afterWriting = await page.isVisible(".carry-list");
+  console.log({ asked, efterNejTak: title, askedAgain, afterWriting }, asked && title === "Mål 1" && askedAgain && !afterWriting ? "OK" : "FEJL");
   await browser.close();
 });
