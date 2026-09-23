@@ -207,7 +207,10 @@ Rækker = dage 1–31 (antal efter måneden). Kolonner = brugerens egne trackere
   blyantsmærke (`todayMark` i draw.ts, `scene.today`; `?idag=N` til billeder).
 - **Flueben ved nået mål**: knappen "Nået ✓" i målets skriveflade, gemt i values som `done-goalN`, tegnet med
   pennen (`handTick`/`goalTick`) både i listen og i det store felt.
-- **Tape på billederne** (`tape()` i draw.ts): gennemsigtig maskeringstape, to strimler, hjørnerne vælges pr. billede.
+- **Fotohjørner** (`photoCorners()` i draw.ts) efter Lukas' billede: lyse kartonlommer på alle fire hjørner. Tapen er
+  FJERNET (Lukas: "ser ikke godt ud").
+- **Fluebenet** tegnes som blæk-flader (ikke en jævn streg; første udgave var "alt for fake"): tryk der vokser ind i
+  V'et og slipper tyndt, kanter der vandrer hver for sig, dobbelt blæk hvor stregerne krydser.
 - **Flueben** = Lukas' eget billede: stort, tykt, tre tern højt, ud over stregerne. Fem slags i `TICKS`, én pr.
   mål (seed), plus jitter. Dagens række = blyantsskravering (hans valg; pil og ring er slettet).
 - **Lyd** (`src/sound.ts`): tre optagelser lavet i Higgsfield (mirelo_text_to_audio), `public/lyd/`, råfiler i

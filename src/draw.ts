@@ -180,34 +180,55 @@ const TICKS: { a: number[]; b: number[]; c: number[]; bendA: number; bendC: numb
   { a: [-0.6, -0.5], b: [0.0, 0.8], c: [1.05, -2.35], bendA: -0.03, bendC: 0 },                  // sharp and narrow
   { a: [-0.85, 0.1], b: [-0.1, 0.85], c: [1.3, -2.15], bendA: 0.08, bendC: 0.12, flick: 0.18 },  // loose, flicks off
 ];
-/** A tick drawn with a felt-tip hand, centred on the square (cx, cy) of side `size`. The stroke thickens into the
- *  bottom of the V and thins out as the pen flies off. `progress` 0..1 is how far the pen has got. */
+/** A tick drawn by hand, centred on the square (cx, cy) of side `size`. Each stroke is its own ink shape, not a
+ *  tube: the pen lands light, presses into the bottom of the V, and lifts off thin at the end; the edges wander a
+ *  little, each side on its own, and where the two strokes cross the ink lies twice and goes darker. `progress`
+ *  0..1 is how far the pen has got. */
 function handTick(ctx: Ctx, cx: number, cy: number, size: number, seed: string, progress = 1) {
   const r = seededRandom(seed), j = (a: number) => (r() - 0.5) * 2 * a;
   const t = TICKS[Math.floor(r() * TICKS.length)];
   const P = (p: number[], a: number) => [p[0] + j(a), p[1] + j(a)];
   const a = P(t.a, 0.12), b = P(t.b, 0.1), c = P(t.c, 0.2);
-  // the path, as points along it: [x, y, width factor]
-  const pts: number[][] = [];
-  const quad = (p: number[], q: number[], bend: number, w0: number, w1: number, n: number) => {
+  /** Points along a curved stroke: [x, y] in square units. */
+  const curve = (p: number[], q: number[], bend: number, n: number) => {
     const mx = (p[0] + q[0]) / 2 - (q[1] - p[1]) * bend, my = (p[1] + q[1]) / 2 + (q[0] - p[0]) * bend;
-    for (let k = pts.length ? 1 : 0; k <= n; k++) {
-      const u = k / n, v = 1 - u;
-      pts.push([v * v * p[0] + 2 * v * u * mx + u * u * q[0], v * v * p[1] + 2 * v * u * my + u * u * q[1], w0 + (w1 - w0) * u]);
-    }
+    return Array.from({ length: n + 1 }, (_, k) => { const u = k / n, v = 1 - u; return [v * v * p[0] + 2 * v * u * mx + u * u * q[0], v * v * p[1] + 2 * v * u * my + u * u * q[1]]; });
   };
-  if (t.hook) quad([a[0] - t.hook * 0.6, a[1] + t.hook], a, 0.2, 0.45, 0.7, 6);
-  quad(a, b, t.bendA + j(0.03), 0.8, 1, 14);
-  quad(b, c, t.bendC + j(0.04), 1, 0.62, 30);
-  if (t.flick) quad(c, [c[0] + t.flick, c[1] - t.flick * 0.15], -0.2, 0.62, 0.4, 6);
-  const W = size * (0.21 + j(0.025)), shown = Math.round(progress * (pts.length - 1));
+  const down = [...(t.hook ? curve([a[0] - t.hook * 0.6, a[1] + t.hook], a, 0.2, 6).slice(0, -1) : []), ...curve(a, b, t.bendA + j(0.03), 16)];
+  const up = [...curve(b, c, t.bendC + j(0.04), 36), ...(t.flick ? curve(c, [c[0] + t.flick, c[1] - t.flick * 0.15], -0.2, 6).slice(1) : [])];
+  const W = 0.17 + j(0.02);
+  // slow wobbles: the hand is not a ruler (drift of the line, and of each edge on its own)
+  const wave = () => { const f = 1.5 + r() * 2, ph = r() * 6.3, amp = r(); return (u: number) => amp * Math.sin(u * f * 6.3 + ph); };
+  /** One stroke as a filled shape. `press` gives the width along it (0..1 in, 0..1 out). */
+  const stroke = (pts: number[][], press: (u: number) => number, part: number) => {
+    const n = Math.round(part * (pts.length - 1));
+    if (n < 1) return;
+    const drift = wave(), eL = wave(), eR = wave(), left: number[][] = [], right: number[][] = [];
+    for (let k = 0; k <= n; k++) {
+      const u = k / (pts.length - 1), p = pts[k], q = pts[Math.min(pts.length - 1, k + 1)], o = pts[Math.max(0, k - 1)];
+      let nx = -(q[1] - o[1]), ny = q[0] - o[0];
+      const l = Math.hypot(nx, ny) || 1; nx /= l; ny /= l;
+      const x = p[0] + nx * drift(u) * 0.018, y = p[1] + ny * drift(u) * 0.018;
+      const w = (W * press(u)) / 2;
+      left.push([x + nx * w * (1 + eL(u) * 0.12), y + ny * w * (1 + eL(u) * 0.12)]);
+      right.push([x - nx * w * (1 + eR(u) * 0.12), y - ny * w * (1 + eR(u) * 0.12)]);
+    }
+    ctx.beginPath();
+    left.forEach(([x, y], k) => (k ? ctx.lineTo(x, y) : ctx.moveTo(x, y)));
+    const e = right[n], f = left[n];
+    ctx.quadraticCurveTo((e[0] + f[0]) / 2 + (pts[n][0] - pts[Math.max(0, n - 1)][0]) * 0.6, (e[1] + f[1]) / 2 + (pts[n][1] - pts[Math.max(0, n - 1)][1]) * 0.6, e[0], e[1]); // the round end of the nib
+    for (let k = n - 1; k >= 0; k--) ctx.lineTo(right[k][0], right[k][1]);
+    ctx.closePath();
+    ctx.fill();
+  };
   ctx.save();
   ctx.translate(cx, cy); ctx.rotate(j(0.1)); ctx.scale(size, size);
-  ctx.strokeStyle = "#15161c"; ctx.lineCap = "round"; ctx.lineJoin = "round";
-  for (let k = 1; k <= shown; k++) {
-    ctx.beginPath(); ctx.moveTo(pts[k - 1][0], pts[k - 1][1]); ctx.lineTo(pts[k][0], pts[k][1]);
-    ctx.lineWidth = (W * pts[k][2]) / size; ctx.stroke();
-  }
+  ctx.fillStyle = INK; ctx.globalAlpha *= 0.88;
+  const share = down.length / (down.length + up.length);
+  // lands light, presses harder into the V
+  stroke(down, (u) => 0.55 + 0.45 * Math.sin(Math.min(1, u * 1.3) * Math.PI / 2), Math.min(1, progress / share));
+  // leaves the V pressed, then lets go: thin and fast at the end
+  stroke(up, (u) => (u < 0.55 ? 1 - u * 0.25 : 0.86 * Math.pow(1 - (u - 0.55) / 0.45, 0.8) + 0.08), Math.max(0, (progress - share) / (1 - share)));
   ctx.restore();
 }
 /** The goal's tick, across its numbered square. */
@@ -231,52 +252,38 @@ function todayMark(ctx: Ctx, y: number, xs: number[], right: number, day: number
   ctx.stroke();
   ctx.restore();
 }
-/** Two strips of masking tape across the photo's top corners, in the photo's own (centred, turned) coordinates.
- *  The tape is see-through, crinkled across, torn at the ends, and lifts a faint shadow off what is under it. */
-function tape(ctx: Ctx, w: number, h: number, seed: string) {
-  const r = seededRandom(seed + "tape"), m = Math.min(w, h);
-  const T = Math.max(10, Math.min(16, m * 0.12)), L = Math.max(26, Math.min(52, m * 0.34));
-  const strip = (x: number, y: number, angle: number) => {
-    const len = L * (0.9 + r() * 0.2);
-    // the outline: straight long edges, finely torn short ends
-    const outline: number[][] = [];
-    const teeth = (x0: number, down: boolean) => {
-      const n = 7 + Math.floor(r() * 4);
-      for (let k = 0; k <= n; k++) {
-        const u = down ? k / n : 1 - k / n;
-        outline.push([x0 + (x0 > 0 ? 1 : -1) * (k % 2 ? 0.4 + r() * 1.3 : -(r() * 0.6)), -T / 2 + T * u]);
-      }
-    };
-    teeth(len / 2, true);
-    teeth(-len / 2, false);
-    const path = (dx: number, dy: number) => {
-      ctx.beginPath();
-      outline.forEach(([px, py], k) => (k ? ctx.lineTo(px + dx, py + dy) : ctx.moveTo(px + dx, py + dy)));
-      ctx.closePath();
-    };
-    ctx.save();
-    ctx.translate(x, y); ctx.rotate(angle + (r() - 0.5) * 0.18);
-    ctx.fillStyle = "rgba(40,30,15,.07)"; path(0.5, 1.1); ctx.fill(); path(1, 1.8); ctx.fill(); // a faint shadow
-    path(0, 0);
-    ctx.fillStyle = "rgba(232,222,194,.6)"; ctx.fill();
-    ctx.save(); ctx.clip();
-    // a little lighter down the middle, where it is pressed flat
-    const g = ctx.createLinearGradient(0, -T / 2, 0, T / 2);
-    g.addColorStop(0, "rgba(255,255,255,0)"); g.addColorStop(0.5, "rgba(255,252,240,.18)"); g.addColorStop(1, "rgba(120,100,60,.08)");
-    ctx.fillStyle = g; ctx.fillRect(-len, -T, 2 * len, 2 * T);
-    // the crepe of masking tape: fine creases across it
-    ctx.lineWidth = 0.35;
-    for (let cx = -len / 2; cx < len / 2; cx += 0.9 + r() * 1.6) {
-      ctx.strokeStyle = r() < 0.5 ? "rgba(120,100,60,.10)" : "rgba(255,255,255,.14)";
-      ctx.beginPath(); ctx.moveTo(cx, -T / 2); ctx.lineTo(cx + (r() - 0.5) * 1.2, T / 2); ctx.stroke();
+/** Photo corners holding the picture in, as in an old album (Lukas' picture): a little pocket of cream card over
+ *  each corner, standing a hair out past the photo, pressed flat along its fold, and throwing a soft shadow onto
+ *  the picture along its inner edge. In the photo's own (centred, turned) coordinates. */
+function photoCorners(ctx: Ctx, w: number, h: number, seed: string) {
+  const r = seededRandom(seed + "corners"), c = Math.max(14, Math.min(34, Math.min(w, h) * 0.22)), out = 2.5;
+  for (const [sx, sy] of [[-1, -1], [1, -1], [1, 1], [-1, 1]]) {
+    const x = (sx * w) / 2 + sx * out, y = (sy * h) / 2 + sy * out, k = c * (0.95 + r() * 0.1);
+    // the corner point, and the two ends of its fold, which lies across the picture
+    const A = [x, y], B = [x - sx * k, y], C = [x, y - sy * k];
+    const tri = (dx: number, dy: number) => { ctx.beginPath(); ctx.moveTo(A[0] + dx, A[1] + dy); ctx.lineTo(B[0] + dx, B[1] + dy); ctx.lineTo(C[0] + dx, C[1] + dy); ctx.closePath(); };
+    ctx.fillStyle = "rgba(30,22,10,.16)"; tri(0.9, 1.5); ctx.fill(); tri(1.8, 3); ctx.fill(); // its shadow on the page
+    // the shadow the pocket's edge throws onto the picture, just inside the fold
+    const ix = -sx, iy = -sy;
+    for (const [d, a, wd] of [[1.2, 0.3, 1.4], [2.6, 0.14, 2.6]]) {
+      ctx.beginPath(); ctx.moveTo(B[0] + ix * d * 0.3, B[1] + iy * d); ctx.lineTo(C[0] + ix * d, C[1] + iy * d * 0.3);
+      ctx.strokeStyle = `rgba(0,0,0,${a})`; ctx.lineWidth = wd; ctx.stroke();
     }
-    ctx.restore();
-    ctx.strokeStyle = "rgba(120,100,60,.14)"; ctx.lineWidth = 0.5; path(0, 0); ctx.stroke();
-    ctx.restore();
-  };
-  // not every photo is taped the same way: the two top corners, or two opposite ones
-  const corners = [[[-1, -1], [1, -1]], [[-1, -1], [1, 1]], [[1, -1], [-1, 1]]][Math.floor(r() * 3)];
-  for (const [sx, sy] of corners) strip((sx * w) / 2 - sx * 2, (sy * h) / 2 - sy * 2, (sx * sy * Math.PI) / 4);
+    tri(0, 0);
+    // card: shaded from the corner (in its own shadow) to the fold (catching the light)
+    const mx = (B[0] + C[0]) / 2, my = (B[1] + C[1]) / 2;
+    const g = ctx.createLinearGradient(A[0], A[1], mx, my);
+    g.addColorStop(0, "#cfc2a4"); g.addColorStop(0.6, "#e2d7bd"); g.addColorStop(1, "#efe6d0");
+    ctx.fillStyle = g; ctx.fill();
+    ctx.strokeStyle = "rgba(90,72,40,.45)"; ctx.lineWidth = 0.7; ctx.stroke();
+    // an embossed rim just inside the two outer edges, and the fold itself as a bright ridge
+    const inset = 1.6;
+    ctx.beginPath();
+    ctx.moveTo(B[0] + sx * 2.6, B[1] - sy * inset); ctx.lineTo(A[0] - sx * inset, A[1] - sy * inset); ctx.lineTo(C[0] - sx * inset, C[1] + sy * 2.6);
+    ctx.strokeStyle = "rgba(255,250,235,.45)"; ctx.lineWidth = 0.8; ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(B[0] + sx * 0.8, B[1] - sy * 0.5); ctx.lineTo(C[0] - sx * 0.5, C[1] + sy * 0.8);
+    ctx.strokeStyle = "rgba(255,253,245,.9)"; ctx.lineWidth = 1.1; ctx.stroke();
+  }
 }
 
 /** Word-wrap: layout.ts owns it, so the hit-test counts the same rows as the drawing. */
@@ -325,7 +332,7 @@ function handBox(ctx: Ctx, b: Rect, seed: string, width = 1.3, alpha = 0.85) {
   strokeInk(ctx, width, alpha);
 }
 
-/** A photo taped into the book: a white border, a little askew, with a shadow under it. An empty slot is a
+/** A photo in the book, held by its corners: a black border, a little askew, with a shadow under it. An empty slot is a
  *  faint hand-drawn frame with a + in it, so you can see where one can go. */
 function photo(ctx: Ctx, box: Rect, img: ImageBitmap | undefined, seed: string) {
   if (!img) {
@@ -345,7 +352,7 @@ function photo(ctx: Ctx, box: Rect, img: ImageBitmap | undefined, seed: string) 
   const sc = Math.max((box.w - 2 * B) / img.width, (box.h - 2 * B) / img.height); // fill the frame, crop the overhang
   ctx.drawImage(img, (-img.width * sc) / 2, (-img.height * sc) / 2, img.width * sc, img.height * sc);
   ctx.restore();
-  tape(ctx, box.w, box.h, seed);
+  photoCorners(ctx, box.w, box.h, seed);
   ctx.restore();
 }
 
