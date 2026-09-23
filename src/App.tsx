@@ -152,6 +152,11 @@ type Prompt = ValuePrompt | ColumnPrompt | NotePrompt | SettingsPrompt | PhotoPr
  *  front. A written line has a black dot, the empty one at the end a faint one: that is where the next point goes. */
 function Lines({ value, bullets }: { value: string; bullets: boolean }) {
   const [rows, setRows] = useState<string[]>(() => [...value.split("\n").filter((l) => l.trim()), ""]);
+  // the caret starts on the empty line at the BOTTOM: opening a box is nearly always to add a point, not to edit
+  // the first one (Lukas). Once, when the sheet opens: as autoFocus on "the last line" it followed every new line
+  // that typing adds, and jumped down a line with each letter.
+  const box = useRef<HTMLDivElement>(null);
+  useEffect(() => { box.current?.querySelector<HTMLInputElement>(".line:last-child input")?.focus(); }, []);
   const set = (i: number, v: string) => {
     const next = [...rows];
     next[i] = v;
@@ -171,14 +176,12 @@ function Lines({ value, bullets }: { value: string; bullets: boolean }) {
     }
   };
   return (
-    <div className="lines">
+    <div className="lines" ref={box}>
       <input type="hidden" name="v" value={rows.map((r) => r.trim()).filter(Boolean).join("\n")} />
       {rows.map((r, i) => (
         <div className="line" key={i}>
           {bullets && <span className={r.trim() ? "dot" : "dot empty"}>•</span>}
-          {/* the caret starts on the empty line at the BOTTOM: opening a box is nearly always to add a point,
-              not to edit the first one (Lukas) */}
-          <input value={r} autoFocus={i === rows.length - 1} enterKeyHint="next" onKeyDown={(e) => onKey(e, i)} onChange={(e) => set(i, e.target.value)} />
+          <input value={r} enterKeyHint="next" onKeyDown={(e) => onKey(e, i)} onChange={(e) => set(i, e.target.value)} />
         </div>
       ))}
     </div>

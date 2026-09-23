@@ -1,4 +1,4 @@
-// Which line the caret lands on when a writing sheet opens: node tools/focuscheck.mjs
+// Which line the caret lands on when a writing sheet opens, and that a typed sentence stays on it: node tools/focuscheck.mjs
 import { chromium } from "playwright";
 import { withServer, URL } from "./server.mjs";
 await withServer(async () => {
@@ -18,6 +18,13 @@ await withServer(async () => {
       return { title: document.querySelector(".sheet-head h2")?.textContent, linjer: inputs.length, markoer: i, tom: i >= 0 ? el.value === "" : null, synlig };
     });
     console.log(name, "->", JSON.stringify(out));
+    // typing a sentence must stay on the line the caret started on (it jumped down a line per letter, 23/9)
+    await page.keyboard.type("Hej med dig", { delay: 20 });
+    const typed = await page.evaluate(() => {
+      const inputs = [...document.querySelectorAll(".line input:not([type=hidden])")];
+      return { markoer: inputs.indexOf(document.activeElement), tekst: document.activeElement?.value };
+    });
+    console.log("   skrevet ->", JSON.stringify(typed), typed.tekst === "Hej med dig" ? "OK" : "FEJL");
     await page.evaluate(() => document.querySelector(".sheet-x")?.click());
     await page.waitForTimeout(300);
   }
