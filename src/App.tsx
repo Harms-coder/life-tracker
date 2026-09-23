@@ -8,7 +8,7 @@ import { BOOK_H, BOOK_W, GOALS, columnXs, dotX, hitTest, NOTE_LABEL, RIGHT_PAGE,
 import { seededRandom } from "./random";
 import { HANDS, setHand, type Hand } from "./glyf";
 import { migrate as migratePhotos, photosNow, save as savePhotosTo, warm as warmPhotos } from "./photos";
-import { clearMonth, download as downloadBackup, restore as restoreBackup } from "./backup";
+import { allMonths, clearMonth, download as downloadBackup, restore as restoreBackup } from "./backup";
 import { eraseSound, penSound, setSoundOn, soundOn } from "./sound";
 
 declare const __BUILD__: string; // set in vite.config.ts
@@ -144,12 +144,14 @@ type ValuePrompt = { kind: "value"; key: string; label: string; value: string; r
 type ColumnPrompt = { kind: "column"; index: number; column: Column }; // index -1 = new
 type SettingsPrompt = { kind: "settings" };
 type ReminderPrompt = { kind: "reminder" };
+/** Go straight to a month: every month with something in it, and this one. */
+type MonthsPrompt = { kind: "months"; list: Month[] };
 /** Goals the month before did not reach, offered to a new, empty month: `pick` = which are ticked to go along. */
 type Carried = { goal: string; plan: string };
 type CarryPrompt = { kind: "carry"; from: Month; items: Carried[]; pick: boolean[]; then?: () => void };
 type PhotoPrompt = { kind: "photo"; slot: string };
 type NotePrompt = { kind: "note"; field: NoteField; label: string; value: string; bullets: boolean };
-type Prompt = ValuePrompt | ColumnPrompt | NotePrompt | SettingsPrompt | PhotoPrompt | ReminderPrompt | CarryPrompt;
+type Prompt = ValuePrompt | ColumnPrompt | NotePrompt | SettingsPrompt | PhotoPrompt | ReminderPrompt | CarryPrompt | MonthsPrompt;
 
 /** The text you write is a list of points, one line each - the same lines the book draws, with the same dot in
  *  front. A written line has a black dot, the empty one at the end a faint one: that is where the next point goes. */
@@ -225,9 +227,22 @@ export default function App() {
   const [photos, setPhotos] = useState<Photos>(() => photosNow(keyOf("photos", month)));
   const DAYS = daysOf(month), VALUES_KEY = keyOf("values", month), NOTES_KEY = keyOf("notes", month), PHOTOS_KEY = keyOf("photos", month);
   const sceneOf = (m: Month, v: Values, n: Notes): Scene => ({ ...m, monthLabel: labelOf(m), days: daysOf(m), columns, values: v, notes: n, writing: null, hand, headPos: HEAD_POS || undefined, today: todayIn(m) });
+  /** Where a leaf being turned lands: the next month that way, or the one picked in the month list. */
+  const jump = useRef<Month | null>(null);
+  const landing = (dir: 1 | -1) => jump.current ?? stepMonth(month, dir);
+  /** Turn straight to `m`: one leaf, whichever way it lies. Its pictures are fetched first, so the back of the
+   *  leaf shows them. */
+  const jumpTo = async (m: Month) => {
+    setPrompt(null);
+    const diff = (m.year - month.year) * 12 + m.month - month.month;
+    if (!diff) return;
+    await warmPhotos(keyOf("photos", m));
+    jump.current = m;
+    if (!book.current?.turn(diff > 0 ? 1 : -1)) jump.current = null; // busy: nothing turned, the next arrow must not go there
+  };
   /** The spread on the other side of a leaf turned in `dir`, read straight from storage. */
   const otherScene = (dir: 1 | -1) => {
-    const m = stepMonth(month, dir);
+    const m = landing(dir);
     return { scene: sceneOf(m, load(keyOf("values", m), {}), load(keyOf("notes", m), {})), photos: photosNow(keyOf("photos", m)) };
   };
   /** A month with nothing written in it yet, whose month before left goals unreached: offer to take them along
@@ -266,7 +281,8 @@ export default function App() {
   };
   /** The leaf has landed: the book is open at that month now. */
   const onTurned = (dir: 1 | -1) => {
-    const m = stepMonth(month, dir);
+    const m = landing(dir);
+    jump.current = null;
     dropUndo(); // it would put back something in the month just left
     setMonth(m); setValues(load(keyOf("values", m), {})); setNotes(load(keyOf("notes", m), {})); setPhotos(photosNow(keyOf("photos", m)));
   };
@@ -471,6 +487,16 @@ export default function App() {
   const onTap = (wx: number, wy: number, declined = false) => {
     const hit = hitTest(wx, wy, columns, DAYS, notes);
     if (!hit) return;
+    if (hit.kind === "title") {
+      allMonths().then((keys) => {
+        const now = new Date(), seen = new Set<string>();
+        const list = [...keys.map((k) => ({ year: +k.split("-")[0], month: +k.split("-")[1] })), month, { year: now.getFullYear(), month: now.getMonth() + 1 }]
+          .filter((m) => !seen.has(`${m.year}-${m.month}`) && !!seen.add(`${m.year}-${m.month}`))
+          .sort((a, b) => a.year - b.year || a.month - b.month);
+        setPrompt({ kind: "months", list });
+      });
+      return;
+    }
     if ((hit.kind === "cell" || hit.kind === "note") && !declined) {
       // the first thing written in a new month: the goals left over from the one before come first. Declined,
       // the tap goes on to what it was for.
@@ -557,6 +583,21 @@ export default function App() {
             <button type="button" className="ghost" onClick={() => { close(); prompt.then?.(); }}>Nej tak</button>
             <button type="button" className="primary" disabled={!prompt.pick.some(Boolean)} onClick={() => carry(prompt)}>Tag med</button>
           </div>
+        </Sheet>
+      )}
+      {prompt?.kind === "months" && (
+        <Sheet title="Gå til måned" onClose={close}>
+          {[...new Set(prompt.list.map((m) => m.year))].map((y) => (
+            <div key={y}>
+              <p className="sheet-label">{y}</p>
+              <div className="chips months">
+                {prompt.list.filter((m) => m.year === y).map((m) => (
+                  <button type="button" key={m.month} className={"chip" + (m.year === month.year && m.month === month.month ? " on" : "")}
+                          onClick={() => jumpTo(m)}>{MONTHS_DA[m.month - 1].slice(0, 3)}</button>
+                ))}
+              </div>
+            </div>
+          ))}
         </Sheet>
       )}
       {prompt?.kind === "settings" && (

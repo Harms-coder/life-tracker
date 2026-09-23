@@ -20,7 +20,7 @@ function readJSON<T>(key: string, fallback: T): T {
 }
 
 /** Every "<year>-<month>" the book knows about, from either store. */
-async function allMonths(): Promise<string[]> {
+export async function allMonths(): Promise<string[]> {
   const found = new Set<string>();
   for (let i = 0; i < localStorage.length; i++) {
     const m = MONTH_KEY_RE.exec(localStorage.key(i) ?? "");

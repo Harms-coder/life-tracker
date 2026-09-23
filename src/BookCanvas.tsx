@@ -37,8 +37,9 @@ export type BookCanvasHandle = {
   refresh: () => void;
   /** the photos in the book changed: they go to the worker with the next drawing */
   setPhotos: (photos: Record<string, string>) => void;
-  /** turn a leaf: +1 forward (the right page swings over), -1 back - where you are, zoomed in or not. */
-  turn: (dir: 1 | -1) => void;
+  /** turn a leaf: +1 forward (the right page swings over), -1 back - where you are, zoomed in or not. False if
+   *  the book is busy (a leaf already on its way) and nothing happened. */
+  turn: (dir: 1 | -1) => boolean;
 };
 
 /**
@@ -298,10 +299,11 @@ export const BookCanvas = forwardRef<BookCanvasHandle, {
 
   useImperativeHandle(ref, () => ({
     turn: (dir) => {
-      if (turn.current || busy() || !t.current.s) return;
+      if (turn.current || busy() || !t.current.s) return false;
       beginTurn(dir, 0.6); // held by the bottom corner, as one does
       // the leaf goes once the other spread's picture is up (its back shows it), or after a moment regardless
       awaitNext.current = window.setTimeout(() => { awaitNext.current = 0; if (turn.current && !turn.current.anim) settleTurn(1); }, 600);
+      return true;
     },
     redraw: () => { if (t.current.s) render(); },
     // The visible part is redrawn at once; the whole-spread stand-in follows once the writing stops. Dragging a

@@ -131,7 +131,8 @@ export type Hit =
   | { kind: "header"; index: number }
   | { kind: "add" }
   | { kind: "note"; field: NoteField }
-  | { kind: "photo"; slot: string };
+  | { kind: "photo"; slot: string }
+  | { kind: "title" };
 
 const inRect = (r: Rect, x: number, y: number) => x >= r.x && x < r.x + r.w && y >= r.y && y < r.y + r.h;
 
@@ -140,6 +141,7 @@ export function hitTest(wx: number, wy: number, columns: Column[], days: number,
   // left page: goals, the plan under each of them, and the photos along the bottom
   const lx = wx - LEFT_PAGE.x, ly = wy - LEFT_PAGE.y;
   if (lx >= 0 && lx < PAGE_W && ly >= 0 && ly < PAGE_H) {
+    if (inRect({ x: 0, y: 0, w: TITLE_BOX_X, h: TITLE_BOX_Y }, lx, ly)) return { kind: "title" }; // the month's name: go to another
     for (let i = 0; i < GOALS; i++) {
       const b = goalTextBox(i), p = goalPos(i);
       if (inRect(b, lx, ly) || inRect({ x: p.x, y: p.y, w: CELL, h: CELL }, lx, ly)) return { kind: "note", field: `goal${i}` };
